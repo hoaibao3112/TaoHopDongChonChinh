@@ -19,7 +19,6 @@ describe('Validation Schema Hợp Đồng (Zod)', () => {
       {
         name: 'Trấu',
         quantity: 200000,
-        unit: 'kg',
         unitPrice: 1800,
       },
     ],
@@ -87,7 +86,6 @@ describe('Validation Schema Hợp Đồng (Zod)', () => {
         {
           name: 'Trấu',
           quantity: 0,
-          unit: 'kg',
           unitPrice: 1800,
         },
       ],
@@ -102,7 +100,6 @@ describe('Validation Schema Hợp Đồng (Zod)', () => {
         {
           name: 'Trấu',
           quantity: 100,
-          unit: 'kg',
           unitPrice: 0,
         },
       ],

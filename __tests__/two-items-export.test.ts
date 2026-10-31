@@ -21,7 +21,6 @@ describe('Kiểm tra xuất hợp đồng với 2 mặt hàng (theo yêu cầu c
         stt: idx + 1,
         name: item.name,
         quantity: formatVND(item.quantity),
-        unit: item.unit,
         unit_price: formatVND(item.unitPrice),
         total: formatVND(lineTotal),
       };
@@ -58,8 +57,6 @@ describe('Kiểm tra xuất hợp đồng với 2 mặt hàng (theo yêu cầu c
       b_mst: '1201695642',
       b_representative: 'MAI TRẦN ĐĂNG GIANG',
       b_title: 'Phó Giám đốc',
-      b_bank_account: '',
-      b_bank_name: '',
       b_signer_name: 'MAI TRẦN ĐĂNG GIANG',
 
       delivery_start_date: '25/09/2026',

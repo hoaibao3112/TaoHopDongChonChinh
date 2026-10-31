@@ -51,7 +51,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         stt: index + 1,
         name: item.name,
         quantity: formatVND(item.quantity),
-        unit: item.unit,
         unit_price: formatVND(item.unitPrice),
         total: formatVND(lineTotal),
       };
@@ -85,8 +84,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       b_mst: form.bMst,
       b_representative: form.bRepresentative,
       b_title: form.bTitle,
-      b_bank_account: form.bBankAccount ? `Tài khoản: ${form.bBankAccount}` : '',
-      b_bank_name: form.bBankName ? `Ngân hàng: ${form.bBankName}` : '',
       b_signer_name: form.bRepresentative,
 
       // Điều khoản

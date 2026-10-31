@@ -28,8 +28,6 @@ describe('Render File Hợp Đồng .docx (renderContractDocx)', () => {
       b_mst: '1201695642',
       b_representative: 'MAI TRẦN ĐĂNG GIANG',
       b_title: 'Phó Giám đốc',
-      b_bank_account: '',
-      b_bank_name: '',
       b_signer_name: 'MAI TRẦN ĐĂNG GIANG',
 
       delivery_start_date: '25/09/2026',
@@ -42,7 +40,6 @@ describe('Render File Hợp Đồng .docx (renderContractDocx)', () => {
           stt: 1,
           name: 'Trấu xay',
           quantity: '200.000',
-          unit: 'kg',
           unit_price: '1.800',
           total: '360.000.000',
         },

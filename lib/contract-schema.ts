@@ -10,7 +10,6 @@ export const contractItemSchema = z.object({
     .number({ message: 'Số lượng phải là số' })
     .positive('Số lượng phải lớn hơn 0')
     .max(10_000_000, 'Số lượng vượt quá giới hạn tối đa (10.000.000)'),
-  unit: z.string().trim().min(1, 'Đơn vị tính không được để trống').max(20),
   unitPrice: z
     .number({ message: 'Đơn giá phải là số' })
     .positive('Đơn giá phải lớn hơn 0')
@@ -70,8 +69,6 @@ export const contractFormSchema = z
       .trim()
       .min(2, 'Chức vụ tối thiểu 2 ký tự')
       .max(100, 'Chức vụ tối đa 100 ký tự'),
-    bBankAccount: z.string().trim().max(50).optional(),
-    bBankName: z.string().trim().max(150).optional(),
 
     // Điều khoản giao hàng & thanh toán
     deliveryLocation: z
@@ -132,8 +129,6 @@ export interface ContractTemplateData {
   b_mst: string;
   b_representative: string;
   b_title: string;
-  b_bank_account: string;
-  b_bank_name: string;
   b_signer_name: string;
 
   // Điều khoản
@@ -142,12 +137,11 @@ export interface ContractTemplateData {
   delivery_location: string;
   payment_method: string;
 
-  // Hàng hóa
+  // Hàng hóa (Chuẩn 5 cột theo hợp đồng gốc)
   items: Array<{
     stt: number;
     name: string;
     quantity: string;
-    unit: string;
     unit_price: string;
     total: string;
   }>;

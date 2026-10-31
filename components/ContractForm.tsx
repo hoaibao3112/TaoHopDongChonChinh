@@ -51,15 +51,12 @@ export default function ContractForm() {
       bMst: '',
       bRepresentative: '',
       bTitle: 'Giám Đốc',
-      bBankAccount: '',
-      bBankName: '',
       deliveryLocation: 'Giao hàng tại kho Bên A.',
       paymentMethod: 'Chuyển khoản 100% giá trị đơn hàng.',
       items: [
         {
           name: 'Trấu',
           quantity: 200000,
-          unit: 'kg',
           unitPrice: 1800,
         },
       ],
@@ -306,24 +303,6 @@ export default function ContractForm() {
               </p>
             )}
           </div>
-
-          <div>
-            <label className={labelClass}>Số Tài Khoản Ngân Hàng (Tùy chọn)</label>
-            <input
-              {...register('bBankAccount')}
-              placeholder="VD: 1903348829..."
-              className={inputClass}
-            />
-          </div>
-
-          <div>
-            <label className={labelClass}>Tên Ngân Hàng & Chi Nhánh (Tùy chọn)</label>
-            <input
-              {...register('bBankName')}
-              placeholder="VD: Vietcombank - CN Tiền Giang"
-              className={inputClass}
-            />
-          </div>
         </div>
       </section>
 
@@ -417,7 +396,7 @@ export default function ContractForm() {
 
           <button
             type="button"
-            onClick={() => append({ name: '', quantity: 1, unit: 'kg', unitPrice: 0 })}
+            onClick={() => append({ name: '', quantity: 1, unitPrice: 0 })}
             className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-xs font-bold text-blue-700 border border-blue-200/60 shadow-2xs transition-all hover:bg-blue-600 hover:text-white cursor-pointer active:scale-95"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -439,13 +418,13 @@ export default function ContractForm() {
             >
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-12 sm:items-start">
                 {/* Tên hàng */}
-                <div className="sm:col-span-4">
+                <div className="sm:col-span-5">
                   <label className="mb-1.5 block text-xs font-bold text-slate-700">
                     Mặt hàng #{idx + 1} *
                   </label>
                   <input
                     {...register(`items.${idx}.name`)}
-                    placeholder="VD: Trấu xay..."
+                    placeholder="VD: Trấu..."
                     className={inputClass}
                   />
                   {errors.items?.[idx]?.name && (
@@ -455,7 +434,7 @@ export default function ContractForm() {
 
                 {/* Số lượng */}
                 <div className="sm:col-span-2">
-                  <label className="mb-1.5 block text-xs font-bold text-slate-700">Số lượng *</label>
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700">Số lượng (kg) *</label>
                   <input
                     type="number"
                     step="any"
@@ -468,22 +447,9 @@ export default function ContractForm() {
                   )}
                 </div>
 
-                {/* Đơn vị tính */}
-                <div className="sm:col-span-2">
-                  <label className="mb-1.5 block text-xs font-bold text-slate-700">ĐVT *</label>
-                  <input
-                    {...register(`items.${idx}.unit`)}
-                    placeholder="kg"
-                    className={inputClass}
-                  />
-                  {errors.items?.[idx]?.unit && (
-                    <p className={errorTextClass}>{errors.items[idx].unit?.message}</p>
-                  )}
-                </div>
-
                 {/* Đơn giá */}
                 <div className="sm:col-span-2">
-                  <label className="mb-1.5 block text-xs font-bold text-slate-700">Đơn giá (đồng) *</label>
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700">Đơn giá (đồng/kg) *</label>
                   <input
                     type="number"
                     step="any"
@@ -497,7 +463,7 @@ export default function ContractForm() {
                 </div>
 
                 {/* Thành tiền tính trước */}
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-3">
                   <label className="mb-1.5 block text-xs font-bold text-slate-700">Thành tiền tạm tính</label>
                   <div className="flex items-center justify-between gap-2 pt-1.5">
                     <span className="font-bold text-slate-900 text-sm font-mono">

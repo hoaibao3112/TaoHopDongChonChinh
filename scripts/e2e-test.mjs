@@ -61,8 +61,8 @@ try {
     deliveryLocation: 'Giao hàng tại kho Bên A.',
     paymentMethod: 'Chuyển khoản 100% giá trị đơn hàng.',
     items: [
-      { name: 'Trấu xay', quantity: 200000, unit: 'kg', unitPrice: 1800 },
-      { name: 'Cám mịn', quantity: 50000, unit: 'kg', unitPrice: 3200 },
+      { name: 'Trấu xay', quantity: 200000, unitPrice: 1800 },
+      { name: 'Cám mịn', quantity: 50000, unitPrice: 3200 },
     ],
   };
 
