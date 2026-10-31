@@ -45,6 +45,7 @@ export default function ContractForm() {
     control,
     handleSubmit,
     watch,
+
     formState: { errors },
   } = useForm<ContractFormValues>({
     resolver: zodResolver(contractFormSchema),
