@@ -90,8 +90,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       b_signer_name: form.bRepresentative,
 
       // Điều khoản
-      delivery_start_date: formatDateVi(form.signDate),
-      delivery_end_date: formatDateVi(form.deliveryDate),
+      delivery_start_date: formatDateVi(form.deliveryStartDate),
+      delivery_end_date: formatDateVi(form.deliveryEndDate),
       delivery_location: form.deliveryLocation,
       payment_method: form.paymentMethod,
 

@@ -50,7 +50,8 @@ try {
   const exportPayload = {
     contractNo: '250926/CC-TP',
     signDate: '2026-09-25',
-    deliveryDate: '2026-10-25',
+    deliveryStartDate: '2026-09-25',
+    deliveryEndDate: '2026-10-25',
     bName: 'CÔNG TY TNHH SẢN XUẤT - THƯƠNG MẠI - DỊCH VỤ THÀNH PHÁT TG',
     bAddress: '135 Trần Ngọc Giải, Phường Thới Sơn, Tỉnh Đồng Tháp',
     bPhone: '0902589705',

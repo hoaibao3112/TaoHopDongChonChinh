@@ -30,10 +30,14 @@ export const contractFormSchema = z
       .string()
       .trim()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày ký phải có định dạng YYYY-MM-DD'),
-    deliveryDate: z
+    deliveryStartDate: z
       .string()
       .trim()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày giao hàng phải có định dạng YYYY-MM-DD'),
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày bắt đầu giao hàng phải có định dạng YYYY-MM-DD'),
+    deliveryEndDate: z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày kết thúc giao hàng phải có định dạng YYYY-MM-DD'),
 
     // Thông tin Bên B (Bên Mua)
     bName: z
@@ -89,13 +93,13 @@ export const contractFormSchema = z
   })
   .refine(
     (data) => {
-      const sign = new Date(data.signDate).getTime();
-      const delivery = new Date(data.deliveryDate).getTime();
-      return delivery >= sign;
+      const start = new Date(data.deliveryStartDate).getTime();
+      const end = new Date(data.deliveryEndDate).getTime();
+      return end >= start;
     },
     {
-      message: 'Ngày giao hàng không thể trước ngày ký hợp đồng',
-      path: ['deliveryDate'],
+      message: 'Ngày kết thúc giao hàng phải bằng hoặc sau ngày bắt đầu giao hàng',
+      path: ['deliveryEndDate'],
     }
   );
 

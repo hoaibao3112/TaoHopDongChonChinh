@@ -15,11 +15,14 @@ function getDefaultDates() {
   const today = new Date();
   const signDate = today.toISOString().split('T')[0];
 
-  const delivery = new Date(today);
-  delivery.setDate(delivery.getDate() + 30);
-  const deliveryDate = delivery.toISOString().split('T')[0];
+  const deliveryStart = new Date(today);
+  const deliveryStartDate = deliveryStart.toISOString().split('T')[0];
 
-  return { signDate, deliveryDate };
+  const deliveryEnd = new Date(today);
+  deliveryEnd.setDate(deliveryEnd.getDate() + 30);
+  const deliveryEndDate = deliveryEnd.toISOString().split('T')[0];
+
+  return { signDate, deliveryStartDate, deliveryEndDate };
 }
 
 export default function ContractForm() {
@@ -27,7 +30,7 @@ export default function ContractForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
-  const { signDate, deliveryDate } = getDefaultDates();
+  const { signDate, deliveryStartDate, deliveryEndDate } = getDefaultDates();
 
   const {
     register,
@@ -40,7 +43,8 @@ export default function ContractForm() {
     defaultValues: {
       contractNo: '250926/CC-TP',
       signDate,
-      deliveryDate,
+      deliveryStartDate,
+      deliveryEndDate,
       bName: '',
       bAddress: '',
       bPhone: '',
@@ -173,7 +177,7 @@ export default function ContractForm() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div>
             <label className={labelClass}>Số Hợp Đồng *</label>
             <input
@@ -198,20 +202,6 @@ export default function ContractForm() {
             {errors.signDate && (
               <p className={errorTextClass}>
                 <span>●</span> {errors.signDate.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className={labelClass}>Hạn Giao Hàng Đến Ngày *</label>
-            <input
-              type="date"
-              {...register('deliveryDate')}
-              className={inputClass}
-            />
-            {errors.deliveryDate && (
-              <p className={errorTextClass}>
-                <span>●</span> {errors.deliveryDate.message}
               </p>
             )}
           </div>
@@ -352,6 +342,34 @@ export default function ContractForm() {
         </div>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <div>
+            <label className={labelClass}>Thời Gian Bắt Đầu Giao Hàng (Điều 3) *</label>
+            <input
+              type="date"
+              {...register('deliveryStartDate')}
+              className={inputClass}
+            />
+            {errors.deliveryStartDate && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.deliveryStartDate.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className={labelClass}>Thời Gian Kết Thúc Giao Hàng (Điều 3) *</label>
+            <input
+              type="date"
+              {...register('deliveryEndDate')}
+              className={inputClass}
+            />
+            {errors.deliveryEndDate && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.deliveryEndDate.message}
+              </p>
+            )}
+          </div>
+
           <div>
             <label className={labelClass}>Địa Điểm Giao Hàng (Điều 3) *</label>
             <input
