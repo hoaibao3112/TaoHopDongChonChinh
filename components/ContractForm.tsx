@@ -1,14 +1,22 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { contractFormSchema, type ContractFormValues } from '@/lib/contract-schema';
 
-// Helper format số hiển thị kiểu Việt Nam
+// Helper format số hiển thị kiểu Việt Nam có chữ đ
 function formatCurrency(val: number): string {
   if (!Number.isFinite(val) || val <= 0) return '0 ₫';
   return val.toLocaleString('vi-VN') + ' ₫';
+}
+
+// Helper format số phân cách hàng nghìn bằng dấu chấm khi gõ vào ô input (VD: 200000 -> 200.000)
+function formatNumberWithDots(val: number | string | undefined | null): string {
+  if (val === undefined || val === null || val === '') return '';
+  const numStr = String(val).replace(/\D/g, '');
+  if (!numStr) return '';
+  return Number(numStr).toLocaleString('vi-VN');
 }
 
 function getDefaultDates() {
@@ -435,12 +443,23 @@ export default function ContractForm() {
                 {/* Số lượng */}
                 <div className="sm:col-span-2">
                   <label className="mb-1.5 block text-xs font-bold text-slate-700">Số lượng (kg) *</label>
-                  <input
-                    type="number"
-                    step="any"
-                    {...register(`items.${idx}.quantity`, { valueAsNumber: true })}
-                    placeholder="200000"
-                    className={inputClass}
+                  <Controller
+                    control={control}
+                    name={`items.${idx}.quantity`}
+                    render={({ field }) => (
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formatNumberWithDots(field.value)}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, '');
+                          field.onChange(raw ? Number(raw) : '');
+                        }}
+                        onBlur={field.onBlur}
+                        placeholder="200.000"
+                        className={inputClass}
+                      />
+                    )}
                   />
                   {errors.items?.[idx]?.quantity && (
                     <p className={errorTextClass}>{errors.items[idx].quantity?.message}</p>
@@ -450,12 +469,23 @@ export default function ContractForm() {
                 {/* Đơn giá */}
                 <div className="sm:col-span-2">
                   <label className="mb-1.5 block text-xs font-bold text-slate-700">Đơn giá (đồng/kg) *</label>
-                  <input
-                    type="number"
-                    step="any"
-                    {...register(`items.${idx}.unitPrice`, { valueAsNumber: true })}
-                    placeholder="1800"
-                    className={inputClass}
+                  <Controller
+                    control={control}
+                    name={`items.${idx}.unitPrice`}
+                    render={({ field }) => (
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formatNumberWithDots(field.value)}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, '');
+                          field.onChange(raw ? Number(raw) : '');
+                        }}
+                        onBlur={field.onBlur}
+                        placeholder="1.800"
+                        className={inputClass}
+                      />
+                    )}
                   />
                   {errors.items?.[idx]?.unitPrice && (
                     <p className={errorTextClass}>{errors.items[idx].unitPrice?.message}</p>
