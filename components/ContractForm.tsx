@@ -424,15 +424,41 @@ export default function ContractForm() {
               key={field.id}
               className="relative rounded-2xl border border-slate-200/90 bg-slate-50/60 p-4 sm:p-5 transition-all hover:border-blue-300 hover:bg-white shadow-2xs"
             >
+              {/* Header của từng mặt hàng có số thứ tự và nút Xóa rõ ràng */}
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200/60">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-blue-700 text-xs font-black">
+                    {idx + 1}
+                  </span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Mặt hàng #{idx + 1}
+                  </span>
+                </div>
+
+                {fields.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => remove(idx)}
+                    className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer active:scale-95"
+                    title="Xóa mặt hàng này khỏi hợp đồng"
+                  >
+                    <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>Xóa mặt hàng này</span>
+                  </button>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-12 sm:items-start">
                 {/* Tên hàng */}
-                <div className="sm:col-span-5">
+                <div className="sm:col-span-4">
                   <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                    Mặt hàng #{idx + 1} *
+                    Tên mặt hàng *
                   </label>
                   <input
                     {...register(`items.${idx}.name`)}
-                    placeholder="VD: Trấu..."
+                    placeholder="VD: Trấu xay..."
                     className={inputClass}
                   />
                   {errors.items?.[idx]?.name && (
@@ -441,7 +467,7 @@ export default function ContractForm() {
                 </div>
 
                 {/* Số lượng */}
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-3">
                   <label className="mb-1.5 block text-xs font-bold text-slate-700">Số lượng (kg) *</label>
                   <Controller
                     control={control}
@@ -495,27 +521,27 @@ export default function ContractForm() {
                 {/* Thành tiền tính trước */}
                 <div className="sm:col-span-3">
                   <label className="mb-1.5 block text-xs font-bold text-slate-700">Thành tiền tạm tính</label>
-                  <div className="flex items-center justify-between gap-2 pt-1.5">
+                  <div className="flex items-center justify-between gap-2 pt-2">
                     <span className="font-bold text-slate-900 text-sm font-mono">
                       {formatCurrency(previewTotals[idx] || 0)}
                     </span>
-                    {fields.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => remove(idx)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition cursor-pointer"
-                        title="Xóa mặt hàng này"
-                      >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>
             </div>
           ))}
+
+          {/* Nút to rõ ràng ở dưới để thêm mặt hàng tiếp theo */}
+          <button
+            type="button"
+            onClick={() => append({ name: '', quantity: 1, unitPrice: 0 })}
+            className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50/50 py-3.5 text-sm font-bold text-blue-700 transition-all hover:bg-blue-100/60 hover:border-blue-400 cursor-pointer active:scale-[0.99] shadow-2xs"
+          >
+            <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>+ THÊM MẶT HÀNG KHÁC (BẤM ĐỂ THÊM DÒNG)</span>
+          </button>
         </div>
 
         {/* Tổng tiền xem trước */}
