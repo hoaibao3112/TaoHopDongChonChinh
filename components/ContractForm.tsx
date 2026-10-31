@@ -121,7 +121,7 @@ export default function ContractForm() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      setSuccessToast(`Đã xuất và tải về thành công file ${filename}`);
+      setSuccessToast(`Đã xuất và tải về thành công file: ${filename}`);
       setTimeout(() => setSuccessToast(null), 6000);
     } catch (err: unknown) {
       const errorStr = err instanceof Error ? err.message : 'Có lỗi bất ngờ xảy ra';
@@ -132,41 +132,48 @@ export default function ContractForm() {
   };
 
   const inputClass =
-    'w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 placeholder:text-gray-400';
-  const labelClass = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-700';
-  const errorTextClass = 'mt-1 text-xs text-red-600 font-medium';
+    'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-2xs transition-all focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-3 focus:ring-blue-100 placeholder:text-slate-400 hover:border-slate-400';
+  const labelClass = 'mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700';
+  const errorTextClass = 'mt-1 text-xs text-rose-600 font-semibold flex items-center gap-1';
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
       {/* Thông báo lỗi server hoặc thành công */}
       {errorMessage && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm flex items-start gap-3">
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/90 p-4 text-sm text-rose-800 shadow-sm flex items-start gap-3 animate-in fade-in duration-200">
           <span className="text-xl">⚠️</span>
           <div>
-            <p className="font-semibold">Xuất hợp đồng không thành công</p>
+            <p className="font-bold">Lỗi xuất hợp đồng:</p>
             <p className="mt-0.5">{errorMessage}</p>
           </div>
         </div>
       )}
 
       {successToast && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-sm flex items-start gap-3">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 text-sm text-emerald-800 shadow-sm flex items-start gap-3 animate-in fade-in duration-200">
           <span className="text-xl">🎉</span>
           <div>
-            <p className="font-semibold">Thành công!</p>
+            <p className="font-bold">Xuất hợp đồng thành công!</p>
             <p className="mt-0.5">{successToast}</p>
           </div>
         </div>
       )}
 
       {/* KHỐI 1: THÔNG TIN HỢP ĐỒNG */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs sm:p-7">
-        <h2 className="mb-5 flex items-center gap-2 text-base font-bold text-gray-900 border-b border-gray-100 pb-3">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-700 text-sm font-bold">1</span>
-          Thông tin số hợp đồng & Thời gian ký
-        </h2>
+      <section className="rounded-3xl border border-slate-200/80 bg-white p-6 sm:p-7 shadow-xs">
+        <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-700 text-sm font-black border border-blue-100">
+            1
+          </span>
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              Thông tin số hợp đồng & Thời gian ký kết
+            </h2>
+            <p className="text-xs text-slate-500">Mã định danh hợp đồng và thời hạn hiệu lực</p>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div>
             <label className={labelClass}>Số Hợp Đồng *</label>
             <input
@@ -174,39 +181,58 @@ export default function ContractForm() {
               placeholder="VD: 250926/CC-TP"
               className={inputClass}
             />
-            {errors.contractNo && <p className={errorTextClass}>{errors.contractNo.message}</p>}
+            {errors.contractNo && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.contractNo.message}
+              </p>
+            )}
           </div>
 
           <div>
-            <label className={labelClass}>Ngày Ký *</label>
+            <label className={labelClass}>Ngày Ký Hợp Đồng *</label>
             <input
               type="date"
               {...register('signDate')}
               className={inputClass}
             />
-            {errors.signDate && <p className={errorTextClass}>{errors.signDate.message}</p>}
+            {errors.signDate && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.signDate.message}
+              </p>
+            )}
           </div>
 
           <div>
-            <label className={labelClass}>Hạn Giao Hàng *</label>
+            <label className={labelClass}>Hạn Giao Hàng Đến Ngày *</label>
             <input
               type="date"
               {...register('deliveryDate')}
               className={inputClass}
             />
-            {errors.deliveryDate && <p className={errorTextClass}>{errors.deliveryDate.message}</p>}
+            {errors.deliveryDate && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.deliveryDate.message}
+              </p>
+            )}
           </div>
         </div>
-      </div>
+      </section>
 
       {/* KHỐI 2: THÔNG TIN BÊN B (BÊN MUA) */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs sm:p-7">
-        <h2 className="mb-5 flex items-center gap-2 text-base font-bold text-gray-900 border-b border-gray-100 pb-3">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 text-sm font-bold">2</span>
-          Thông tin Bên B (Bên Mua)
-        </h2>
+      <section className="rounded-3xl border border-slate-200/80 bg-white p-6 sm:p-7 shadow-xs">
+        <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 text-sm font-black border border-indigo-100">
+            2
+          </span>
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              Thông tin Bên B (Bên Mua)
+            </h2>
+            <p className="text-xs text-slate-500">Các thông tin pháp nhân của đơn vị đối tác mua hàng</p>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className={labelClass}>Tên Đơn Vị / Công Ty Bên B *</label>
             <input
@@ -214,17 +240,25 @@ export default function ContractForm() {
               placeholder="VD: CÔNG TY TNHH SẢN XUẤT - THƯƠNG MẠI - DỊCH VỤ THÀNH PHÁT TG"
               className={inputClass}
             />
-            {errors.bName && <p className={errorTextClass}>{errors.bName.message}</p>}
+            {errors.bName && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.bName.message}
+              </p>
+            )}
           </div>
 
           <div className="sm:col-span-2">
-            <label className={labelClass}>Địa Chỉ Trụ Sở *</label>
+            <label className={labelClass}>Địa Chỉ Trụ Sở Đăng Ký *</label>
             <input
               {...register('bAddress')}
               placeholder="VD: 135 Trần Ngọc Giải, Phường Thới Sơn, Tỉnh Đồng Tháp"
               className={inputClass}
             />
-            {errors.bAddress && <p className={errorTextClass}>{errors.bAddress.message}</p>}
+            {errors.bAddress && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.bAddress.message}
+              </p>
+            )}
           </div>
 
           <div>
@@ -234,7 +268,11 @@ export default function ContractForm() {
               placeholder="VD: 1201695642"
               className={inputClass}
             />
-            {errors.bMst && <p className={errorTextClass}>{errors.bMst.message}</p>}
+            {errors.bMst && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.bMst.message}
+              </p>
+            )}
           </div>
 
           <div>
@@ -244,7 +282,11 @@ export default function ContractForm() {
               placeholder="VD: 0902 589 705"
               className={inputClass}
             />
-            {errors.bPhone && <p className={errorTextClass}>{errors.bPhone.message}</p>}
+            {errors.bPhone && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.bPhone.message}
+              </p>
+            )}
           </div>
 
           <div>
@@ -254,21 +296,29 @@ export default function ContractForm() {
               placeholder="VD: MAI TRẦN ĐĂNG GIANG"
               className={inputClass}
             />
-            {errors.bRepresentative && <p className={errorTextClass}>{errors.bRepresentative.message}</p>}
+            {errors.bRepresentative && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.bRepresentative.message}
+              </p>
+            )}
           </div>
 
           <div>
-            <label className={labelClass}>Chức Vụ *</label>
+            <label className={labelClass}>Chức Vụ Đại Diện *</label>
             <input
               {...register('bTitle')}
               placeholder="VD: Phó Giám đốc"
               className={inputClass}
             />
-            {errors.bTitle && <p className={errorTextClass}>{errors.bTitle.message}</p>}
+            {errors.bTitle && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.bTitle.message}
+              </p>
+            )}
           </div>
 
           <div>
-            <label className={labelClass}>Số Tài Khoản Ngân Hàng (Không bắt buộc)</label>
+            <label className={labelClass}>Số Tài Khoản Ngân Hàng (Tùy chọn)</label>
             <input
               {...register('bBankAccount')}
               placeholder="VD: 1903348829..."
@@ -277,24 +327,31 @@ export default function ContractForm() {
           </div>
 
           <div>
-            <label className={labelClass}>Tên Ngân Hàng & Chi Nhánh (Không bắt buộc)</label>
+            <label className={labelClass}>Tên Ngân Hàng & Chi Nhánh (Tùy chọn)</label>
             <input
               {...register('bBankName')}
-              placeholder="VD: Vietcombank - CN Mỹ Tho"
+              placeholder="VD: Vietcombank - CN Tiền Giang"
               className={inputClass}
             />
           </div>
         </div>
-      </div>
+      </section>
 
       {/* KHỐI 3: ĐIỀU KHOẢN GIAO HÀNG & THANH TOÁN */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs sm:p-7">
-        <h2 className="mb-5 flex items-center gap-2 text-base font-bold text-gray-900 border-b border-gray-100 pb-3">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-100 text-teal-700 text-sm font-bold">3</span>
-          Địa điểm & Phương thức thanh toán
-        </h2>
+      <section className="rounded-3xl border border-slate-200/80 bg-white p-6 sm:p-7 shadow-xs">
+        <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-50 text-teal-700 text-sm font-black border border-teal-100">
+            3
+          </span>
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              Điều khoản giao nhận & Phương thức thanh toán
+            </h2>
+            <p className="text-xs text-slate-500">Quy định Điều 3 & Điều 4 trong văn bản hợp đồng</p>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div>
             <label className={labelClass}>Địa Điểm Giao Hàng (Điều 3) *</label>
             <input
@@ -302,7 +359,11 @@ export default function ContractForm() {
               placeholder="VD: Giao hàng tại kho Bên A."
               className={inputClass}
             />
-            {errors.deliveryLocation && <p className={errorTextClass}>{errors.deliveryLocation.message}</p>}
+            {errors.deliveryLocation && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.deliveryLocation.message}
+              </p>
+            )}
           </div>
 
           <div>
@@ -312,46 +373,61 @@ export default function ContractForm() {
               placeholder="VD: Chuyển khoản 100% giá trị đơn hàng."
               className={inputClass}
             />
-            {errors.paymentMethod && <p className={errorTextClass}>{errors.paymentMethod.message}</p>}
+            {errors.paymentMethod && (
+              <p className={errorTextClass}>
+                <span>●</span> {errors.paymentMethod.message}
+              </p>
+            )}
           </div>
         </div>
-      </div>
+      </section>
 
       {/* KHỐI 4: BẢNG HÀNG HÓA */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs sm:p-7">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
-          <h2 className="flex items-center gap-2 text-base font-bold text-gray-900">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-700 text-sm font-bold">4</span>
-            Danh mục hàng hóa (Điều 1)
-          </h2>
+      <section className="rounded-3xl border border-slate-200/80 bg-white p-6 sm:p-7 shadow-xs">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-700 text-sm font-black border border-amber-100">
+              4
+            </span>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">
+                Danh mục hàng hóa (Điều 1)
+              </h2>
+              <p className="text-xs text-slate-500">Bảng chi tiết tên mặt hàng, khối lượng và đơn giá thỏa thuận</p>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={() => append({ name: '', quantity: 1, unit: 'kg', unitPrice: 0 })}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-xs font-bold text-blue-700 border border-blue-200/60 shadow-2xs transition-all hover:bg-blue-600 hover:text-white cursor-pointer active:scale-95"
           >
-            <span>+</span> Thêm mặt hàng
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Thêm mặt hàng</span>
           </button>
         </div>
 
         {errors.items?.root && (
-          <p className="mb-3 text-sm text-red-600 font-medium">{errors.items.root.message}</p>
+          <p className="mb-4 text-sm text-rose-600 font-semibold">{errors.items.root.message}</p>
         )}
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {fields.map((field, idx) => (
             <div
               key={field.id}
-              className="relative rounded-xl border border-gray-100 bg-gray-50/70 p-4 transition hover:border-gray-200"
+              className="relative rounded-2xl border border-slate-200/90 bg-slate-50/60 p-4 sm:p-5 transition-all hover:border-blue-300 hover:bg-white shadow-2xs"
             >
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-12 sm:items-start">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-12 sm:items-start">
                 {/* Tên hàng */}
                 <div className="sm:col-span-4">
-                  <label className="mb-1 block text-xs font-medium text-gray-600">
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700">
                     Mặt hàng #{idx + 1} *
                   </label>
                   <input
                     {...register(`items.${idx}.name`)}
-                    placeholder="VD: Trấu xay nhuyễn..."
+                    placeholder="VD: Trấu xay..."
                     className={inputClass}
                   />
                   {errors.items?.[idx]?.name && (
@@ -361,7 +437,7 @@ export default function ContractForm() {
 
                 {/* Số lượng */}
                 <div className="sm:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Số lượng *</label>
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700">Số lượng *</label>
                   <input
                     type="number"
                     step="any"
@@ -376,7 +452,7 @@ export default function ContractForm() {
 
                 {/* Đơn vị tính */}
                 <div className="sm:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-gray-600">ĐVT *</label>
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700">ĐVT *</label>
                   <input
                     {...register(`items.${idx}.unit`)}
                     placeholder="kg"
@@ -389,7 +465,7 @@ export default function ContractForm() {
 
                 {/* Đơn giá */}
                 <div className="sm:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Đơn giá (đồng) *</label>
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700">Đơn giá (đồng) *</label>
                   <input
                     type="number"
                     step="any"
@@ -404,16 +480,16 @@ export default function ContractForm() {
 
                 {/* Thành tiền tính trước */}
                 <div className="sm:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Thành tiền tạm tính</label>
-                  <div className="flex items-center justify-between gap-2 pt-2">
-                    <span className="font-semibold text-gray-900 text-sm">
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700">Thành tiền tạm tính</label>
+                  <div className="flex items-center justify-between gap-2 pt-1.5">
+                    <span className="font-bold text-slate-900 text-sm font-mono">
                       {formatCurrency(previewTotals[idx] || 0)}
                     </span>
                     {fields.length > 1 && (
                       <button
                         type="button"
                         onClick={() => remove(idx)}
-                        className="rounded-lg p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition cursor-pointer"
                         title="Xóa mặt hàng này"
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -429,29 +505,29 @@ export default function ContractForm() {
         </div>
 
         {/* Tổng tiền xem trước */}
-        <div className="mt-5 rounded-xl bg-blue-50/60 p-4 border border-blue-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="mt-6 rounded-2xl bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-blue-50/80 p-5 border border-blue-200/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-wider font-semibold text-blue-900">
-              Tổng giá trị hợp đồng (ước tính)
+            <p className="text-xs uppercase tracking-wider font-bold text-blue-900">
+              Tổng giá trị hợp đồng (tạm tính)
             </p>
-            <p className="text-xs text-blue-700 italic">
-              * Hệ thống sẽ tự động tính toán lại và tạo chuỗi tiền bằng chữ trên Server khi tải về.
+            <p className="text-xs text-blue-700/80 mt-0.5">
+              * Server sẽ tính toán lại chính xác và tự động đọc số tiền bằng chữ tiếng Việt khi tải về file Word.
             </p>
           </div>
           <div className="text-right">
-            <span className="text-2xl font-black text-blue-800">
+            <span className="text-2xl sm:text-3xl font-black text-blue-900 tracking-tight font-mono">
               {formatCurrency(grandTotalPreview)}
             </span>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* NÚT SUBMIT XUẤT HỢP ĐỒNG */}
-      <div className="sticky bottom-4 z-10 pt-2">
+      <div className="sticky bottom-6 z-20 pt-2">
         <button
           type="submit"
           disabled={isExporting}
-          className="w-full flex items-center justify-center gap-3 rounded-2xl bg-blue-600 px-6 py-4 text-base font-bold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-700 active:scale-[0.99] disabled:bg-blue-300 disabled:shadow-none cursor-pointer"
+          className="w-full flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 px-8 py-4 text-base font-bold text-white shadow-xl shadow-blue-600/30 transition-all hover:opacity-95 hover:shadow-2xl active:scale-[0.99] disabled:opacity-50 disabled:shadow-none cursor-pointer"
         >
           {isExporting ? (
             <>
@@ -459,14 +535,14 @@ export default function ContractForm() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
               </svg>
-              <span>Đang tính toán và kết xuất file Word...</span>
+              <span>Đang kết xuất hợp đồng và tải về...</span>
             </>
           ) : (
             <>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <svg className="w-5 h-5 text-blue-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <span>XUẤT HỢP ĐỒNG (.DOCX)</span>
+              <span className="tracking-wide">XUẤT HỢP ĐỒNG (.DOCX)</span>
             </>
           )}
         </button>
@@ -474,4 +550,3 @@ export default function ContractForm() {
     </form>
   );
 }
-
