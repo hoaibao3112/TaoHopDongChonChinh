@@ -102,7 +102,7 @@ const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <!-- BÊN B -->
   <w:p>
     <w:pPr><w:spacing w:before="60"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="26"/></w:rPr></w:pPr>
-    <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="26"/></w:rPr><w:t>BÊN B:  {b_name}</w:t></w:r>
+    <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="26"/></w:rPr><w:t xml:space="preserve">BÊN B:  {b_name}  (BÊN MUA).</w:t></w:r>
   </w:p>
   <w:p>
     <w:pPr><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="26"/></w:rPr></w:pPr>

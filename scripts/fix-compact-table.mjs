@@ -47,10 +47,19 @@ const cleanedParas = paras.map((p, idx) => {
   </w:p>`;
   }
   
-  // 3 dòng căn cứ
+  // 3 dòng căn cứ: xóa bỏ bất kỳ căn giữa nào (w:jc) để cả 3 dòng căn trái thẳng hàng
   if (text.startsWith('- Căn cứ')) {
     const after = text.includes('nhu cầu') ? '40' : '0';
-    return p.replace(/<w:spacing[^>]*\/>/g, `<w:spacing w:line="240" w:lineRule="auto" w:before="0" w:after="${after}"/>`);
+    let res = p.replace(/<w:jc[^>]*\/>/g, '');
+    return res.replace(/<w:spacing[^>]*\/>/g, `<w:spacing w:line="240" w:lineRule="auto" w:before="0" w:after="${after}"/>`);
+  }
+
+  // Tự động bổ sung " (BÊN MUA)." vào sau tên Bên B theo đúng yêu cầu
+  if (text.includes('BÊN B:')) {
+    return `<w:p>
+    <w:pPr><w:spacing w:line="360" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="26"/></w:rPr></w:pPr>
+    <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="26"/></w:rPr><w:t xml:space="preserve">BÊN B:  {b_name}  (BÊN MUA).</w:t></w:r>
+  </w:p>`;
   }
   
   // Dòng Điều 1: Tiêu đề bảng

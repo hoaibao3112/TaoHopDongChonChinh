@@ -80,8 +80,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       a_bank_name: COMPANY_A.bankName,
       a_signer_name: COMPANY_A.signerName.toUpperCase(),
 
-      // Bên B - từ form đã validate, luôn chuyển thành chữ IN HOA
-      b_name: form.bName,
+      // Bên B - từ form đã validate, loại bỏ hậu tố (BÊN MUA) nếu người dùng tự nhập để tránh bị trùng lặp
+      b_name: form.bName.trim().replace(/\s*\(\s*BÊN\s*MUA\s*\)\.?$/i, '').trim(),
       b_address: form.bAddress,
       b_phone: form.bPhone,
       b_mst: form.bMst,
