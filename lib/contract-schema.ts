@@ -63,7 +63,8 @@ export const contractFormSchema = z
       .string()
       .trim()
       .min(2, 'Người đại diện Bên B tối thiểu 2 ký tự')
-      .max(100, 'Người đại diện Bên B tối đa 100 ký tự'),
+      .max(100, 'Người đại diện Bên B tối đa 100 ký tự')
+      .transform((val) => val.toUpperCase()),
     bTitle: z
       .string()
       .trim()

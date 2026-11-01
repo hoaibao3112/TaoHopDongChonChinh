@@ -58,6 +58,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const [signYear = '', signMonth = '', signDay = ''] = form.signDate.split('-');
 
+    // Người đại diện Bên B luôn chuyển thành chữ IN HOA
+    const representativeB = form.bRepresentative.trim().toUpperCase();
+
     // 4. Chuẩn bị dữ liệu map vào Docxtemplater
     const templateData: ContractTemplateData = {
       contract_no: form.contractNo,
@@ -70,21 +73,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       a_address: COMPANY_A.address,
       a_phone: COMPANY_A.phone,
       a_mst: COMPANY_A.mst,
-      a_representative: COMPANY_A.representative,
+      a_representative: COMPANY_A.representative.toUpperCase(),
       a_title: COMPANY_A.title,
       a_authorization: COMPANY_A.authorizationNote,
       a_bank_account: COMPANY_A.bankAccount,
       a_bank_name: COMPANY_A.bankName,
-      a_signer_name: COMPANY_A.signerName,
+      a_signer_name: COMPANY_A.signerName.toUpperCase(),
 
-      // Bên B - từ form đã validate
+      // Bên B - từ form đã validate, luôn chuyển thành chữ IN HOA
       b_name: form.bName,
       b_address: form.bAddress,
       b_phone: form.bPhone,
       b_mst: form.bMst,
-      b_representative: form.bRepresentative,
+      b_representative: representativeB,
       b_title: form.bTitle,
-      b_signer_name: form.bRepresentative,
+      b_signer_name: representativeB,
 
       // Điều khoản
       delivery_start_date: formatDateVi(form.deliveryStartDate),

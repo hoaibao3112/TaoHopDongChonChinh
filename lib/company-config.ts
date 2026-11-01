@@ -13,6 +13,6 @@ export const COMPANY_A = {
   authorizationNote: '(Theo giấy ủy quyền số: 15.09/UQ-CC)',
   bankAccount: '070977789777',
   bankName: 'TMCP Quân Đôi MB bank -CN ĐỒNG THÁP',
-  signerName: 'Nguyễn Thị Diễm',
+  signerName: 'NGUYỄN THỊ DIỄM',
 } as const;
 

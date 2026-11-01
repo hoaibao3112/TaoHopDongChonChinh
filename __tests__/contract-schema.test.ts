@@ -29,6 +29,17 @@ describe('Validation Schema Hợp Đồng (Zod)', () => {
     expect(result.success).toBe(true);
   });
 
+  it('Tên người đại diện viết thường -> Tự động chuyển thành chữ IN HOA', () => {
+    const result = contractFormSchema.safeParse({
+      ...validBaseData,
+      bRepresentative: 'mai trần đăng giang',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.bRepresentative).toBe('MAI TRẦN ĐĂNG GIANG');
+    }
+  });
+
   it('MST sai (chỉ có 9 số) -> Báo lỗi', () => {
     const result = contractFormSchema.safeParse({
       ...validBaseData,

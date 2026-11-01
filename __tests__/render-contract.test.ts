@@ -20,7 +20,7 @@ describe('Render File Hợp Đồng .docx (renderContractDocx)', () => {
       a_authorization: '(Theo giấy ủy quyền số: 15.09/UQ-CC)',
       a_bank_account: '070977789777',
       a_bank_name: 'TMCP Quân Đôi MB bank -CN ĐỒNG THÁP',
-      a_signer_name: 'Nguyễn Thị Diễm',
+      a_signer_name: 'NGUYỄN THỊ DIỄM',
 
       b_name: 'CÔNG TY TNHH SẢN XUẤT - THƯƠNG MẠI - DỊCH VỤ THÀNH PHÁT TG',
       b_address: '135 Trần Ngọc Giải, Phường Thới Sơn, Tỉnh Đồng Tháp',
@@ -71,6 +71,15 @@ describe('Render File Hợp Đồng .docx (renderContractDocx)', () => {
     expect(documentXml).toContain('360.000.000');
     // Phải chứa mặt hàng
     expect(documentXml).toContain('Trấu xay');
+
+    // Phải có giãn dòng 1.5 (w:line="360")
+    expect(documentXml).toContain('w:line="360"');
+
+    // Đại diện 2 bên phải in đậm và màu đen
+    expect(documentXml).toContain('w:b/>');
+    expect(documentXml).toContain('w:color w:val="000000"');
+    expect(documentXml).toContain('NGUYỄN THỊ DIỄM');
+    expect(documentXml).toContain('MAI TRẦN ĐĂNG GIANG');
   });
 });
 

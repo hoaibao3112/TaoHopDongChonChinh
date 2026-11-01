@@ -93,13 +93,19 @@ export default function ContractForm() {
     setErrorMessage(null);
     setSuccessToast(null);
 
+    // Luôn đảm bảo tên người đại diện Bên B được chuyển thành chữ IN HOA
+    const payload: ContractFormValues = {
+      ...data,
+      bRepresentative: data.bRepresentative.trim().toUpperCase(),
+    };
+
     try {
       const response = await fetch('/api/contracts/export', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -286,11 +292,16 @@ export default function ContractForm() {
           </div>
 
           <div>
-            <label className={labelClass}>Người Đại Diện Ký *</label>
+            <label className={labelClass}>Người Đại Diện Ký (Tự động in hoa) *</label>
             <input
               {...register('bRepresentative')}
               placeholder="VD: MAI TRẦN ĐĂNG GIANG"
-              className={inputClass}
+              className={`${inputClass} uppercase`}
+              style={{ textTransform: 'uppercase' }}
+              onChange={(e) => {
+                e.target.value = e.target.value.toUpperCase();
+                register('bRepresentative').onChange(e);
+              }}
             />
             {errors.bRepresentative && (
               <p className={errorTextClass}>
