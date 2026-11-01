@@ -41,8 +41,8 @@ const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr><w:t>HỢP ĐỒNG MUA BÁN HÀNG HÓA</w:t></w:r>
   </w:p>
   <w:p>
-    <w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="26"/></w:rPr></w:pPr>
-    <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="26"/></w:rPr><w:t>Số: {contract_no}</w:t></w:r>
+    <w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:bCs/><w:sz w:val="26"/></w:rPr></w:pPr>
+    <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:bCs/><w:sz w:val="26"/></w:rPr><w:t>Số: {contract_no}</w:t></w:r>
   </w:p>
 
   <!-- Căn cứ -->

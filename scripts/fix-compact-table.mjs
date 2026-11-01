@@ -41,7 +41,10 @@ const cleanedParas = paras.map((p, idx) => {
     return p.replace(/<w:spacing[^>]*\/>/g, '<w:spacing w:line="240" w:lineRule="auto" w:before="60" w:after="20"/>');
   }
   if (text.includes('Số: {contract_no}')) {
-    return p.replace(/<w:spacing[^>]*\/>/g, '<w:spacing w:line="240" w:lineRule="auto" w:before="0" w:after="40"/>');
+    return `<w:p>
+    <w:pPr><w:spacing w:line="240" w:lineRule="auto" w:before="0" w:after="40"/><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:bCs/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr></w:pPr>
+    <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:bCs/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr><w:t>Số: {contract_no}</w:t></w:r>
+  </w:p>`;
   }
   
   // 3 dòng căn cứ
