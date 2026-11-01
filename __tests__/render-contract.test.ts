@@ -80,6 +80,10 @@ describe('Render File Hợp Đồng .docx (renderContractDocx)', () => {
     expect(documentXml).toContain('w:color w:val="000000"');
     expect(documentXml).toContain('NGUYỄN THỊ DIỄM');
     expect(documentXml).toContain('MAI TRẦN ĐĂNG GIANG');
+
+    // 1. Thời gian giao hàng: và 2. Địa điểm giao hàng: phải in đậm màu đen
+    expect(documentXml).toContain('1. Thời gian giao hàng: </w:t>');
+    expect(documentXml).toContain('2. Địa điểm giao hàng: </w:t>');
   });
 });
 
