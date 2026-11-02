@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { contractFormSchema, type ContractFormValues } from '@/lib/contract-schema';
+import { COMPANY_A_BANK_ACCOUNTS } from '@/lib/company-config';
 
 // Helper format số hiển thị kiểu Việt Nam có chữ đ
 function formatCurrency(val: number): string {
@@ -54,6 +55,7 @@ export default function ContractForm() {
       signDate,
       deliveryStartDate,
       deliveryEndDate,
+      aBankAccountId: 'mb',
       bName: '',
       bAddress: '',
       bPhone: '',
@@ -79,6 +81,9 @@ export default function ContractForm() {
   });
 
   const watchedItems = watch('items') || [];
+  const watchedBankId = watch('aBankAccountId') || 'mb';
+  const selectedBankInfo =
+    COMPANY_A_BANK_ACCOUNTS.find((b) => b.id === watchedBankId) || COMPANY_A_BANK_ACCOUNTS[0];
 
   // Tính nhẩm xem trước trên Client (Server luôn tính lại chuẩn xác)
   const previewTotals = watchedItems.map((item) => {
@@ -215,6 +220,62 @@ export default function ContractForm() {
               <p className={errorTextClass}>
                 <span>●</span> {errors.signDate.message}
               </p>
+            )}
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className={labelClass}>
+              Tài Khoản Ngân Hàng Bên A (Bên Bán Nhận Tiền) *
+            </label>
+            <div className="relative">
+              <select
+                {...register('aBankAccountId')}
+                className={
+                  inputClass +
+                  ' appearance-none cursor-pointer pr-10 font-medium bg-white text-slate-800'
+                }
+              >
+                {COMPANY_A_BANK_ACCOUNTS.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.label}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-500">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Chi tiết tài khoản Bên A được chọn */}
+            {selectedBankInfo && (
+              <div className="mt-2.5 rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5 text-xs text-slate-700 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <span className="font-semibold text-blue-900 block text-[11px] uppercase tracking-wider">
+                    Số tài khoản:
+                  </span>
+                  <span className="font-mono font-bold text-slate-900 text-sm tracking-wider">
+                    {selectedBankInfo.accountNumber}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-blue-900 block text-[11px] uppercase tracking-wider">
+                    Ngân hàng:
+                  </span>
+                  <span className="font-medium text-slate-800">
+                    {selectedBankInfo.bankName}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-blue-900 block text-[11px] uppercase tracking-wider">
+                    Chủ tài khoản:
+                  </span>
+                  <span className="font-medium text-slate-800">
+                    {selectedBankInfo.accountHolder}
+                  </span>
+                </div>
+              </div>
             )}
           </div>
         </div>

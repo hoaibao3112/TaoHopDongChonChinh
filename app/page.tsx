@@ -99,19 +99,36 @@ export default async function HomePage() {
                 <div className="flex items-start gap-2 md:col-span-2">
                   <span className="text-slate-400 font-semibold min-w-[70px]">Tài khoản:</span>
                   <span className="font-medium text-slate-800">
-                    <strong className="font-mono text-slate-900">{COMPANY_A.bankAccount}</strong> tại{' '}
-                    <strong className="text-slate-900">{COMPANY_A.bankName}</strong>
+                    3 tài khoản thanh toán (<strong className="text-blue-900 font-semibold">MB Bank</strong>,{' '}
+                    <strong className="text-blue-900 font-semibold">Bắc Á Bank</strong>,{' '}
+                    <strong className="text-blue-900 font-semibold">VietinBank</strong>) —{' '}
+                    <span className="text-xs text-blue-700 font-medium italic">tùy chọn linh hoạt trong biểu mẫu</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="shrink-0 rounded-2xl bg-white/90 p-4 border border-blue-100 shadow-2xs flex flex-col justify-center items-center text-center max-w-[200px]">
-              <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-lg mb-2">
-                MB
+            <div className="shrink-0 rounded-2xl bg-white/95 p-4 border border-blue-100 shadow-2xs flex flex-col justify-center text-left max-w-[240px] space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Tài khoản Bên A hỗ trợ:
+              </p>
+              <div className="space-y-1.5 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-blue-600" />
+                  <span className="font-semibold text-slate-800">MB:</span>
+                  <span className="font-mono text-slate-600">0709 777 89 777</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-amber-600" />
+                  <span className="font-semibold text-slate-800">Bắc Á:</span>
+                  <span className="font-mono text-slate-600">660001066668888</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-red-600" />
+                  <span className="font-semibold text-slate-800">Vietin:</span>
+                  <span className="font-mono text-slate-600">117977789777</span>
+                </div>
               </div>
-              <p className="text-xs font-semibold text-slate-800">MB Bank CN Đồng Tháp</p>
-              <p className="text-[11px] text-slate-500 mt-0.5 font-mono">0709 777 89 777</p>
             </div>
           </div>
         </section>

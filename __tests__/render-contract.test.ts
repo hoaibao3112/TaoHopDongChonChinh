@@ -85,5 +85,57 @@ describe('Render File Hợp Đồng .docx (renderContractDocx)', () => {
     expect(documentXml).toContain('1. Thời gian giao hàng: </w:t>');
     expect(documentXml).toContain('2. Địa điểm giao hàng: </w:t>');
   });
+
+  it('Xuất file docx với tài khoản Bắc Á Bank hoặc VietinBank thành công', () => {
+    const mockDataBacA: ContractTemplateData = {
+      contract_no: '250926/CC-TP',
+      sign_day: '25',
+      sign_month: '09',
+      sign_year: '2026',
+
+      a_name: 'CÔNG TY TNHH XUẤT NHẬP KHẨU CHƠN CHÍNH (BÊN BÁN)',
+      a_address: 'Đường ĐT 846, Ấp 5, Xã Đốc Binh Kiều, Tỉnh Đồng Tháp, Việt Nam',
+      a_phone: '0977 789 777',
+      a_mst: '1402017541',
+      a_representative: 'NGUYỄN THỊ DIỄM',
+      a_title: 'Phó giám đốc',
+      a_authorization: '(Theo giấy ủy quyền số: 15.09/UQ-CC)',
+      a_bank_account: '660001066668888',
+      a_bank_name: 'BẮC Á BANK – chi nhánh ĐỒNG THÁP',
+      a_signer_name: 'NGUYỄN THỊ DIỄM',
+
+      b_name: 'CÔNG TY TNHH SẢN XUẤT - THƯƠNG MẠI - DỊCH VỤ THÀNH PHÁT TG',
+      b_address: '135 Trần Ngọc Giải, Phường Thới Sơn, Tỉnh Đồng Tháp',
+      b_phone: '0902 589 705',
+      b_mst: '1201695642',
+      b_representative: 'MAI TRẦN ĐĂNG GIANG',
+      b_title: 'Phó Giám đốc',
+      b_signer_name: 'MAI TRẦN ĐĂNG GIANG',
+
+      delivery_start_date: '25/09/2026',
+      delivery_end_date: '25/10/2026',
+      delivery_location: 'Giao hàng tại kho Bên A.',
+      payment_method: 'Chuyển khoản 100% giá trị đơn hàng.',
+
+      items: [
+        {
+          stt: 1,
+          name: 'Trấu',
+          quantity: '200.000',
+          unit_price: '1.800',
+          total: '360.000.000',
+        },
+      ],
+      total_amount: '360.000.000',
+      total_words: 'Ba trăm sáu mươi triệu đồng',
+    };
+
+    const buffer = renderContractDocx(mockDataBacA);
+    const zip = new PizZip(buffer);
+    const documentXml = zip.file('word/document.xml')?.asText();
+
+    expect(documentXml).toContain('660001066668888');
+    expect(documentXml).toContain('BẮC Á BANK – chi nhánh ĐỒNG THÁP');
+  });
 });
 

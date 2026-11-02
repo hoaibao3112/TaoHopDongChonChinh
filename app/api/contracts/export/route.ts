@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { contractFormSchema, type ContractTemplateData } from '@/lib/contract-schema';
 import { renderContractDocx } from '@/lib/render-contract';
 import { moneyToVietnameseWords, formatVND } from '@/lib/number-to-vi-words';
-import { COMPANY_A } from '@/lib/company-config';
+import { COMPANY_A, COMPANY_A_BANK_ACCOUNTS } from '@/lib/company-config';
 import { isRequestAuthenticated } from '@/lib/auth';
 
 export const runtime = 'nodejs';
@@ -61,6 +61,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Người đại diện Bên B luôn chuyển thành chữ IN HOA
     const representativeB = form.bRepresentative.trim().toUpperCase();
 
+    // Lựa chọn tài khoản ngân hàng của Bên A theo form
+    const selectedBank =
+      COMPANY_A_BANK_ACCOUNTS.find((acc) => acc.id === form.aBankAccountId) ||
+      COMPANY_A_BANK_ACCOUNTS[0];
+
     // 4. Chuẩn bị dữ liệu map vào Docxtemplater
     const templateData: ContractTemplateData = {
       contract_no: form.contractNo,
@@ -68,7 +73,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       sign_month: signMonth,
       sign_year: signYear,
 
-      // Bên A - CỐ ĐỊNH TỪ HỆ THỐNG, không phụ thuộc client
+      // Bên A - CỐ ĐỊNH TỪ HỆ THỐNG, tài khoản chọn theo combobox
       a_name: COMPANY_A.name,
       a_address: COMPANY_A.address,
       a_phone: COMPANY_A.phone,
@@ -76,8 +81,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       a_representative: COMPANY_A.representative.toUpperCase(),
       a_title: COMPANY_A.title,
       a_authorization: COMPANY_A.authorizationNote,
-      a_bank_account: COMPANY_A.bankAccount,
-      a_bank_name: COMPANY_A.bankName,
+      a_bank_account: selectedBank.accountNumber,
+      a_bank_name: selectedBank.bankName,
       a_signer_name: COMPANY_A.signerName.toUpperCase(),
 
       // Bên B - từ form đã validate, loại bỏ hậu tố (BÊN MUA) nếu người dùng tự nhập để tránh bị trùng lặp

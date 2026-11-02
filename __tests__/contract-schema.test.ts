@@ -7,6 +7,7 @@ describe('Validation Schema Hợp Đồng (Zod)', () => {
     signDate: '2026-09-25',
     deliveryStartDate: '2026-09-25',
     deliveryEndDate: '2026-10-25',
+    aBankAccountId: 'mb',
     bName: 'CÔNG TY TNHH SẢN XUẤT - THƯƠNG MẠI - DỊCH VỤ THÀNH PHÁT TG',
     bAddress: '135 Trần Ngọc Giải, Phường Thới Sơn, Tỉnh Đồng Tháp',
     bPhone: '0902589705',
@@ -116,6 +117,32 @@ describe('Validation Schema Hợp Đồng (Zod)', () => {
       ],
     });
     expect(result.success).toBe(false);
+  });
+
+  it('Tài khoản ngân hàng Bên A mặc định là mb và cho phép chọn bac-a hoặc vietinbank', () => {
+    const defaultRes = contractFormSchema.safeParse(validBaseData);
+    expect(defaultRes.success).toBe(true);
+    if (defaultRes.success) {
+      expect(defaultRes.data.aBankAccountId).toBe('mb');
+    }
+
+    const bacARes = contractFormSchema.safeParse({
+      ...validBaseData,
+      aBankAccountId: 'bac-a',
+    });
+    expect(bacARes.success).toBe(true);
+    if (bacARes.success) {
+      expect(bacARes.data.aBankAccountId).toBe('bac-a');
+    }
+
+    const vietinRes = contractFormSchema.safeParse({
+      ...validBaseData,
+      aBankAccountId: 'vietinbank',
+    });
+    expect(vietinRes.success).toBe(true);
+    if (vietinRes.success) {
+      expect(vietinRes.data.aBankAccountId).toBe('vietinbank');
+    }
   });
 });
 

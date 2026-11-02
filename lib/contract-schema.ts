@@ -38,6 +38,12 @@ export const contractFormSchema = z
       .trim()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày kết thúc giao hàng phải có định dạng YYYY-MM-DD'),
 
+    // Tài khoản ngân hàng Bên A (Bên Bán nhận tiền thanh toán)
+    aBankAccountId: z
+      .string()
+      .trim()
+      .min(1, 'Vui lòng chọn tài khoản ngân hàng Bên A'),
+
     // Thông tin Bên B (Bên Mua)
     bName: z
       .string()
