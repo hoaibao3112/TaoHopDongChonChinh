@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { isServerComponentAuthenticated } from '@/lib/auth';
 import { COMPANY_A } from '@/lib/company-config';
 import ContractForm from '@/components/ContractForm';
+import AppHeader from '@/components/AppHeader';
 
 export default async function HomePage() {
   const isAuth = await isServerComponentAuthenticated();
@@ -13,42 +14,7 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-slate-50/70 text-slate-900 pb-20 antialiased">
       {/* Top Header */}
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/85 backdrop-blur-md transition-all shadow-xs">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-700 to-indigo-600 text-xl text-white shadow-md shadow-blue-500/20 ring-1 ring-white/30">
-              📄
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-bold text-slate-900 sm:text-lg leading-tight tracking-tight">
-                  Tạo Hợp Đồng Mua Bán Hàng Hóa
-                </h1>
-                <span className="hidden sm:inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-                  Chuẩn DOCX
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                Hệ thống tự động kết xuất văn bản pháp lý &bull; Công ty TNHH XNK Chơn Chính
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <form action="/api/auth/logout" method="POST">
-              <button
-                type="submit"
-                className="group flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600 shadow-2xs transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 cursor-pointer"
-              >
-                <svg className="w-3.5 h-3.5 text-slate-400 group-hover:text-red-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                <span>Đăng xuất</span>
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       {/* Main Container */}
       <main className="mx-auto max-w-6xl px-4 pt-6 sm:px-6">

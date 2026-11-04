@@ -169,3 +169,4 @@ erDiagram
 3. **Giai đoạn 3 (Bảng Kê & Xuất Excel Lương Cuối Tháng):**
    - Tự động gom 30 ngày thành Bảng kê tính lương tháng chuẩn y hệt hình mẫu `BẢNG KÊ TÍNH LƯƠNG THÁNG 10/2026 ĐỘI NAM-XUẤT-NSX TM`.
    - Xuất file Excel / PDF báo cáo lương có đầy đủ chữ ký cho đội trưởng.
+

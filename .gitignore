@@ -34,7 +34,10 @@ yarn-error.log*
 .env*
 !.env.example
 
-# vercel
+# excel data & test outputs
+*.xlsx
+templates/test-*.docx
+scripts/
 .vercel
 
 # typescript
