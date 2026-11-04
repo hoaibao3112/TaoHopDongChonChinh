@@ -1,15 +1,30 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { RiceBatch, DailyReconciliationResult } from '@/lib/rice-payroll/types';
 
+/**
+ * Định dạng số tiền VND đồng nhất tuyệt đối giữa Server SSR và Client Browser,
+ * loại bỏ hoàn toàn lỗi React Hydration Error #418 do khác biệt locale.
+ */
+function formatVND(val: number | null | undefined): string {
+  if (val === null || val === undefined || isNaN(val)) return '0';
+  return Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
 export default function RicePayrollView() {
+  const [mounted, setMounted] = useState(false);
+
   // State quản lý nạp dữ liệu Excel
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [loadedFileName, setLoadedFileName] = useState<string>('');
   const [allBatches, setAllBatches] = useState<RiceBatch[]>([]);
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [facilities, setFacilities] = useState<string[]>([]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // State bộ lọc
   const [selectedFacility, setSelectedFacility] = useState<string>('Cơ sở 1');
@@ -240,7 +255,7 @@ export default function RicePayrollView() {
             <span className="font-semibold text-emerald-700">✓ Đã nạp thành công:</span>
             <span className="font-medium underline">{loadedFileName}</span>
             <span className="rounded-md bg-white px-2 py-0.5 font-bold shadow-2xs">
-              {allBatches.length.toLocaleString()} mẻ lúa hợp lệ
+              {formatVND(allBatches.length)} mẻ lúa hợp lệ
             </span>
             <span className="text-emerald-700">&bull; {availableDates.length} ngày làm việc</span>
           </div>
@@ -303,7 +318,7 @@ export default function RicePayrollView() {
                   />
                 )}
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Hệ thống tìm thấy {dayBatches.length} mẻ lúa trong ngày này (Tổng: {totalDayActualTons} tấn).
+                  Hệ thống tìm thấy {dayBatches.length} mẻ lúa trong ngày này (Tổng: {formatVND(totalDayActualTons)} tấn).
                 </p>
               </div>
 
@@ -314,7 +329,7 @@ export default function RicePayrollView() {
                     🌾 Xuất có trở
                   </span>
                   <span className="text-[11px] font-medium text-amber-700">
-                    Đơn giá: {priceCoTro.toLocaleString()} đ/tấn
+                    Đơn giá: {formatVND(priceCoTro)} đ/tấn
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -339,7 +354,7 @@ export default function RicePayrollView() {
                   </div>
                 </div>
                 <div className="text-right text-xs font-bold text-amber-800">
-                  = {(tonsCoTro * priceCoTro).toLocaleString()} đ
+                  = {formatVND(tonsCoTro * priceCoTro)} đ
                 </div>
               </div>
 
@@ -350,7 +365,7 @@ export default function RicePayrollView() {
                     🌾 Xuất 0 trở (Không trở)
                   </span>
                   <span className="text-[11px] font-medium text-indigo-700">
-                    Đơn giá: {priceKhongTro.toLocaleString()} đ/tấn
+                    Đơn giá: {formatVND(priceKhongTro)} đ/tấn
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -375,7 +390,7 @@ export default function RicePayrollView() {
                   </div>
                 </div>
                 <div className="text-right text-xs font-bold text-indigo-800">
-                  = {(tonsKhongTro * priceKhongTro).toLocaleString()} đ
+                  = {formatVND(tonsKhongTro * priceKhongTro)} đ
                 </div>
               </div>
 
@@ -418,7 +433,7 @@ export default function RicePayrollView() {
               <div className="mt-3 flex items-baseline justify-between border-b border-slate-200/70 pb-3">
                 <span className="text-xs text-slate-600">Tổng tiền công ngày:</span>
                 <span className="text-xl font-extrabold text-slate-900">
-                  {reconcileResult.totalAmount.toLocaleString()} đ
+                  {formatVND(reconcileResult.totalAmount)} đ
                 </span>
               </div>
 
@@ -451,7 +466,7 @@ export default function RicePayrollView() {
                 </h3>
               </div>
               <span className="text-xs text-slate-500">
-                {dayBatches.length} mẻ lúa &bull; {totalDayActualTons} tấn
+                {dayBatches.length} mẻ lúa &bull; {formatVND(totalDayActualTons)} tấn
               </span>
             </div>
 
@@ -485,7 +500,7 @@ export default function RicePayrollView() {
                             <td className="py-2 px-2.5 text-slate-700">{b.customerName}</td>
                             <td className="py-2 px-2.5 text-slate-600">{b.riceType}</td>
                             <td className="py-2 px-2.5 text-slate-600">{b.dryVehicle || b.vehicleName}</td>
-                            <td className="py-2 px-2.5 text-right text-slate-600">{b.dryWeightKg.toLocaleString()}</td>
+                            <td className="py-2 px-2.5 text-right text-slate-600">{formatVND(b.dryWeightKg)}</td>
                             <td className="py-2 px-2.5 text-right font-bold text-amber-700">{b.roundedTons}</td>
                             <td className="py-2 px-2.5 text-center">
                               <span className="rounded-md bg-amber-100 text-amber-800 px-2 py-0.5 text-[10px] font-bold">
@@ -500,7 +515,7 @@ export default function RicePayrollView() {
                             <td className="py-2 px-2.5 text-slate-700">{b.customerName}</td>
                             <td className="py-2 px-2.5 text-slate-600">{b.riceType}</td>
                             <td className="py-2 px-2.5 text-slate-600">{b.dryVehicle || b.vehicleName}</td>
-                            <td className="py-2 px-2.5 text-right text-slate-600">{b.dryWeightKg.toLocaleString()}</td>
+                            <td className="py-2 px-2.5 text-right text-slate-600">{formatVND(b.dryWeightKg)}</td>
                             <td className="py-2 px-2.5 text-right font-bold text-indigo-700">{b.roundedTons}</td>
                             <td className="py-2 px-2.5 text-center">
                               <span className="rounded-md bg-indigo-100 text-indigo-800 px-2 py-0.5 text-[10px] font-bold">
@@ -517,7 +532,7 @@ export default function RicePayrollView() {
                           <td className="py-2 px-2.5 text-slate-700">{b.customerName}</td>
                           <td className="py-2 px-2.5 text-slate-600">{b.riceType}</td>
                           <td className="py-2 px-2.5 text-slate-600">{b.dryVehicle || b.vehicleName}</td>
-                          <td className="py-2 px-2.5 text-right text-slate-600">{b.dryWeightKg.toLocaleString()}</td>
+                          <td className="py-2 px-2.5 text-right text-slate-600">{formatVND(b.dryWeightKg)}</td>
                           <td className="py-2 px-2.5 text-right font-bold text-slate-800">{b.roundedTons}</td>
                           <td className="py-2 px-2.5 text-center">
                             <span className="rounded-md bg-slate-100 text-slate-600 px-2 py-0.5 text-[10px]">
@@ -547,8 +562,8 @@ export default function RicePayrollView() {
                 Bảng Kê Lương Tháng &bull; Đội Chú 6 Thanh
               </h3>
               <p className="text-xs text-slate-500">
-                Đã chốt {savedLogs.length} ngày công &bull; Tổng sản lượng: {monthlyTotalTons} tấn &bull; Tổng lương:{' '}
-                <strong className="text-slate-900">{monthlyTotalSalary.toLocaleString()} đ</strong>
+                Đã chốt {savedLogs.length} ngày công &bull; Tổng sản lượng: {formatVND(monthlyTotalTons)} tấn &bull; Tổng lương:{' '}
+                <strong className="text-slate-900">{formatVND(monthlyTotalSalary)} đ</strong>
               </p>
             </div>
           </div>
@@ -586,10 +601,10 @@ export default function RicePayrollView() {
                   <tr key={log.date} className="hover:bg-slate-50">
                     <td className="py-2.5 px-3 font-bold text-slate-900">{log.date}</td>
                     <td className="py-2.5 px-3 text-right text-amber-700 font-semibold">{log.expectedTonsCoTro}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-700">{log.amountCoTro.toLocaleString()} đ</td>
+                    <td className="py-2.5 px-3 text-right text-slate-700">{formatVND(log.amountCoTro)} đ</td>
                     <td className="py-2.5 px-3 text-right text-indigo-700 font-semibold">{log.expectedTonsKhongTro}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-700">{log.amountKhongTro.toLocaleString()} đ</td>
-                    <td className="py-2.5 px-3 text-right font-extrabold text-slate-900">{log.totalAmount.toLocaleString()} đ</td>
+                    <td className="py-2.5 px-3 text-right text-slate-700">{formatVND(log.amountKhongTro)} đ</td>
+                    <td className="py-2.5 px-3 text-right font-extrabold text-slate-900">{formatVND(log.totalAmount)} đ</td>
                     <td className="py-2.5 px-3 text-center">
                       <button
                         onClick={() => setSavedLogs(savedLogs.filter((l) => l.date !== log.date))}
@@ -605,19 +620,19 @@ export default function RicePayrollView() {
                 <tr className="bg-slate-50 font-bold border-t-2 border-slate-200">
                   <td className="py-2.5 px-3 text-slate-900">TỔNG CỘNG</td>
                   <td className="py-2.5 px-3 text-right text-amber-800">
-                    {savedLogs.reduce((s, l) => s + l.expectedTonsCoTro, 0)}
+                    {formatVND(savedLogs.reduce((s, l) => s + l.expectedTonsCoTro, 0))}
                   </td>
                   <td className="py-2.5 px-3 text-right text-slate-800">
-                    {savedLogs.reduce((s, l) => s + l.amountCoTro, 0).toLocaleString()} đ
+                    {formatVND(savedLogs.reduce((s, l) => s + l.amountCoTro, 0))} đ
                   </td>
                   <td className="py-2.5 px-3 text-right text-indigo-800">
-                    {savedLogs.reduce((s, l) => s + l.expectedTonsKhongTro, 0)}
+                    {formatVND(savedLogs.reduce((s, l) => s + l.expectedTonsKhongTro, 0))}
                   </td>
                   <td className="py-2.5 px-3 text-right text-slate-800">
-                    {savedLogs.reduce((s, l) => s + l.amountKhongTro, 0).toLocaleString()} đ
+                    {formatVND(savedLogs.reduce((s, l) => s + l.amountKhongTro, 0))} đ
                   </td>
                   <td className="py-2.5 px-3 text-right text-base text-blue-700">
-                    {monthlyTotalSalary.toLocaleString()} đ
+                    {formatVND(monthlyTotalSalary)} đ
                   </td>
                   <td></td>
                 </tr>
