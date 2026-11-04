@@ -1,172 +1,157 @@
 # TÀI LIỆU TOÀN DIỆN HỆ THỐNG: HỢP ĐỒNG & TÍNH LƯƠNG NHÂN CÔNG NÔNG SẢN
 
-> **Mục đích tài liệu:** Lưu giữ đầy đủ toàn bộ bối cảnh dự án, lịch sử trao đổi nghiệp vụ, các quy tắc tính toán thực tế và thiết kế kiến trúc phần mềm giữa người dùng và AI. Mọi phiên làm việc tiếp theo của AI chỉ cần đọc file này là nắm bắt được 100% ngữ cảnh và tiếp tục phát triển không bị gián đoạn.
+> **Mục đích tài liệu:** Lưu giữ đầy đủ 100% bối cảnh dự án, lịch sử trao đổi nghiệp vụ, các quy tắc tính toán thực tế, kiến trúc code và giao diện giữa người dùng và AI. Mọi phiên làm việc tiếp theo của AI chỉ cần đọc file này là nắm bắt được toàn bộ ngữ cảnh và tiếp tục phát triển không bị gián đoạn.
 
 ---
 
-## PHẦN 1: BỐI CẢNH DOANH NGHIỆP & CÁC TÍNH NĂNG ĐÃ HOÀN THÀNH
+## PHẦN 1: BỐI CẢNH DOANH NGHIỆP & CÁC PHÂN HỆ ĐÃ HOÀN THÀNH
 
 ### 1.1. Thông tin doanh nghiệp
 - **Đơn vị chủ quản:** CÔNG TY TNHH XUẤT NHẬP KHẨU CHƠN CHÍNH (Bên Bán).
 - **Lĩnh vực hoạt động:** Thu mua, sấy gia công, xay xát và xuất khẩu/thương mại lúa gạo tại Đồng Tháp và các tỉnh Đồng bằng Sông Cửu Long.
 - **Trụ sở:** Đường ĐT 846, Ấp 5, Xã Đốc Binh Kiều, Tỉnh Đồng Tháp, Việt Nam.
-- **Hệ thống kho/cơ sở:** Gồm nhiều khu/cơ sở (Cơ sở 1, Thuận Thành, Nông sản Thương mại - NSX TM...).
+- **Hệ thống kho/cơ sở:** Gồm nhiều khu/cơ sở (Cơ sở I, Thuận Thành, Nông sản Thương mại - NSX TM...).
+- **Repository GitHub:** `https://github.com/hoaibao3112/TaoHopDongChonChinh.git` (nhánh `main`).
+- **Production URL Vercel:** `https://tao-hop-dong-chon-chinh.vercel.app` (Đăng nhập mật khẩu: `matkhau123`).
 
-### 1.2. Phân hệ 1: Tạo Hợp Đồng Mua Bán Hàng Hóa (.docx) [ĐÃ HOÀN THÀNH 100%]
+---
+
+### 1.2. Phân hệ 1: Tạo Hợp Đồng Mua Bán Hàng Hóa (.docx) [HOÀN THÀNH 100%]
 - **Công nghệ:** Next.js App Router standalone, TypeScript, Zod, Docxtemplater, PizZip, Tailwind CSS, Vitest.
 - **Template hợp đồng:** `templates/hop-dong-mua-ban.docx`.
 - **Các tính năng & chuẩn hóa đã hoàn tất:**
   1. **Chuẩn thể thức văn bản hành chính:** Căn lề A4 theo Nghị định 30/2020/NĐ-CP (Top 20mm, Bottom 20mm, Left 30mm, Right 20mm).
   2. **Giãn dòng:** Thân hợp đồng giãn dòng 1.5 (`w:line="360"`), Quốc hiệu/Tiêu ngữ/Căn cứ giữ giãn dòng đơn 1.0 gọn gàng.
-  3. **Bảng hàng hóa (Điều 1) thu gọn (Compact):**
-     - Đặt chiều cao dòng tối ưu, ô bảng giãn dòng đơn 1.0, không dùng `tblHeader` để tránh lặp tiêu đề.
-     - Dòng `TỔNG` gộp 2 cột đầu (`gridSpan="2"`), chữ `TỔNG` in đậm canh giữa, vừa vặn trên Trang 1 không bị đẩy hàng sang Trang 2.
-  4. **Số Hợp Đồng & Đại diện:**
-     - Dòng `Số: {contract_no}` được in đậm (`w:b`).
-     - Tên người đại diện 2 bên tự động chuyển IN HOA và in đậm màu đen.
-     - Căn thẳng hàng bên trái 3 dòng Căn cứ pháp lý.
+  3. **Bảng hàng hóa (Điều 1) thu gọn (Compact):** Ô bảng giãn dòng đơn 1.0, không dùng `tblHeader` để tránh lặp tiêu đề. Dòng `TỔNG` gộp 2 cột đầu (`gridSpan="2"`), in đậm canh giữa, vừa vặn trên Trang 1.
+  4. **Số Hợp Đồng & Đại diện:** `Số: {contract_no}` in đậm. Tên người đại diện 2 bên tự động chuyển IN HOA và in đậm màu đen. Căn thẳng hàng bên trái 3 dòng Căn cứ pháp lý.
   5. **Hậu tố Bên Mua:** Tên Bên B tự động gắn thêm ` (BÊN MUA).` vào cuối tên công ty khi xuất file Word.
-  6. **Đổi vị trí ký tên:** ĐẠI DIỆN BÊN A bên trái, ĐẠI DIỆN BÊN B bên phải.
-  7. **Combobox 3 Tài khoản Ngân hàng Bên A:**
-     - `MB Bank`: `070977789777` - TMCP Quân Đôi MB bank -CN ĐỒNG THÁP (Mặc định).
-     - `Bắc Á Bank`: `660001066668888` - BẮC Á BANK – chi nhánh ĐỒNG THÁP (Chủ TK: CÔNG TY TNHH XNK CHON CHINH).
-     - `VietinBank`: `117977789777` - VIETINBANK - CHI NHÁNH TÂY TIỀN GIANG.
-  8. **Kiểm thử tự động:** Bộ test Vitest gồm 22 tests pass 100%, TypeScript 0 lỗi.
-  9. **Repository GitHub:** `https://github.com/hoaibao3112/TaoHopDongChonChinh.git` (nhánh `main`).
+  6. **Vị trí ký tên:** ĐẠI DIỆN BÊN A bên trái, ĐẠI DIỆN BÊN B bên phải.
+  7. **Combobox 3 Tài khoản Ngân hàng Bên A:** MB Bank (Mặc định), Bắc Á Bank, VietinBank.
+  8. **Kiểm thử tự động:** Vitest 22 tests pass 100%, TypeScript 0 lỗi.
 
 ---
 
-## PHẦN 2: PHÂN HỆ MỚI ĐANG THIẾT KẾ: TÍNH LƯƠNG NHÂN CÔNG NÔNG SẢN
+### 1.3. Phân hệ 2: Tính Lương Nhân Công Nông Sản [HOÀN THÀNH 100% ĐỘI CHÚ 6 THANH]
+- **Đường dẫn truy cập:** `/tinh-luong`
+- **Đối tượng áp dụng đầu tiên:** **ĐỘI CHÚ 6 THANH (Đội Xuất tại Cơ sở I)**.
+- **Hình thức làm việc thực tế:**
+  - Chú 6 Thanh quản lý đội bốc xếp xuất lúa khô sau sấy từ lò ra ghe/xe tại Cơ sở I.
+  - Cứ 2 - 3 ngày chú gửi sổ tay ghi chép (hoặc ảnh chụp qua Zalo).
+  - Có thể tính theo đợt (2–3 ngày), nửa tháng (15 ngày tạm ứng) hoặc trọn tháng (30–31 ngày).
 
-### 2.1. Bản chất bài toán thực tế
-- Tại các cơ sở sấy & kho lúa, công ty có nhiều đội nhân công bốc xếp, vận chuyển, chụm lò:
-  - **Đội nhập:** Bốc lúa tươi từ ghe/tàu lên cân, đưa vào băng tải/tăng bo.
-  - **Đội xuất:** Bốc lúa khô sau sấy từ lò xuất ra ghe, hoặc vào bồn trữ.
-- Đang bắt đầu triển khai thí điểm trước cho: **ĐỘI CHÚ 6 THANH (Đội Xuất tại Cơ sở 1)**.
-- Đội Chú 6 Thanh làm việc liên tục hằng ngày. Cứ 2 - 3 ngày chú sẽ gửi một bản báo cáo công việc (chụp hình trang sổ tay hoặc gửi tin nhắn Zalo).
+---
 
-### 2.2. Nguồn dữ liệu đầu vào
+## PHẦN 2: CÁC QUY TẮC NGHIỆP VỤ BẮT BUỘC ĐÃ KHÓA CHẶT TRONG CODE
 
-#### Nguồn A: File Excel Tổng Hợp Lúa Tươi Của Công Ty (Master Log)
-- **File mẫu thực tế:** `THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx` (>6.000 dòng, >50 cột từ A đến BB).
-- **Các cột dữ liệu gốc liên quan trực tiếp đến tính lương:**
-  - `Cột B`: NGÀY CÂN
-  - `Cột D`: KHÁCH HÀNG (tên chủ lúa / thương lái)
-  - `Cột E`: PHƯƠNG TIỆN (ghe chở lúa tươi)
-  - `Cột F`: LOẠI LÚA (OM18, ĐT8, ST25, Nếp CPC, Japonica...)
-  - `Cột G`: MÃ LÔ
-  - `Cột Y`: NGÀY NHẬP SẤY
-  - `Cột Z`: ĐỊA ĐIỂM SẤY (CƠ SỞ SẤY) (VD: `Cơ sở 1`, `NSX TM`...)
-  - `Cột AB`: CÂN NHẬP SẤY (KG) (Sản lượng lúa thực tế vào lò)
-  - `Cột AE`: NGÀY XUỐNG LÚA KHÔ (NHẬN XUẤT TRẢ)
-  - `Cột AG`: PHƯƠNG TIỆN CHỞ LÚA KHÔ (TĂNG BO SAU SẤY) (VD: `VÔ BỒN`, ghe xuất...)
-- **Nguyên tắc an toàn dữ liệu:**
-  - Phần mềm **nhận trực tiếp File Excel Master** (không cần người dùng cắt file phụ).
-  - Phần mềm chỉ map đúng các cột nghiệp vụ cần dùng thông qua tên tiêu đề cột.
-  - Tự động bỏ qua các cột tài chính nhạy cảm nội bộ (Giá mua lúa, tiền cọc, ngân hàng thanh toán...).
+### 2.1. Bộ ba điều kiện lọc cốt lõi từ File Excel Master
+File nguồn: `THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx` (Sheet `LUA TUOI (2)`).
+Khi đối soát công nhật cho Đội Chú 6 Thanh, hệ thống **bắt buộc áp dụng đúng 3 cột**:
 
-#### Nguồn B: Sổ Tay Báo Công Nhật Của Đội Trưởng (Chú 6 Thanh)
-- **Hình thức thực tế:** Chú ghi chép tay theo từng ngày (Hình ảnh mẫu ngày `30/9`).
-- **Nội dung chú ghi:**
-  - Chi tiết các mẻ sấy ghép lại thành từng lô (Ví dụ: `{26, 33, 33} = 92.015 kg` khách Hải Hân; `{27, 25} = 52.102 kg` Hải Hân Luyện; `72.393 kg` Quân Vy; `72.300 kg` Út NĐ; `86.725 kg` Hải Hân Luyện).
-  - Tên ghe bốc lúa khô: `NN25`, `NN11`, `NN06`, `NN08`.
-  - **TỔNG KẾT CHÂN TRANG (Mấu chốt chốt tiền của chú):**
-    ```text
-    Có trở xuất : 168 x 20 = 3360  (168 tấn x 20.000đ = 3.360.000đ)
-    Xuất 0 trở  : 253 x 16 = 4048  (253 tấn x 16.000đ = 4.048.000đ)
-    --------------------------------------------------------------
-    Tổng cộng ngày 30/9    : 7.408 (7.408.000đ)
-    ```
+| Tiêu chí | Tên cột trong File Excel gốc | Cột / Index | Xử lý nghiệp vụ |
+| :--- | :--- | :--- | :--- |
+| **1. Ngày làm việc** | **`NGÀY XUỐNG LÚA KHÔ (NHẬN XUẤT TRẢ)`** | Cột **AE** (index 30) | **Chỉ lọc theo cột này**. Tuyệt đối không lấy ngày cân tươi (Cột B) hay ngày nhập sấy (Cột Y). |
+| **2. Cơ sở sấy** | **`CƠ SỞ SẤY`** / `ĐỊA ĐIỂM SẤY` | Cột **Z** (index 25) | **Bắt buộc lọc `CƠ SỞ I`** (hoặc `Cơ sở 1`, `CƠ SỞ I + CƠ SỞ II`). Bỏ qua Cơ sở II, Thuận Thành, NSX TM... |
+| **3. Cân nhập sấy** | **`CÂN NHẬP SẤY (KG)`** | Cột **AB** (index 27) | Lấy trọng lượng kg của cột này để làm tròn thành số tấn tính lương. |
 
-### 2.3. Các Quy Tắc Nghiệp Vụ Cốt Lõi (Core Business Rules)
-
-#### Quy tắc 1: Làm tròn số tấn (Rounding Rule)
+### 2.2. Quy tắc làm tròn số tấn (Rounding Rule)
 - Đơn vị tính: `Số tấn = Cân nhập sấy (kg) / 1000`.
-- **Quy tắc công ty:**
-  - Nếu phần lẻ $\ge 0.333$ tấn ($\ge 333$ kg) $\rightarrow$ **Làm tròn lên 1 tấn** (VD: $50.3332 \rightarrow 51$ tấn; $112.670 \rightarrow 113$ tấn).
-  - Nếu phần lẻ $< 0.333$ tấn ($< 333$ kg) $\rightarrow$ **Làm tròn xuống** (VD: $75.125 \rightarrow 75$ tấn; $110.278 \rightarrow 110$ tấn).
+- **Quy tắc làm tròn:**
+  - Nếu phần lẻ $\ge 333$ kg ($\ge 0.333$ tấn) $\rightarrow$ **Làm tròn lên 1 tấn** (Ví dụ: $50.334$ kg $\rightarrow 51$ tấn; $112.670$ kg $\rightarrow 113$ tấn).
+  - Nếu phần lẻ $< 333$ kg ($< 0.333$ tấn) $\rightarrow$ **Làm tròn xuống** (Ví dụ: $75.125$ kg $\rightarrow 75$ tấn; $110.278$ kg $\rightarrow 110$ tấn).
+- **Hàm xử lý:** `lib/rice-payroll/rounding.ts` -> `roundRiceTons(kg: number)`.
 
-#### Quy tắc 2: Cơ cấu các khoản lương Đội Xuất
-Tùy vào từng đội và thời điểm, lương đội xuất bao gồm các công đoạn:
-1. **Xuất có trở:** Tấn $\times$ Đơn giá (VD: 20.000đ/tấn hoặc 17.000đ/tấn).
-2. **Xuất không trở:** Tấn $\times$ Đơn giá (VD: 16.000đ/tấn hoặc 11.000đ/tấn).
-3. **Chụm lò:** Tấn $\times$ Đơn giá phân loại lúa:
-   - Lúa thường (OM18, ST25, Japonica...): 8.000đ/tấn.
-   - Nếp (Nếp CPC...): 11.000đ/tấn.
-4. **Vô bồn (nếu có):** Tấn $\times$ Đơn giá 3.000đ/tấn.
-*(Đối với Đội Chú 6 Thanh: Chú gửi tổng kết theo 2 mục: **Xuất có trở** và **Xuất không trở**).*
-
-#### Quy tắc 3: Thuật toán Tự động Ghép Mẻ Thông Minh (Smart Auto-Match)
-- **Vấn đề:** Chú Thanh báo con số gộp (VD: 168 tấn có trở, 253 tấn không trở), nhưng 168 tấn này do nhiều mẻ sấy cộng lại (VD: $68 + 30 + 70 = 168$).
-- **Giải pháp:**
-  - Khi nạp dữ liệu ngày hôm đó từ file Excel, hệ thống có danh sách các mẻ sấy thực tế.
-  - Khi người dùng nhập `168 tấn có trở` và `253 tấn không trở`, hệ thống chạy thuật toán giải bài toán tổng con (Subset Sum Match) để tự động tìm các lô có tổng bằng 168 tấn và gán nhãn `Có trở`, các lô còn lại gán nhãn `Không trở`.
-  - Hiển thị bảng kết quả xem trước cho người dùng bấm xác nhận.
-
-#### Quy tắc 4: Màn hình Đối Soát Nhanh (Reconciliation Check)
-- Người dùng chỉ cần nhập số tổng ngày từ sổ của chú:
-  - Ô 1: Số tấn xuất có trở (VD: `168`).
-  - Ô 2: Số tấn xuất không trở (VD: `253`).
-- Hệ thống tự nhân đơn giá ra tổng tiền (`7.408.000đ`).
-- Nếu số tiền trùng khớp với con số chú ghi ở chân trang $\rightarrow$ Đèn **Xanh Lá (Khớp 100%)** $\rightarrow$ Bấm 1 nút Lưu dữ liệu.
+### 2.3. Quy tắc khớp mẻ lúa Chú 6 Thanh (Subset Sum Matcher)
+- Sổ tay Chú 6 Thanh ghi tổng kết ngày dạng:
+  - `Có trở xuất: 168 x 20 = 3360` (168 tấn $\times$ 20.000đ = 3.360.000đ)
+  - `Xuất 0 trở: 253 x 16 = 4048` (253 tấn $\times$ 16.000đ = 4.048.000đ)
+  - `Tổng cộng ngày: 7.408.000đ`
+- Con số `168 tấn` là tổng của nhiều mẻ sấy trong ngày gộp lại (VD: $93 + 52 + 23 = 168$ tấn).
+- **Thuật toán Backtracking:** `lib/rice-payroll/subset-sum-matcher.ts` tự động tìm tổ hợp mẻ lúa cộng lại bằng đúng số tấn chú báo, gán nhãn `Có trở` và `Không trở`.
 
 ---
 
-## PHẦN 3: ĐỊNH HƯỚNG KIẾN TRÚC & CÁC BƯỚC TRIỂN KHAI TIẾP THEO
+## PHẦN 3: CÁC NÂNG CẤP GIAO DIỆN & TỐI ƯU UX (ĐÃ TRIỂN KHAI)
 
-### 3.1. Mô hình Dữ liệu (Data Model dự kiến)
-```mermaid
-erDiagram
-    RICE_BATCH {
-        string batchCode PK
-        date weighDate
-        string customerName
-        string vehicleName
-        string riceType
-        float wetWeightKg
-        date dryDate
-        string dryFacility
-        float dryInputKg
-        date dischargeDate
-        string dryVehicle
-    }
+1. **Tự động nạp dữ liệu nền 100% (Zero-Upload Friction):**
+   - Không bắt người dùng phải tự tạo file Excel hay bấm nút nạp file mỗi lần tính lương.
+   - Vừa mở trang `/tinh-luong` lên là hệ thống tự động tải sẵn toàn bộ 2.902 mẻ lúa năm 2026 từ `data/sample-batches.json`.
+   - Nút `⚙ Đổi file` được thu nhỏ gọn gàng, chỉ dùng khi sau này công ty có file Excel năm mới.
 
-    DAILY_WORK_LOG {
-        string id PK
-        string teamId FK
-        date workDate
-        float tonCoTro
-        float tonKhongTro
-        float unitPriceCoTro
-        float unitPriceKhongTro
-        float totalDayAmount
-        string notes
-        boolean isReconciled
-    }
+2. **Bộ lọc theo từng Tháng (Monthly Isolation):**
+   - Dropdown chọn tháng: `Tháng 10/2026`, `Tháng 09/2026`...
+   - Chọn tháng nào thì bảng và dropdown ngày chỉ hiển thị các ngày làm việc của tháng đó.
 
-    MONTHLY_PAYROLL {
-        string id PK
-        string teamId FK
-        int month
-        int year
-        float totalTons
-        float totalSalary
-        string status
-    }
+3. **Thứ tự ngày thuận chiều (01 ➔ 30/31):**
+   - Sắp xếp tăng dần theo thời gian từ ngày 01 đến ngày 31.
+   - Khi bấm **"＋ Thêm ngày"**, hệ thống tự động tăng thêm `+1 ngày` từ hàng trước (Ví dụ: `01/10` ➔ `02/10` ➔ `03/10`...).
 
-    DAILY_WORK_LOG }|--|| MONTHLY_PAYROLL : "tổng hợp thành"
-```
+4. **Hỗ trợ ngày vắt tháng (Cross-month Boundary):**
+   - Ô chọn ngày cho phép **gõ tự do bất kỳ ngày nào** (ví dụ: ngày 31 tháng trước chưa kịp tính, gõ thẳng `31/09/2026` vào tháng 10).
+   - Nút mũi tên **▼** phân nhóm rõ: *Tháng này*, *Cuối tháng trước*, *Đầu tháng sau*.
 
-### 3.2. Lộ trình triển khai (Next Steps)
-1. **Giai đoạn 1 (Thuật toán & Thử nghiệm Parser):**
-   - Viết parser đọc tự động file Excel Master `THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx`.
-   - Cài đặt hàm làm tròn chuẩn: $\ge 0.333 \rightarrow$ làm tròn lên.
-   - Cài đặt thuật toán Subset Sum Auto-Match để tự khớp các mẻ lúa ra 168 tấn và 253 tấn.
-2. **Giai đoạn 2 (Giao diện Nhập Nhanh & Đối Soát Đội Chú 6 Thanh):**
-   - Màn hình nhập công nhật nhanh (chỉ cần nhập ngày, số tấn có trở, số tấn không trở).
-   - Bảng xem trước danh sách chi tiết mẻ lúa.
-   - Hộp so khớp tiền tức thì so với sổ tay chú.
-3. **Giai đoạn 3 (Bảng Kê & Xuất Excel Lương Cuối Tháng):**
-   - Tự động gom 30 ngày thành Bảng kê tính lương tháng chuẩn y hệt hình mẫu `BẢNG KÊ TÍNH LƯƠNG THÁNG 10/2026 ĐỘI NAM-XUẤT-NSX TM`.
-   - Xuất file Excel / PDF báo cáo lương có đầy đủ chữ ký cho đội trưởng.
+5. **Xóa bỏ mũi tên tăng giảm số & Khóa cuộn chuột:**
+   - Ẩn hoàn toàn spinner arrows (hai nút tam giác lên/xuống) ở tất cả các ô nhập số.
+   - Khóa sự kiện cuộn chuột `onWheel`, ngăn chặn tuyệt đối việc cuộn trang làm nhảy số.
 
+6. **Cài đặt Đơn giá 1 lần (Master Unit Price Bar):**
+   - Thanh cài đặt đơn giá trên đầu bảng: `Có trở: [20000] đ/tấn` | `Không trở: [16000] đ/tấn`.
+   - Nhập 1 lần duy nhất tại đây, tự động điền đơn giá cho tất cả các dòng ngày công bên dưới.
+   - Người dùng chỉ cần gõ đúng 2 con số: **Số tấn có trở** và **Số tấn không trở**.
+
+7. **Xuất Excel ngay lập tức (Instant Export):**
+   - Người dùng gõ số tấn xong là nút **[📥 Xuất Excel Tháng ...]** **SÁNG LÊN NGAY LẬP TỨC**.
+   - Không bắt buộc phải bấm "Ghép Tất Cả" mới được xuất.
+   - Hỗ trợ xuất nửa tháng (15 ngày), vài ngày, hoặc trọn tháng.
+   - File Excel kết xuất ra (`Bang_Ke_Luong_Thang_...xlsx`) chuẩn chỉnh từng dòng, có phân loại mẻ, đơn giá và tổng tiền.
+
+---
+
+## PHẦN 4: CẤU TRÚC CODE & CÁC FILE TRỌNG YẾU
+
+| Đường dẫn file | Vai trò / Chức năng |
+| :--- | :--- |
+| `components/RicePayrollView.tsx` | Component giao diện chính: Bảng nhập ngày công, bộ chọn tháng, thanh đơn giá master, panel chi tiết mẻ, bảng tổng hợp và nút xuất Excel. |
+| `components/AppHeader.tsx` | Thanh điều hướng chung (Navigation Bar) có 2 tab: Tạo Hợp Đồng & Tính Lương Nông Sản. |
+| `lib/rice-payroll/types.ts` | Khai báo Interface TypeScript: `RiceBatch`, `DailyWorkReportInput`, `DailyReconciliationResult`... |
+| `lib/rice-payroll/rounding.ts` | Hàm làm tròn `roundRiceTons(kg)`: phần dư $\ge 333$ kg làm tròn lên. |
+| `lib/rice-payroll/subset-sum-matcher.ts` | Thuật toán Subset Sum Backtracking tự động ghép các mẻ sấy thành số tấn có trở / không trở. |
+| `lib/rice-payroll/excel-parser.ts` | Parser đọc file Excel Master, lọc chuẩn 3 cột nghiệp vụ, format ngày chuẩn `DD/MM/YYYY`. |
+| `app/api/rice-payroll/parse/route.ts` | API nạp dữ liệu: ưu tiên đọc file JSON tĩnh `data/sample-batches.json` trên Vercel. |
+| `app/api/rice-payroll/reconcile/route.ts` | API đối soát mẻ lúa trong ngày theo báo cáo của chú. |
+| `app/api/rice-payroll/export-monthly/route.ts` | API xuất file Excel `.xlsx` bảng kê lương tháng có đầy đủ chi tiết hoặc tóm tắt. |
+| `data/sample-batches.json` | Dữ liệu nền 2.902 mẻ lúa cả năm 2026 đã được trích xuất sẵn và bundle vào repo. |
+| `__tests__/rice-payroll.test.ts` | Bộ kiểm thử tự động Vitest cho logic tính lương (8 tests pass). |
+
+---
+
+## PHẦN 5: KIỂM ĐỊNH CHẤT LƯỢNG & LỆNH BẢO TRÌ
+
+- **Chạy kiểm thử unit test:**
+  ```bash
+  cd contract-generator
+  pnpm test
+  # Kết quả: 30/30 tests passed (5 test suites)
+  ```
+- **Kiểm tra TypeScript:**
+  ```bash
+  cd contract-generator
+  pnpm exec tsc --noEmit
+  # Kết quả: 0 errors
+  ```
+- **Build production Next.js:**
+  ```bash
+  cd contract-generator
+  pnpm run build
+  # Kết quả: Compiled successfully, 12/12 static/dynamic routes
+  ```
+- **Đẩy code lên Production:**
+  ```bash
+  git add .
+  git commit -m "..."
+  git push origin main
+  # Vercel tự động deploy từ nhánh main
+  ```
+
+---
+
+*Tài liệu được cập nhật ngày 04/11/2026. Mọi AI tiếp nhận phiên làm việc tiếp theo hãy tuân thủ nghiêm ngặt các quy tắc trên để bảo đảm hệ thống hoạt động ổn định và chính xác.*
