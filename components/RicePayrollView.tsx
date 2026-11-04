@@ -398,18 +398,44 @@ export default function RicePayrollView() {
     });
   };
 
-  // ─── Danh sách công nhật có hiệu lực (Tự động liên kết giữa bảng nhập và bảng tổng hợp) ──
-  const effectiveLogs = useMemo(() => {
-    if (savedLogs.length > 0) return savedLogs;
-    // Tự động gom các hàng đã ghép mẻ (kể cả khi chưa bấm 💾)
-    return rows.filter((r) => r.result !== null).map((r) => r.result!);
-  }, [savedLogs, rows]);
+  // ─── Danh sách công nhật có hiệu lực (Tự động liên kết NGAY KHI GÕ SỐ TẤN) ──
+  const effectiveLogs = useMemo<DailyReconciliationResult[]>(() => {
+    // Lấy tất cả các dòng người dùng đã nhập (có ngày và có số tấn > 0)
+    const validRows = rows.filter((r) => r.date && (r.tonsCoTro > 0 || r.tonsKhongTro > 0));
+    if (validRows.length === 0) {
+      return savedLogs;
+    }
+
+    return validRows.map((r) => {
+      // Nếu đã bấm ghép mẻ thì dùng kết quả ghép chi tiết
+      if (r.result) return r.result;
+
+      // Nếu vừa gõ số xong mà chưa bấm ghép, vẫn lập tức tính tiền chuẩn và cho phép xuất Excel
+      const amountCoTro = (r.tonsCoTro || 0) * (r.priceCoTro || 0);
+      const amountKhongTro = (r.tonsKhongTro || 0) * (r.priceKhongTro || 0);
+      return {
+        date: r.date,
+        expectedTonsCoTro: r.tonsCoTro || 0,
+        expectedTonsKhongTro: r.tonsKhongTro || 0,
+        unitPriceCoTro: r.priceCoTro || 0,
+        unitPriceKhongTro: r.priceKhongTro || 0,
+        amountCoTro,
+        amountKhongTro,
+        totalAmount: amountCoTro + amountKhongTro,
+        isMatched: false,
+        batchesCoTro: [],
+        batchesKhongTro: [],
+        unmatchedBatches: [],
+        message: 'Số liệu sổ tay nhập trực tiếp',
+      };
+    });
+  }, [rows, savedLogs]);
 
   // ─── Xuất Excel bảng lương tháng ─────────────────────────────────────────
   const handleExportExcel = async () => {
     const logsToExport = effectiveLogs;
     if (logsToExport.length === 0) {
-      alert('Chưa có ngày công nào được ghép. Vui lòng bấm "🔍 Ghép Tất Cả" ở bảng trên trước khi xuất file!');
+      alert('Vui lòng điền số tấn của các ngày công trước khi bấm xuất Excel!');
       return;
     }
     setIsExporting(true);

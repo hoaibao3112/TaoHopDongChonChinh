@@ -50,53 +50,103 @@ export async function POST(req: NextRequest) {
     let stt = 1;
 
     dailyLogs.forEach((log) => {
-      // Các mẻ có trở
-      log.batchesCoTro.forEach((b: RiceBatch) => {
-        const itemAmount = b.roundedTons * log.unitPriceCoTro;
-        totalKg += b.dryWeightKg;
-        totalTons += b.roundedTons;
-        totalSalary += itemAmount;
+      const hasBatches =
+        (log.batchesCoTro && log.batchesCoTro.length > 0) ||
+        (log.batchesKhongTro && log.batchesKhongTro.length > 0);
 
-        rows.push([
-          stt++,
-          b.dischargeDate || log.date,
-          b.batchCode,
-          b.customerName,
-          b.riceType,
-          b.dryFacility,
-          b.dryVehicle,
-          b.dryWeightKg,
-          b.roundedTons,
-          'Xuất có trở',
-          log.unitPriceCoTro,
-          itemAmount,
-          `Khớp ngày ${log.date}`,
-        ]);
-      });
+      // Trường hợp 1: Có chi tiết từng mẻ lúa đã ghép đối soát
+      if (hasBatches) {
+        log.batchesCoTro.forEach((b: RiceBatch) => {
+          const itemAmount = b.roundedTons * log.unitPriceCoTro;
+          totalKg += b.dryWeightKg;
+          totalTons += b.roundedTons;
+          totalSalary += itemAmount;
 
-      // Các mẻ không trở
-      log.batchesKhongTro.forEach((b: RiceBatch) => {
-        const itemAmount = b.roundedTons * log.unitPriceKhongTro;
-        totalKg += b.dryWeightKg;
-        totalTons += b.roundedTons;
-        totalSalary += itemAmount;
+          rows.push([
+            stt++,
+            b.dischargeDate || log.date,
+            b.batchCode,
+            b.customerName,
+            b.riceType,
+            b.dryFacility,
+            b.dryVehicle,
+            b.dryWeightKg,
+            b.roundedTons,
+            'Xuất có trở',
+            log.unitPriceCoTro,
+            itemAmount,
+            `Khớp ngày ${log.date}`,
+          ]);
+        });
 
-        rows.push([
-          stt++,
-          b.dischargeDate || log.date,
-          b.batchCode,
-          b.customerName,
-          b.riceType,
-          b.dryFacility,
-          b.dryVehicle,
-          b.dryWeightKg,
-          b.roundedTons,
-          'Xuất không trở',
-          log.unitPriceKhongTro,
-          itemAmount,
-          `Khớp ngày ${log.date}`,
-        ]);
-      });
+        log.batchesKhongTro.forEach((b: RiceBatch) => {
+          const itemAmount = b.roundedTons * log.unitPriceKhongTro;
+          totalKg += b.dryWeightKg;
+          totalTons += b.roundedTons;
+          totalSalary += itemAmount;
+
+          rows.push([
+            stt++,
+            b.dischargeDate || log.date,
+            b.batchCode,
+            b.customerName,
+            b.riceType,
+            b.dryFacility,
+            b.dryVehicle,
+            b.dryWeightKg,
+            b.roundedTons,
+            'Xuất không trở',
+            log.unitPriceKhongTro,
+            itemAmount,
+            `Khớp ngày ${log.date}`,
+          ]);
+        });
+      } else {
+        // Trường hợp 2: Xuất trực tiếp theo số liệu sổ tay người dùng đã nhập
+        if (log.expectedTonsCoTro > 0) {
+          totalKg += log.expectedTonsCoTro * 1000;
+          totalTons += log.expectedTonsCoTro;
+          totalSalary += log.amountCoTro;
+
+          rows.push([
+            stt++,
+            log.date,
+            'SỔ TAY',
+            'ĐỘI CHÚ 6 THANH',
+            'LÚA KHÔ',
+            'CƠ SỞ I',
+            'XUẤT LÒ',
+            log.expectedTonsCoTro * 1000,
+            log.expectedTonsCoTro,
+            'Xuất có trở',
+            log.unitPriceCoTro,
+            log.amountCoTro,
+            `Báo công ngày ${log.date}`,
+          ]);
+        }
+
+        if (log.expectedTonsKhongTro > 0) {
+          totalKg += log.expectedTonsKhongTro * 1000;
+          totalTons += log.expectedTonsKhongTro;
+          totalSalary += log.amountKhongTro;
+
+          rows.push([
+            stt++,
+            log.date,
+            'SỔ TAY',
+            'ĐỘI CHÚ 6 THANH',
+            'LÚA KHÔ',
+            'CƠ SỞ I',
+            'XUẤT LÒ',
+            log.expectedTonsKhongTro * 1000,
+            log.expectedTonsKhongTro,
+            'Xuất không trở',
+            log.unitPriceKhongTro,
+            log.amountKhongTro,
+            `Báo công ngày ${log.date}`,
+          ]);
+        }
+      }
     });
 
     // Dòng tổng cộng
