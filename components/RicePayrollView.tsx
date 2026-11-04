@@ -257,6 +257,14 @@ export default function RicePayrollView() {
         errorMsg: '',
       });
       setDetailRow({ ...row, result, status: newStatus });
+
+      // TỰ ĐỘNG ĐƯA VÀO BẢNG LƯƠNG THÁNG NGAY KHI GHÉP KHỚP (Không cần bắt user bấm nút 💾 thủ công)
+      if (result.isMatched) {
+        setSavedLogs((prev) => {
+          const filtered = prev.filter((l) => l.date !== result.date);
+          return [...filtered, result];
+        });
+      }
     } catch (err) {
       updateRow(row.id, {
         status: 'error',
@@ -282,9 +290,20 @@ export default function RicePayrollView() {
     });
   };
 
+  // ─── Danh sách công nhật có hiệu lực (Tự động liên kết giữa bảng nhập và bảng tổng hợp) ──
+  const effectiveLogs = useMemo(() => {
+    if (savedLogs.length > 0) return savedLogs;
+    // Tự động gom các hàng đã ghép mẻ (kể cả khi chưa bấm 💾)
+    return rows.filter((r) => r.result !== null).map((r) => r.result!);
+  }, [savedLogs, rows]);
+
   // ─── Xuất Excel bảng lương tháng ─────────────────────────────────────────
   const handleExportExcel = async () => {
-    if (savedLogs.length === 0) return;
+    const logsToExport = effectiveLogs;
+    if (logsToExport.length === 0) {
+      alert('Chưa có ngày công nào được ghép. Vui lòng bấm "🔍 Ghép Tất Cả" ở bảng trên trước khi xuất file!');
+      return;
+    }
     setIsExporting(true);
     try {
       const [m, y] = selectedMonthKey.split('/').map(Number);
@@ -295,7 +314,7 @@ export default function RicePayrollView() {
           month: m || 10,
           year: y || 2026,
           teamName: 'ĐỘI CHÚ 6 THANH - XUẤT CS1',
-          dailyLogs: savedLogs,
+          dailyLogs: logsToExport,
         }),
       });
       if (!res.ok) throw new Error('Lỗi khi xuất Excel');
@@ -316,7 +335,7 @@ export default function RicePayrollView() {
   };
 
   // ─── Computed ─────────────────────────────────────────────────────────────
-  const monthlyTotal = savedLogs.reduce((s, l) => s + l.totalAmount, 0);
+  const monthlyTotal = effectiveLogs.reduce((s, l) => s + l.totalAmount, 0);
   const [currentMonthNum, currentYearNum] = selectedMonthKey.split('/');
 
   return (
@@ -995,30 +1014,30 @@ export default function RicePayrollView() {
               Bảng Kê Lương Tháng {selectedMonthKey} &bull; Đội Chú 6 Thanh
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              {savedLogs.length > 0 ? (
+              {effectiveLogs.length > 0 ? (
                 <>
-                  Đã chốt {savedLogs.length} ngày công &bull; Tổng tiền lương:{' '}
+                  Đã chốt <strong>{effectiveLogs.length}</strong> ngày công &bull; Tổng tiền lương:{' '}
                   <strong className="text-blue-700 font-extrabold">
                     {formatVND(monthlyTotal)} đ
                   </strong>
                 </>
               ) : (
-                'Nhấn nút 💾 ở từng ngày đã ghép để đưa vào bảng tổng hợp tháng này'
+                'Bấm nút 🔍 Ghép Tất Cả ở bảng trên để kiểm tra mẻ lúa và tự động chốt lương'
               )}
             </p>
           </div>
           <button
             onClick={handleExportExcel}
-            disabled={isExporting || savedLogs.length === 0}
+            disabled={isExporting || effectiveLogs.length === 0}
             className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:from-blue-800 hover:to-indigo-700 disabled:opacity-40 cursor-pointer transition-all"
           >
             📥 {isExporting ? 'Đang kết xuất...' : `Xuất Excel Tháng ${selectedMonthKey}`}
           </button>
         </div>
 
-        {savedLogs.length === 0 ? (
+        {effectiveLogs.length === 0 ? (
           <div className="py-12 text-center text-xs text-slate-400">
-            Chưa có ngày công nào trong Tháng {selectedMonthKey} được lưu. Ghép mẻ từng ngày và nhấn 💾 để chốt vào bảng lương.
+            Chưa có ngày công nào trong Tháng {selectedMonthKey} được ghép. Hãy chọn ngày, điền số tấn ở bảng trên rồi bấm <strong>&quot;🔍 Ghép&quot;</strong> hoặc <strong>&quot;🔍 Ghép Tất Cả&quot;</strong>, hệ thống sẽ tự động tổng hợp vào đây!
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -1035,7 +1054,7 @@ export default function RicePayrollView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {savedLogs.map((log) => (
+                {effectiveLogs.map((log) => (
                   <tr key={log.date} className="hover:bg-slate-50">
                     <td className="py-2.5 px-3 font-bold text-slate-900">{log.date}</td>
                     <td className="py-2.5 px-3 text-right text-amber-700 font-semibold">{log.expectedTonsCoTro}</td>
@@ -1062,16 +1081,16 @@ export default function RicePayrollView() {
                     Tổng cộng Tháng {selectedMonthKey}
                   </td>
                   <td className="py-3 px-3 text-right text-amber-800">
-                    {savedLogs.reduce((s, l) => s + l.expectedTonsCoTro, 0)} tấn
+                    {effectiveLogs.reduce((s, l) => s + l.expectedTonsCoTro, 0)} tấn
                   </td>
                   <td className="py-3 px-3 text-right text-slate-800 whitespace-nowrap">
-                    {formatVND(savedLogs.reduce((s, l) => s + l.amountCoTro, 0))}&thinsp;đ
+                    {formatVND(effectiveLogs.reduce((s, l) => s + l.amountCoTro, 0))}&thinsp;đ
                   </td>
                   <td className="py-3 px-3 text-right text-indigo-800">
-                    {savedLogs.reduce((s, l) => s + l.expectedTonsKhongTro, 0)} tấn
+                    {effectiveLogs.reduce((s, l) => s + l.expectedTonsKhongTro, 0)} tấn
                   </td>
                   <td className="py-3 px-3 text-right text-slate-800 whitespace-nowrap">
-                    {formatVND(savedLogs.reduce((s, l) => s + l.amountKhongTro, 0))}&thinsp;đ
+                    {formatVND(effectiveLogs.reduce((s, l) => s + l.amountKhongTro, 0))}&thinsp;đ
                   </td>
                   <td className="py-3 px-3 text-right text-base text-blue-700 whitespace-nowrap">
                     {formatVND(monthlyTotal)}&thinsp;đ
