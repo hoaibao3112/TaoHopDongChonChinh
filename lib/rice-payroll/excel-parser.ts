@@ -73,7 +73,10 @@ function findColumnIndexes(headerRow: unknown[]) {
     if (text.includes('ngày') && text.includes('nhập sấy')) colDryDate = idx;
     if (text.includes('cơ sở sấy') || text.includes('địa điểm sấy')) colDryFacility = idx;
     if (text.includes('cân nhập sấy')) colDryWeight = idx;
-    if (text.includes('xuống lúa khô') || text.includes('xuất trả')) colDischargeDate = idx;
+    // Cột AE: NGÀY XUỐNG LÚA KHÔ (NHẬN XUẤT TRẢ) - Trường quan trọng nhất của Chú 6 Thanh
+    if (text.includes('xuống lúa khô') || (text.includes('ngày') && text.includes('xuống lúa'))) {
+      colDischargeDate = idx;
+    }
     if (text.includes('chở lúa khô') || text.includes('tăng bo sau sấy')) colDryVehicle = idx;
   });
 

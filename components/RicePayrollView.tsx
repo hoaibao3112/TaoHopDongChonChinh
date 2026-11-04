@@ -44,6 +44,39 @@ function newRow(date = ''): DayRow {
   };
 }
 
+/**
+ * Tăng 1 ngày cho chuỗi DD/MM/YYYY (hỗ trợ chuyển giao qua tháng kế tiếp)
+ */
+function addOneDay(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('/').map(Number);
+  if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+    const dt = new Date(parts[2], parts[1] - 1, parts[0]);
+    dt.setDate(dt.getDate() + 1);
+    const d = String(dt.getDate()).padStart(2, '0');
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const y = dt.getFullYear();
+    return `${d}/${m}/${y}`;
+  }
+  return '';
+}
+
+/**
+ * Kiểm tra xem địa điểm sấy có phải Cơ sở I (Cơ sở 1) hay không
+ */
+function isCoSo1(facility: string): boolean {
+  if (!facility) return false;
+  const f = facility.toUpperCase().trim();
+  return (
+    f === 'CƠ SỞ I' ||
+    f === 'CƠ SỞ 1' ||
+    f.includes('CƠ SỞ I') ||
+    f.includes('CƠ SỞ 1') ||
+    f.includes('CS1') ||
+    f.includes('CS 1')
+  );
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: DayRow['status'] }) {
@@ -168,17 +201,65 @@ export default function RicePayrollView() {
     return Array.from(set).sort().reverse(); // Mới nhất lên đầu
   }, [allDates]);
 
-  // ─── Danh sách ngày thuộc tháng đang chọn ───────────────────────────────────
+  // ─── Danh sách ngày thuộc tháng đang chọn (SẮP XẾP TĂNG DẦN: TỪ NGÀY 01 ĐẾN 30/31) ──
   const datesInSelectedMonth = useMemo(() => {
     if (!selectedMonthKey) return [];
-    return allDates.filter((d) => d.endsWith(`/${selectedMonthKey}`));
+    const list = allDates.filter((d) => d.endsWith(`/${selectedMonthKey}`));
+    return list.sort((a, b) => {
+      const [d1, m1, y1] = a.split('/').map(Number);
+      const [d2, m2, y2] = b.split('/').map(Number);
+      return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
+    });
   }, [allDates, selectedMonthKey]);
 
-  // Khi đổi tháng, tự động set ngày cho hàng đầu tiên nếu hàng đó chưa có ngày
+  // ─── Danh sách ngày mở rộng (bao gồm cả các ngày cuối tháng trước & đầu tháng sau) ──
+  const nearbyDates = useMemo(() => {
+    if (!selectedMonthKey) return { current: [], prev: [], next: [] };
+    const [currM, currY] = selectedMonthKey.split('/').map(Number);
+
+    // Tháng trước
+    const prevDate = new Date(currY, currM - 2, 1);
+    const prevKey = `${String(prevDate.getMonth() + 1).padStart(2, '0')}/${prevDate.getFullYear()}`;
+    const prevList = allDates
+      .filter((d) => d.endsWith(`/${prevKey}`))
+      .sort((a, b) => {
+        const [d1, m1, y1] = a.split('/').map(Number);
+        const [d2, m2, y2] = b.split('/').map(Number);
+        return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
+      });
+    const prevMonthDates = prevList.slice(-5); // 5 ngày cuối tháng trước (vd 27, 28, 29, 30, 31)
+
+    // Tháng sau
+    const nextDate = new Date(currY, currM, 1);
+    const nextKey = `${String(nextDate.getMonth() + 1).padStart(2, '0')}/${nextDate.getFullYear()}`;
+    const nextList = allDates
+      .filter((d) => d.endsWith(`/${nextKey}`))
+      .sort((a, b) => {
+        const [d1, m1, y1] = a.split('/').map(Number);
+        const [d2, m2, y2] = b.split('/').map(Number);
+        return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
+      });
+    const nextMonthDates = nextList.slice(0, 5); // 5 ngày đầu tháng sau (vd 01, 02, 03)
+
+    return {
+      current: datesInSelectedMonth,
+      prev: prevMonthDates,
+      next: nextMonthDates,
+    };
+  }, [allDates, selectedMonthKey, datesInSelectedMonth]);
+
+  // Khi đổi tháng, tự động set ngày cho hàng đầu tiên là ngày đầu tiên của tháng (Ngày 01)
   const handleSelectMonth = (monthKey: string) => {
     setSelectedMonthKey(monthKey);
-    const validDates = allDates.filter((d) => d.endsWith(`/${monthKey}`));
-    setRows([newRow(validDates[validDates.length - 1] || '')]);
+    const validDates = allDates
+      .filter((d) => d.endsWith(`/${monthKey}`))
+      .sort((a, b) => {
+        const [d1, m1, y1] = a.split('/').map(Number);
+        const [d2, m2, y2] = b.split('/').map(Number);
+        return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
+      });
+    // Mặc định ngày đầu tiên trong tháng (ví dụ 01/10/2026)
+    setRows([newRow(validDates[0] || `01/${monthKey}`)]);
     setDetailRow(null);
     setSavedLogs([]); // Reset bảng lương tháng khi chuyển sang tháng khác
   };
@@ -189,15 +270,16 @@ export default function RicePayrollView() {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }, []);
 
+  // Thêm ngày: Tự động tăng lên 1 ngày (VD: Ngày 01 -> Ngày 02 -> Ngày 03 ... đến 31)
   const addRow = () => {
-    // Gợi ý ngày tiếp theo nếu có
     const lastRow = rows[rows.length - 1];
     let nextDate = '';
-    if (lastRow?.date && datesInSelectedMonth.length > 0) {
-      const idx = datesInSelectedMonth.indexOf(lastRow.date);
-      if (idx !== -1 && idx > 0) {
-        nextDate = datesInSelectedMonth[idx - 1]; // Ngày liền trước
-      }
+    if (lastRow?.date) {
+      nextDate = addOneDay(lastRow.date);
+    } else if (datesInSelectedMonth.length > 0) {
+      nextDate = datesInSelectedMonth[0];
+    } else {
+      nextDate = `01/${selectedMonthKey}`;
     }
     setRows((prev) => [...prev, newRow(nextDate)]);
   };
@@ -207,14 +289,20 @@ export default function RicePayrollView() {
     if (detailRow?.id === id) setDetailRow(null);
   };
 
-  // Lọc mẻ lúa trong ngày
+  // ─── LỌC MẺ LÚA CHO ĐỘI CHÚ 6 THANH ─────────────────────────────────────────
+  // Quy tắc nghiệp vụ cứng:
+  // 1. Chú 6 Thanh là ĐỘI XUẤT CƠ SỞ I -> Địa điểm phải là Cơ sở I
+  // 2. Ngày làm việc của chú tương ứng với NGÀY XUỐNG LÚA (dischargeDate)
   const getDayBatches = (date: string) =>
     allBatches.filter((b) => {
-      const matchDate = b.dischargeDate === date || b.dryDate === date;
-      const matchFacility = b.dryFacility
-        .toLowerCase()
-        .includes(selectedFacility.toLowerCase());
-      return matchDate && matchFacility;
+      // 1. Phải là Cơ sở I
+      const matchFacility = isCoSo1(b.dryFacility);
+      if (!matchFacility) return false;
+
+      // 2. Chú 6 Thanh là Đội Xuất: So khớp chính xác theo NGÀY XUỐNG LÚA (dischargeDate).
+      // Nếu mẻ chưa có dischargeDate thì mới dùng dryDate.
+      const actualDischargeDate = b.dischargeDate || b.dryDate;
+      return actualDischargeDate === date;
     });
 
   // ─── Ghép mẻ 1 ngày ───────────────────────────────────────────────────────
@@ -518,42 +606,65 @@ export default function RicePayrollView() {
                         : 'hover:bg-slate-50/80'
                     }`}
                   >
-                    {/* Chọn Ngày (CHỈ HIỆN CÁC NGÀY TRONG THÁNG ĐANG CHỌN) */}
+                    {/* Chọn Ngày làm việc (Cho phép gõ tự do + Chọn dropdown phân nhóm tháng trước/này/sau) */}
                     <td className="py-2 px-3">
-                      {datesInSelectedMonth.length > 0 ? (
-                        <select
-                          value={row.date}
-                          onChange={(e) =>
-                            updateRow(row.id, {
-                              date: e.target.value,
-                              status: 'idle',
-                              result: null,
-                            })
-                          }
-                          className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
-                        >
-                          <option value="">— Chọn ngày —</option>
-                          {datesInSelectedMonth.map((d) => (
-                            <option key={d} value={d}>
-                              Ngày {d}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
+                      <div className="flex items-center gap-1">
                         <input
                           type="text"
                           value={row.date}
                           onChange={(e) =>
                             updateRow(row.id, {
-                              date: e.target.value,
+                              date: e.target.value.trim(),
                               status: 'idle',
                               result: null,
                             })
                           }
-                          placeholder={`VD: 30/${selectedMonthKey}`}
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+                          placeholder={`01/${selectedMonthKey}`}
+                          className="w-28 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+                          title="Gõ ngày hoặc bấm nút ▼ bên cạnh để chọn"
                         />
-                      )}
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              updateRow(row.id, {
+                                date: e.target.value,
+                                status: 'idle',
+                                result: null,
+                              });
+                            }
+                          }}
+                          className="rounded-lg border border-slate-300 bg-slate-50 px-1 py-1.5 text-xs text-slate-600 hover:bg-slate-100 focus:outline-none cursor-pointer"
+                          title="Chọn ngày nhanh"
+                        >
+                          <option value="">▼</option>
+                          <optgroup label={`Tháng ${selectedMonthKey} (Ngày 01 -> 31)`}>
+                            {datesInSelectedMonth.map((d) => (
+                              <option key={d} value={d}>
+                                Ngày {d}
+                              </option>
+                            ))}
+                          </optgroup>
+                          {nearbyDates.prev.length > 0 && (
+                            <optgroup label="Cuối tháng trước">
+                              {nearbyDates.prev.map((d) => (
+                                <option key={d} value={d}>
+                                  Ngày {d} (Tháng trước)
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {nearbyDates.next.length > 0 && (
+                            <optgroup label="Đầu tháng sau">
+                              {nearbyDates.next.map((d) => (
+                                <option key={d} value={d}>
+                                  Ngày {d} (Tháng sau)
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </select>
+                      </div>
                     </td>
 
                     {/* Có trở: tấn */}
@@ -743,41 +854,60 @@ export default function RicePayrollView() {
             return (
               <div key={row.id} className="p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex-1">
-                    {datesInSelectedMonth.length > 0 ? (
-                      <select
-                        value={row.date}
-                        onChange={(e) =>
+                  <div className="flex-1 flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={row.date}
+                      onChange={(e) =>
+                        updateRow(row.id, {
+                          date: e.target.value.trim(),
+                          status: 'idle',
+                          result: null,
+                        })
+                      }
+                      placeholder={`01/${selectedMonthKey}`}
+                      className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+                    />
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) {
                           updateRow(row.id, {
                             date: e.target.value,
                             status: 'idle',
                             result: null,
-                          })
+                          });
                         }
-                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
-                      >
-                        <option value="">— Chọn ngày —</option>
+                      }}
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-2 py-2 text-xs text-slate-600 focus:outline-none cursor-pointer"
+                    >
+                      <option value="">▼</option>
+                      <optgroup label={`Tháng ${selectedMonthKey} (Ngày 01 -> 31)`}>
                         {datesInSelectedMonth.map((d) => (
                           <option key={d} value={d}>
                             Ngày {d}
                           </option>
                         ))}
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={row.date}
-                        onChange={(e) =>
-                          updateRow(row.id, {
-                            date: e.target.value,
-                            status: 'idle',
-                            result: null,
-                          })
-                        }
-                        placeholder={`30/${selectedMonthKey}`}
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
-                      />
-                    )}
+                      </optgroup>
+                      {nearbyDates.prev.length > 0 && (
+                        <optgroup label="Cuối tháng trước">
+                          {nearbyDates.prev.map((d) => (
+                            <option key={d} value={d}>
+                              Ngày {d} (Tháng trước)
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {nearbyDates.next.length > 0 && (
+                        <optgroup label="Đầu tháng sau">
+                          {nearbyDates.next.map((d) => (
+                            <option key={d} value={d}>
+                              Ngày {d} (Tháng sau)
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </select>
                   </div>
                   <StatusBadge status={row.status} />
                 </div>
