@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { RiceBatch, DailyReconciliationResult } from '@/lib/rice-payroll/types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -81,14 +81,18 @@ function StatusBadge({ status }: { status: DayRow['status'] }) {
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function RicePayrollView() {
-  // ── Dữ liệu Excel nền ──
-  const [isLoadingFile, setIsLoadingFile] = useState(false);
+  // ── Dữ liệu nền (Tự động nạp sẵn) ──
+  const [isLoadingFile, setIsLoadingFile] = useState(true);
   const [loadedFileName, setLoadedFileName] = useState<string>('');
   const [allBatches, setAllBatches] = useState<RiceBatch[]>([]);
-  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [allDates, setAllDates] = useState<string[]>([]);
   const [fileError, setFileError] = useState('');
+  const [showFileUploader, setShowFileUploader] = useState(false);
 
-  // ── Bảng ngày công ──
+  // ── Chọn Tháng / Năm tính lương ──
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>('10/2026'); // MM/YYYY
+
+  // ── Bảng ngày công trong tháng ──
   const [rows, setRows] = useState<DayRow[]>([newRow()]);
 
   // ── Chi tiết mẻ đang xem ──
@@ -98,69 +102,104 @@ export default function RicePayrollView() {
   const [savedLogs, setSavedLogs] = useState<DailyReconciliationResult[]>([]);
   const [isExporting, setIsExporting] = useState(false);
 
-  // ── Cơ sở mặc định ──
+  // Cơ sở mặc định
   const selectedFacility = 'Cơ sở 1';
 
-  // ─── Load dữ liệu ─────────────────────────────────────────────────────────
-
-  const handleLoadSample = async () => {
+  // ─── TỰ ĐỘNG NẠP DỮ LIỆU NỀN KHI MỞ TRANG ──────────────────────────────────
+  const loadData = useCallback(async (useSample = true, file?: File) => {
     setIsLoadingFile(true);
     setFileError('');
     try {
-      const res = await fetch('/api/rice-payroll/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ useSample: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi khi nạp file mẫu');
-      setLoadedFileName(data.fileName);
-      setAllBatches(data.batches);
-      setAvailableDates(data.dates);
-    } catch (err) {
-      setFileError(err instanceof Error ? err.message : 'Lỗi không xác định');
-    } finally {
-      setIsLoadingFile(false);
-    }
-  };
+      let res: Response;
+      if (file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        res = await fetch('/api/rice-payroll/parse', { method: 'POST', body: formData });
+      } else {
+        res = await fetch('/api/rice-payroll/parse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ useSample: true }),
+        });
+      }
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsLoadingFile(true);
-    setFileError('');
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const res = await fetch('/api/rice-payroll/parse', {
-        method: 'POST',
-        body: formData,
-      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi khi đọc file Excel');
+      if (!res.ok) throw new Error(data.error || 'Lỗi khi nạp dữ liệu mẻ lúa');
+
       setLoadedFileName(data.fileName);
-      setAllBatches(data.batches);
-      setAvailableDates(data.dates);
+      setAllBatches(data.batches || []);
+      setAllDates(data.dates || []);
+
+      // Tìm tháng mới nhất có dữ liệu để chọn mặc định
+      const months = new Set<string>();
+      (data.dates || []).forEach((d: string) => {
+        const parts = d.split('/');
+        if (parts.length === 3) months.add(`${parts[1]}/${parts[2]}`);
+      });
+      const sortedMonths = Array.from(months).sort().reverse();
+      if (sortedMonths.length > 0) {
+        // Ưu tiên tháng 10/2026 hoặc 09/2026 nếu có
+        if (sortedMonths.includes('10/2026')) {
+          setSelectedMonthKey('10/2026');
+        } else if (sortedMonths.includes('09/2026')) {
+          setSelectedMonthKey('09/2026');
+        } else {
+          setSelectedMonthKey(sortedMonths[0]);
+        }
+      }
     } catch (err) {
-      setFileError(err instanceof Error ? err.message : 'Lỗi upload');
+      setFileError(err instanceof Error ? err.message : 'Không thể nạp dữ liệu');
     } finally {
       setIsLoadingFile(false);
     }
+  }, []);
+
+  useEffect(() => {
+    loadData(true);
+  }, [loadData]);
+
+  // ─── Danh sách các tháng có dữ liệu ─────────────────────────────────────────
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    allDates.forEach((d) => {
+      const parts = d.split('/');
+      if (parts.length === 3) set.add(`${parts[1]}/${parts[2]}`);
+    });
+    return Array.from(set).sort().reverse(); // Mới nhất lên đầu
+  }, [allDates]);
+
+  // ─── Danh sách ngày thuộc tháng đang chọn ───────────────────────────────────
+  const datesInSelectedMonth = useMemo(() => {
+    if (!selectedMonthKey) return [];
+    return allDates.filter((d) => d.endsWith(`/${selectedMonthKey}`));
+  }, [allDates, selectedMonthKey]);
+
+  // Khi đổi tháng, tự động set ngày cho hàng đầu tiên nếu hàng đó chưa có ngày
+  const handleSelectMonth = (monthKey: string) => {
+    setSelectedMonthKey(monthKey);
+    const validDates = allDates.filter((d) => d.endsWith(`/${monthKey}`));
+    setRows([newRow(validDates[validDates.length - 1] || '')]);
+    setDetailRow(null);
+    setSavedLogs([]); // Reset bảng lương tháng khi chuyển sang tháng khác
   };
 
   // ─── Thao tác bảng ngày ───────────────────────────────────────────────────
 
-  const updateRow = useCallback(
-    (id: string, patch: Partial<DayRow>) => {
-      setRows((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, ...patch } : r))
-      );
-    },
-    []
-  );
+  const updateRow = useCallback((id: string, patch: Partial<DayRow>) => {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }, []);
 
   const addRow = () => {
-    setRows((prev) => [...prev, newRow()]);
+    // Gợi ý ngày tiếp theo nếu có
+    const lastRow = rows[rows.length - 1];
+    let nextDate = '';
+    if (lastRow?.date && datesInSelectedMonth.length > 0) {
+      const idx = datesInSelectedMonth.indexOf(lastRow.date);
+      if (idx !== -1 && idx > 0) {
+        nextDate = datesInSelectedMonth[idx - 1]; // Ngày liền trước
+      }
+    }
+    setRows((prev) => [...prev, newRow(nextDate)]);
   };
 
   const removeRow = (id: string) => {
@@ -168,10 +207,10 @@ export default function RicePayrollView() {
     if (detailRow?.id === id) setDetailRow(null);
   };
 
+  // Lọc mẻ lúa trong ngày
   const getDayBatches = (date: string) =>
     allBatches.filter((b) => {
-      const matchDate =
-        b.dischargeDate === date || b.dryDate === date;
+      const matchDate = b.dischargeDate === date || b.dryDate === date;
       const matchFacility = b.dryFacility
         .toLowerCase()
         .includes(selectedFacility.toLowerCase());
@@ -179,17 +218,16 @@ export default function RicePayrollView() {
     });
 
   // ─── Ghép mẻ 1 ngày ───────────────────────────────────────────────────────
-
   const handleReconcileRow = async (row: DayRow) => {
     if (!row.date) {
-      updateRow(row.id, { status: 'error', errorMsg: 'Chưa nhập ngày' });
+      updateRow(row.id, { status: 'error', errorMsg: 'Chưa chọn ngày làm việc' });
       return;
     }
     const dayBatches = getDayBatches(row.date);
     if (dayBatches.length === 0) {
       updateRow(row.id, {
         status: 'error',
-        errorMsg: `Không có mẻ lúa nào tại ${selectedFacility} trong ngày ${row.date}`,
+        errorMsg: `Không có mẻ lúa nào tại ${selectedFacility} ngày ${row.date}`,
       });
       return;
     }
@@ -227,8 +265,7 @@ export default function RicePayrollView() {
     }
   };
 
-  // ─── Ghép mẻ hàng loạt tất cả ────────────────────────────────────────────
-
+  // ─── Ghép mẻ hàng loạt ────────────────────────────────────────────────────
   const handleReconcileAll = async () => {
     for (const row of rows) {
       if (row.status === 'matched') continue;
@@ -237,7 +274,6 @@ export default function RicePayrollView() {
   };
 
   // ─── Lưu ngày vào bảng lương tháng ───────────────────────────────────────
-
   const handleSaveRow = (row: DayRow) => {
     if (!row.result) return;
     setSavedLogs((prev) => {
@@ -247,17 +283,17 @@ export default function RicePayrollView() {
   };
 
   // ─── Xuất Excel bảng lương tháng ─────────────────────────────────────────
-
   const handleExportExcel = async () => {
     if (savedLogs.length === 0) return;
     setIsExporting(true);
     try {
+      const [m, y] = selectedMonthKey.split('/').map(Number);
       const res = await fetch('/api/rice-payroll/export-monthly', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          month: 10,
-          year: 2026,
+          month: m || 10,
+          year: y || 2026,
           teamName: 'ĐỘI CHÚ 6 THANH - XUẤT CS1',
           dailyLogs: savedLogs,
         }),
@@ -267,7 +303,7 @@ export default function RicePayrollView() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Bang_Ke_Luong_T10_2026_Chu_6_Thanh.xlsx`;
+      a.download = `Bang_Ke_Luong_Thang_${m || 10}_${y || 2026}_Chu_6_Thanh.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -280,88 +316,135 @@ export default function RicePayrollView() {
   };
 
   // ─── Computed ─────────────────────────────────────────────────────────────
-
   const monthlyTotal = savedLogs.reduce((s, l) => s + l.totalAmount, 0);
-
-  // ─── Render ───────────────────────────────────────────────────────────────
+  const [currentMonthNum, currentYearNum] = selectedMonthKey.split('/');
 
   return (
     <div className="space-y-5">
-
       {/* ══════════════════════════════════════════════════════════════════════
-          BƯỚC 1 — NẠP FILE MASTER EXCEL
+          THANH ĐIỀU KHIỂN CHÍNH: CHỌN THÁNG TÍNH LƯƠNG & TRẠNG THÁI DỮ LIỆU
       ══════════════════════════════════════════════════════════════════════ */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 text-xs font-bold">
-                1
-              </span>
-              <h2 className="text-sm font-bold text-slate-900">
-                Nạp File Dữ Liệu Mẻ Lúa (Excel Master)
-              </h2>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          
+          {/* Cụm chọn tháng */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-xs">
+              📅
             </div>
-            {loadedFileName ? (
-              <p className="mt-1 pl-9 text-xs text-emerald-700 font-medium">
-                ✓ {loadedFileName} — {allBatches.length.toLocaleString()} mẻ &bull;{' '}
-                {availableDates.length} ngày làm việc
-              </p>
-            ) : (
-              <p className="mt-1 pl-9 text-xs text-slate-400">
-                Chưa nạp dữ liệu. Nhấn nút để bắt đầu.
-              </p>
-            )}
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Kỳ Tính Lương
+                </span>
+                <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+                  Đội Chú 6 Thanh &bull; Cơ sở 1
+                </span>
+              </div>
+              
+              <div className="mt-1 flex items-center gap-2">
+                <label htmlFor="month-select" className="text-xs font-medium text-slate-700">
+                  Chọn tháng:
+                </label>
+                <select
+                  id="month-select"
+                  value={selectedMonthKey}
+                  onChange={(e) => handleSelectMonth(e.target.value)}
+                  className="rounded-xl border-2 border-blue-500 bg-blue-50/50 px-3 py-1.5 text-sm font-extrabold text-blue-900 focus:outline-none focus:bg-white shadow-2xs"
+                >
+                  {availableMonths.map((m) => (
+                    <option key={m} value={m}>
+                      Tháng {m} ({allDates.filter((d) => d.endsWith(`/${m}`)).length} ngày lúa)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 pl-9 sm:pl-0">
+          {/* Cụm thông tin nền & nút mở rộng */}
+          <div className="flex items-center justify-between md:justify-end gap-3 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
+            {isLoadingFile ? (
+              <div className="flex items-center gap-2 text-xs text-blue-600 font-semibold animate-pulse">
+                <span>🔄</span>
+                <span>Đang tải dữ liệu lúa...</span>
+              </div>
+            ) : (
+              <div className="text-right">
+                <div className="flex items-center gap-1.5 justify-end">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                  <span className="text-xs font-semibold text-slate-700">
+                    Dữ liệu sẵn sàng: {allBatches.length.toLocaleString()} mẻ
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Tháng {selectedMonthKey} có {datesInSelectedMonth.length} ngày xuất lúa
+                </p>
+              </div>
+            )}
+
             <button
-              onClick={handleLoadSample}
-              disabled={isLoadingFile}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 cursor-pointer transition-all"
+              onClick={() => setShowFileUploader(!showFileUploader)}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              title="Đổi file Excel khác nếu có"
             >
-              ⚡ {isLoadingFile ? 'Đang đọc...' : 'Nạp File Mẫu 2026'}
+              ⚙ {showFileUploader ? 'Đóng' : 'Đổi file'}
             </button>
-            <label className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer transition-all">
-              📁 Chọn file khác
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={handleFileUpload}
-              />
-            </label>
           </div>
         </div>
 
+        {/* Panel đổi file (chỉ hiện khi người dùng bấm 'Đổi file') */}
+        {showFileUploader && (
+          <div className="mt-4 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-3 rounded-xl">
+            <span className="text-xs text-slate-600">
+              Đang dùng file: <strong>{loadedFileName || 'File mẫu 2026'}</strong>
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => loadData(true)}
+                className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700 cursor-pointer"
+              >
+                Nạp lại file 2026
+              </button>
+              <label className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer">
+                Chọn file .xlsx khác
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) loadData(false, f);
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+        )}
+
         {fileError && (
-          <div className="mt-3 rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+          <div className="mt-3 rounded-xl bg-red-50 border border-red-200 p-2.5 text-xs text-red-700">
             ⚠️ {fileError}
           </div>
         )}
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          BƯỚC 2 — BẢNG NHẬP NHANH NHIỀU NGÀY
+          BẢNG NHẬP NHANH CÔNG NHẬT TRONG THÁNG
       ══════════════════════════════════════════════════════════════════════ */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-
         {/* Header bảng */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 px-5 py-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-700 text-xs font-bold">
-              2
-            </span>
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">
-                Nhập Sổ Tay — Đội Chú 6 Thanh &bull; Xuất Cơ sở 1
-              </h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Mỗi hàng = 1 ngày. Nhập xong bấm <strong>Ghép Mẻ</strong> từng hàng hoặc <strong>Ghép Tất Cả</strong>.
-              </p>
-            </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">
+              Nhập Sổ Tay Chú 6 Thanh &bull; Tháng {selectedMonthKey}
+            </h2>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Chỉ hiển thị các ngày trong <strong>Tháng {selectedMonthKey}</strong>. Gõ số tấn rồi bấm <strong>Ghép Mẻ</strong>.
+            </p>
           </div>
-          <div className="flex gap-2 pl-9 sm:pl-0">
+
+          <div className="flex gap-2">
             <button
               onClick={addRow}
               className="inline-flex items-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 cursor-pointer transition-all"
@@ -371,24 +454,24 @@ export default function RicePayrollView() {
             <button
               onClick={handleReconcileAll}
               disabled={allBatches.length === 0}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-40 cursor-pointer transition-all"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-40 cursor-pointer transition-all shadow-xs"
             >
               🔍 Ghép Tất Cả
             </button>
           </div>
         </div>
 
-        {/* ── Desktop table ── */}
+        {/* ── Bảng Desktop ── */}
         <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500 border-b border-slate-200">
               <tr>
-                <th className="py-2.5 px-3 w-36">Ngày làm việc</th>
+                <th className="py-2.5 px-3 w-40">Ngày làm việc</th>
                 <th className="py-2.5 px-3 text-center text-amber-700">Có trở (tấn)</th>
-                <th className="py-2.5 px-3 text-center text-amber-700">Giá/tấn (đ)</th>
+                <th className="py-2.5 px-3 text-center text-amber-700">Đơn giá (đ)</th>
                 <th className="py-2.5 px-3 text-right text-amber-700">Tiền có trở</th>
                 <th className="py-2.5 px-3 text-center text-indigo-700">Không trở (tấn)</th>
-                <th className="py-2.5 px-3 text-center text-indigo-700">Giá/tấn (đ)</th>
+                <th className="py-2.5 px-3 text-center text-indigo-700">Đơn giá (đ)</th>
                 <th className="py-2.5 px-3 text-right text-indigo-700">Tiền không trở</th>
                 <th className="py-2.5 px-3 text-right font-extrabold text-slate-700">Tổng ngày</th>
                 <th className="py-2.5 px-3 text-center">Trạng thái</th>
@@ -406,7 +489,7 @@ export default function RicePayrollView() {
                     key={row.id}
                     className={`transition-colors ${
                       isActive
-                        ? 'bg-blue-50/60'
+                        ? 'bg-blue-50/70'
                         : row.status === 'matched'
                         ? 'bg-emerald-50/40 hover:bg-emerald-50/60'
                         : row.status === 'mismatch'
@@ -416,9 +499,9 @@ export default function RicePayrollView() {
                         : 'hover:bg-slate-50/80'
                     }`}
                   >
-                    {/* Ngày */}
+                    {/* Chọn Ngày (CHỈ HIỆN CÁC NGÀY TRONG THÁNG ĐANG CHỌN) */}
                     <td className="py-2 px-3">
-                      {availableDates.length > 0 ? (
+                      {datesInSelectedMonth.length > 0 ? (
                         <select
                           value={row.date}
                           onChange={(e) =>
@@ -431,9 +514,9 @@ export default function RicePayrollView() {
                           className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
                         >
                           <option value="">— Chọn ngày —</option>
-                          {availableDates.map((d) => (
+                          {datesInSelectedMonth.map((d) => (
                             <option key={d} value={d}>
-                              {d}
+                              Ngày {d}
                             </option>
                           ))}
                         </select>
@@ -448,7 +531,7 @@ export default function RicePayrollView() {
                               result: null,
                             })
                           }
-                          placeholder="30/09/2026"
+                          placeholder={`VD: 30/${selectedMonthKey}`}
                           className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
                         />
                       )}
@@ -480,9 +563,7 @@ export default function RicePayrollView() {
                         step={1000}
                         value={row.priceCoTro || ''}
                         onChange={(e) =>
-                          updateRow(row.id, {
-                            priceCoTro: Number(e.target.value),
-                          })
+                          updateRow(row.id, { priceCoTro: Number(e.target.value) })
                         }
                         className="w-full rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700 focus:border-amber-400 focus:outline-none"
                       />
@@ -519,9 +600,7 @@ export default function RicePayrollView() {
                         step={1000}
                         value={row.priceKhongTro || ''}
                         onChange={(e) =>
-                          updateRow(row.id, {
-                            priceKhongTro: Number(e.target.value),
-                          })
+                          updateRow(row.id, { priceKhongTro: Number(e.target.value) })
                         }
                         className="w-full rounded-lg border border-indigo-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700 focus:border-indigo-400 focus:outline-none"
                       />
@@ -541,7 +620,7 @@ export default function RicePayrollView() {
                     <td className="py-2 px-3 text-center">
                       <StatusBadge status={row.status} />
                       {row.errorMsg && (
-                        <p className="mt-1 text-[10px] text-red-500 text-left max-w-32">
+                        <p className="mt-1 text-[10px] text-red-500 text-left max-w-36">
                           {row.errorMsg}
                         </p>
                       )}
@@ -552,9 +631,7 @@ export default function RicePayrollView() {
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           onClick={() => handleReconcileRow(row)}
-                          disabled={
-                            row.status === 'loading' || allBatches.length === 0
-                          }
+                          disabled={row.status === 'loading' || allBatches.length === 0}
                           title="Ghép mẻ ngày này"
                           className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-blue-700 disabled:opacity-40 cursor-pointer transition-colors"
                         >
@@ -564,9 +641,7 @@ export default function RicePayrollView() {
                         {row.result && (
                           <button
                             onClick={() =>
-                              setDetailRow(
-                                detailRow?.id === row.id ? null : { ...row }
-                              )
+                              setDetailRow(detailRow?.id === row.id ? null : { ...row })
                             }
                             title="Xem chi tiết mẻ"
                             className="rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
@@ -604,7 +679,7 @@ export default function RicePayrollView() {
             <tfoot>
               <tr className="bg-slate-50 border-t-2 border-slate-200 font-bold text-xs">
                 <td className="py-3 px-3 text-slate-700 uppercase tracking-wide">
-                  Tổng cộng ({rows.length} ngày)
+                  Tổng tạm ({rows.length} ngày)
                 </td>
                 <td className="py-3 px-3 text-center text-amber-800">
                   {rows.reduce((s, r) => s + r.tonsCoTro, 0)} tấn
@@ -636,7 +711,7 @@ export default function RicePayrollView() {
           </table>
         </div>
 
-        {/* ── Mobile cards ── */}
+        {/* ── Thẻ Mobile ── */}
         <div className="lg:hidden divide-y divide-slate-100">
           {rows.map((row) => {
             const previewCoTro = row.tonsCoTro * row.priceCoTro;
@@ -644,10 +719,9 @@ export default function RicePayrollView() {
             const previewTotal = previewCoTro + previewKhongTro;
             return (
               <div key={row.id} className="p-4 space-y-3">
-                {/* Ngày + trạng thái */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1">
-                    {availableDates.length > 0 ? (
+                    {datesInSelectedMonth.length > 0 ? (
                       <select
                         value={row.date}
                         onChange={(e) =>
@@ -660,7 +734,7 @@ export default function RicePayrollView() {
                         className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
                       >
                         <option value="">— Chọn ngày —</option>
-                        {availableDates.map((d) => (
+                        {datesInSelectedMonth.map((d) => (
                           <option key={d} value={d}>
                             Ngày {d}
                           </option>
@@ -677,7 +751,7 @@ export default function RicePayrollView() {
                             result: null,
                           })
                         }
-                        placeholder="30/09/2026"
+                        placeholder={`30/${selectedMonthKey}`}
                         className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
                       />
                     )}
@@ -685,9 +759,7 @@ export default function RicePayrollView() {
                   <StatusBadge status={row.status} />
                 </div>
 
-                {/* Hai hàng nhập */}
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Có trở */}
                   <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
                     <p className="text-[11px] font-bold text-amber-800">🌾 Có trở</p>
                     <div className="grid grid-cols-2 gap-1.5">
@@ -727,7 +799,6 @@ export default function RicePayrollView() {
                     </p>
                   </div>
 
-                  {/* Không trở */}
                   <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3 space-y-2">
                     <p className="text-[11px] font-bold text-indigo-800">🌾 Không trở</p>
                     <div className="grid grid-cols-2 gap-1.5">
@@ -768,7 +839,6 @@ export default function RicePayrollView() {
                   </div>
                 </div>
 
-                {/* Tổng ngày + buttons */}
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-extrabold text-slate-900">
                     Tổng: {formatVND(previewTotal)} đ
@@ -814,7 +884,6 @@ export default function RicePayrollView() {
             );
           })}
 
-          {/* Thêm ngày (mobile) */}
           <div className="p-4">
             <button
               onClick={addRow}
@@ -827,7 +896,7 @@ export default function RicePayrollView() {
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          PANEL CHI TIẾT MẺ LÚA (khi nhấn 👁)
+          PANEL CHI TIẾT MẺ LÚA ĐÃ GHÉP (khi nhấn 👁)
       ══════════════════════════════════════════════════════════════════════ */}
       {detailRow?.result && (
         <div
@@ -852,7 +921,7 @@ export default function RicePayrollView() {
                 onClick={() => setDetailRow(null)}
                 className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 cursor-pointer"
               >
-                ✕
+                ✕ Đóng
               </button>
             </div>
           </div>
@@ -909,44 +978,39 @@ export default function RicePayrollView() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          BƯỚC 3 — BẢNG LƯƠNG THÁNG
+          BẢNG LƯƠNG CHỐT TRONG THÁNG & XUẤT EXCEL
       ══════════════════════════════════════════════════════════════════════ */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 px-5 py-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 text-xs font-bold">
-              3
-            </span>
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">
-                Bảng Kê Lương Tháng &bull; Đội Chú 6 Thanh
-              </h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                {savedLogs.length > 0 ? (
-                  <>
-                    {savedLogs.length} ngày công đã chốt &bull; Tổng lương:{' '}
-                    <strong className="text-blue-700 font-extrabold">
-                      {formatVND(monthlyTotal)} đ
-                    </strong>
-                  </>
-                ) : (
-                  'Bấm 💾 để lưu ngày vào bảng lương'
-                )}
-              </p>
-            </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">
+              Bảng Kê Lương Tháng {selectedMonthKey} &bull; Đội Chú 6 Thanh
+            </h2>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {savedLogs.length > 0 ? (
+                <>
+                  Đã chốt {savedLogs.length} ngày công &bull; Tổng tiền lương:{' '}
+                  <strong className="text-blue-700 font-extrabold">
+                    {formatVND(monthlyTotal)} đ
+                  </strong>
+                </>
+              ) : (
+                'Nhấn nút 💾 ở từng ngày đã ghép để đưa vào bảng tổng hợp tháng này'
+              )}
+            </p>
           </div>
           <button
             onClick={handleExportExcel}
             disabled={isExporting || savedLogs.length === 0}
             className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:from-blue-800 hover:to-indigo-700 disabled:opacity-40 cursor-pointer transition-all"
           >
-            📥 {isExporting ? 'Đang kết xuất...' : 'Xuất Excel (.xlsx)'}
+            📥 {isExporting ? 'Đang kết xuất...' : `Xuất Excel Tháng ${selectedMonthKey}`}
           </button>
         </div>
 
         {savedLogs.length === 0 ? (
           <div className="py-12 text-center text-xs text-slate-400">
-            Chưa có ngày công nào được lưu. Ghép mẻ từng ngày và nhấn 💾 để chốt vào bảng lương.
+            Chưa có ngày công nào trong Tháng {selectedMonthKey} được lưu. Ghép mẻ từng ngày và nhấn 💾 để chốt vào bảng lương.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -986,7 +1050,9 @@ export default function RicePayrollView() {
               </tbody>
               <tfoot>
                 <tr className="bg-slate-50 border-t-2 border-slate-200 font-bold text-xs">
-                  <td className="py-3 px-3 text-slate-700 uppercase">Tổng cộng</td>
+                  <td className="py-3 px-3 text-slate-700 uppercase">
+                    Tổng cộng Tháng {selectedMonthKey}
+                  </td>
                   <td className="py-3 px-3 text-right text-amber-800">
                     {savedLogs.reduce((s, l) => s + l.expectedTonsCoTro, 0)} tấn
                   </td>

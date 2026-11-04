@@ -24,6 +24,14 @@ export function formatExcelDate(raw: unknown): string {
   }
 
   const str = String(raw).trim();
+  if (/^\d{5}$/.test(str)) {
+    try {
+      return XLSX.SSF.format('dd/mm/yyyy', Number(str));
+    } catch {
+      return str;
+    }
+  }
+
   // Nếu định dạng YYYY-MM-DD -> chuyển về DD/MM/YYYY
   const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (isoMatch) {
