@@ -125,6 +125,10 @@ export default function RicePayrollView() {
   // ── Chọn Tháng / Năm tính lương ──
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('10/2026'); // MM/YYYY
 
+  // ── Đơn giá mặc định toàn tháng (Nhập 1 lần, tự động áp dụng cho tất cả các ngày) ──
+  const [masterPriceCoTro, setMasterPriceCoTro] = useState<number>(20000);
+  const [masterPriceKhongTro, setMasterPriceKhongTro] = useState<number>(16000);
+
   // ── Bảng ngày công trong tháng ──
   const [rows, setRows] = useState<DayRow[]>([newRow()]);
 
@@ -252,18 +256,35 @@ export default function RicePayrollView() {
     setSelectedMonthKey(monthKey);
     const validDates = cs1DischargeDates.filter((d) => d.endsWith(`/${monthKey}`));
     // Mặc định ngày đầu tiên trong tháng (ví dụ 01/10/2026)
-    setRows([newRow(validDates[0] || `01/${monthKey}`)]);
+    setRows([
+      {
+        ...newRow(validDates[0] || `01/${monthKey}`),
+        priceCoTro: masterPriceCoTro,
+        priceKhongTro: masterPriceKhongTro,
+      },
+    ]);
     setDetailRow(null);
     setSavedLogs([]); // Reset bảng lương tháng khi chuyển sang tháng khác
   };
 
-  // ─── Thao tác bảng ngày ───────────────────────────────────────────────────
+  // ─── Thao tác bảng ngày & Cập nhật đơn giá toàn bộ ─────────────────────────
 
   const updateRow = useCallback((id: string, patch: Partial<DayRow>) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }, []);
 
-  // Thêm ngày: Tự động tăng lên 1 ngày (VD: Ngày 01 -> Ngày 02 -> Ngày 03 ... đến 31)
+  // Thay đổi đơn giá áp dụng cho TẤT CẢ các dòng trong tháng
+  const handleMasterPriceChange = (type: 'coTro' | 'khongTro', newPrice: number) => {
+    if (type === 'coTro') {
+      setMasterPriceCoTro(newPrice);
+      setRows((prev) => prev.map((r) => ({ ...r, priceCoTro: newPrice })));
+    } else {
+      setMasterPriceKhongTro(newPrice);
+      setRows((prev) => prev.map((r) => ({ ...r, priceKhongTro: newPrice })));
+    }
+  };
+
+  // Thêm ngày: Tự động tăng lên 1 ngày và tự động kế thừa đơn giá đã cài đặt
   const addRow = () => {
     const lastRow = rows[rows.length - 1];
     let nextDate = '';
@@ -274,7 +295,14 @@ export default function RicePayrollView() {
     } else {
       nextDate = `01/${selectedMonthKey}`;
     }
-    setRows((prev) => [...prev, newRow(nextDate)]);
+    setRows((prev) => [
+      ...prev,
+      {
+        ...newRow(nextDate),
+        priceCoTro: masterPriceCoTro,
+        priceKhongTro: masterPriceKhongTro,
+      },
+    ]);
   };
 
   const removeRow = (id: string) => {
@@ -557,6 +585,57 @@ export default function RicePayrollView() {
             >
               🔍 Ghép Tất Cả
             </button>
+          </div>
+        </div>
+
+        {/* ── CÀI ĐẶT ĐƠN GIÁ TOÀN BỘ THÁNG (Nhập 1 lần, tự động áp dụng tất cả các ngày) ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gradient-to-r from-amber-50/70 via-slate-50 to-indigo-50/70 border-b border-slate-200/80 px-5 py-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500 text-white text-[11px] font-bold">
+              ₫
+            </span>
+            <div>
+              <span className="text-xs font-bold text-slate-800">
+                Đơn Giá Tháng {selectedMonthKey}
+              </span>
+              <p className="text-[11px] text-slate-500">
+                Chỉ cần điền 1 lần tại đây &bull; Tự động áp dụng cho tất cả các ngày bên dưới
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 bg-white border border-amber-300 rounded-xl px-3 py-1.5 shadow-2xs">
+              <span className="text-xs font-bold text-amber-800 whitespace-nowrap">
+                🌾 Có trở:
+              </span>
+              <input
+                type="number"
+                min={0}
+                step={1000}
+                value={masterPriceCoTro || ''}
+                onWheel={(e) => e.currentTarget.blur()}
+                onChange={(e) => handleMasterPriceChange('coTro', Number(e.target.value))}
+                className="w-24 text-xs font-extrabold text-amber-900 text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span className="text-xs text-slate-500 font-semibold">đ/tấn</span>
+            </div>
+
+            <div className="flex items-center gap-2 bg-white border border-indigo-300 rounded-xl px-3 py-1.5 shadow-2xs">
+              <span className="text-xs font-bold text-indigo-800 whitespace-nowrap">
+                🌾 Không trở:
+              </span>
+              <input
+                type="number"
+                min={0}
+                step={1000}
+                value={masterPriceKhongTro || ''}
+                onWheel={(e) => e.currentTarget.blur()}
+                onChange={(e) => handleMasterPriceChange('khongTro', Number(e.target.value))}
+                className="w-24 text-xs font-extrabold text-indigo-900 text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span className="text-xs text-slate-500 font-semibold">đ/tấn</span>
+            </div>
           </div>
         </div>
 
