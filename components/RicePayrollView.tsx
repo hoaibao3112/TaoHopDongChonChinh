@@ -191,26 +191,37 @@ export default function RicePayrollView() {
     loadData(true);
   }, [loadData]);
 
-  // ─── Danh sách các tháng có dữ liệu ─────────────────────────────────────────
-  const availableMonths = useMemo(() => {
+  
+  // ─── Danh sách tất cả các ngày xuống lúa thực tế tại Cơ sở I ─────────────────
+  const cs1DischargeDates = useMemo(() => {
     const set = new Set<string>();
-    allDates.forEach((d) => {
-      const parts = d.split('/');
-      if (parts.length === 3) set.add(`${parts[1]}/${parts[2]}`);
+    allBatches.forEach((b) => {
+      if (isCoSo1(b.dryFacility) && b.dischargeDate) {
+        set.add(b.dischargeDate);
+      }
     });
-    return Array.from(set).sort().reverse(); // Mới nhất lên đầu
-  }, [allDates]);
-
-  // ─── Danh sách ngày thuộc tháng đang chọn (SẮP XẾP TĂNG DẦN: TỪ NGÀY 01 ĐẾN 30/31) ──
-  const datesInSelectedMonth = useMemo(() => {
-    if (!selectedMonthKey) return [];
-    const list = allDates.filter((d) => d.endsWith(`/${selectedMonthKey}`));
-    return list.sort((a, b) => {
+    return Array.from(set).sort((a, b) => {
       const [d1, m1, y1] = a.split('/').map(Number);
       const [d2, m2, y2] = b.split('/').map(Number);
       return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
     });
-  }, [allDates, selectedMonthKey]);
+  }, [allBatches]);
+
+  // ─── Danh sách các tháng có lúa xuống tại Cơ sở I ─────────────────────────────
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    cs1DischargeDates.forEach((d) => {
+      const parts = d.split('/');
+      if (parts.length === 3) set.add(`${parts[1]}/${parts[2]}`);
+    });
+    return Array.from(set).sort().reverse(); // Mới nhất lên đầu
+  }, [cs1DischargeDates]);
+
+  // ─── Danh sách ngày thuộc tháng đang chọn (SẮP XẾP TĂNG DẦN: TỪ NGÀY 01 ĐẾN 30/31) ──
+  const datesInSelectedMonth = useMemo(() => {
+    if (!selectedMonthKey) return [];
+    return cs1DischargeDates.filter((d) => d.endsWith(`/${selectedMonthKey}`));
+  }, [cs1DischargeDates, selectedMonthKey]);
 
   // ─── Danh sách ngày mở rộng (bao gồm cả các ngày cuối tháng trước & đầu tháng sau) ──
   const nearbyDates = useMemo(() => {
@@ -220,44 +231,26 @@ export default function RicePayrollView() {
     // Tháng trước
     const prevDate = new Date(currY, currM - 2, 1);
     const prevKey = `${String(prevDate.getMonth() + 1).padStart(2, '0')}/${prevDate.getFullYear()}`;
-    const prevList = allDates
-      .filter((d) => d.endsWith(`/${prevKey}`))
-      .sort((a, b) => {
-        const [d1, m1, y1] = a.split('/').map(Number);
-        const [d2, m2, y2] = b.split('/').map(Number);
-        return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
-      });
-    const prevMonthDates = prevList.slice(-5); // 5 ngày cuối tháng trước (vd 27, 28, 29, 30, 31)
+    const prevList = cs1DischargeDates.filter((d) => d.endsWith(`/${prevKey}`));
+    const prevMonthDates = prevList.slice(-5); // 5 ngày cuối tháng trước
 
     // Tháng sau
     const nextDate = new Date(currY, currM, 1);
     const nextKey = `${String(nextDate.getMonth() + 1).padStart(2, '0')}/${nextDate.getFullYear()}`;
-    const nextList = allDates
-      .filter((d) => d.endsWith(`/${nextKey}`))
-      .sort((a, b) => {
-        const [d1, m1, y1] = a.split('/').map(Number);
-        const [d2, m2, y2] = b.split('/').map(Number);
-        return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
-      });
-    const nextMonthDates = nextList.slice(0, 5); // 5 ngày đầu tháng sau (vd 01, 02, 03)
+    const nextList = cs1DischargeDates.filter((d) => d.endsWith(`/${nextKey}`));
+    const nextMonthDates = nextList.slice(0, 5); // 5 ngày đầu tháng sau
 
     return {
       current: datesInSelectedMonth,
       prev: prevMonthDates,
       next: nextMonthDates,
     };
-  }, [allDates, selectedMonthKey, datesInSelectedMonth]);
+  }, [cs1DischargeDates, selectedMonthKey, datesInSelectedMonth]);
 
   // Khi đổi tháng, tự động set ngày cho hàng đầu tiên là ngày đầu tiên của tháng (Ngày 01)
   const handleSelectMonth = (monthKey: string) => {
     setSelectedMonthKey(monthKey);
-    const validDates = allDates
-      .filter((d) => d.endsWith(`/${monthKey}`))
-      .sort((a, b) => {
-        const [d1, m1, y1] = a.split('/').map(Number);
-        const [d2, m2, y2] = b.split('/').map(Number);
-        return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
-      });
+    const validDates = cs1DischargeDates.filter((d) => d.endsWith(`/${monthKey}`));
     // Mặc định ngày đầu tiên trong tháng (ví dụ 01/10/2026)
     setRows([newRow(validDates[0] || `01/${monthKey}`)]);
     setDetailRow(null);
@@ -290,19 +283,18 @@ export default function RicePayrollView() {
   };
 
   // ─── LỌC MẺ LÚA CHO ĐỘI CHÚ 6 THANH ─────────────────────────────────────────
-  // Quy tắc nghiệp vụ cứng:
-  // 1. Chú 6 Thanh là ĐỘI XUẤT CƠ SỞ I -> Địa điểm phải là Cơ sở I
-  // 2. Ngày làm việc của chú tương ứng với NGÀY XUỐNG LÚA (dischargeDate)
+  // Quy tắc nghiệp vụ bắt buộc:
+  // 1. Chỉ lọc tại CƠ SỞ I (Cơ sở 1)
+  // 2. Bắt buộc so khớp theo đúng cột "NGÀY XUỐNG LÚA KHÔ (NHẬN XUẤT TRẢ)" (b.dischargeDate)
+  // 3. Số tấn được làm tròn từ cột "CÂN NHẬP SẤY (KG)" (>= 333 kg làm tròn lên)
   const getDayBatches = (date: string) =>
     allBatches.filter((b) => {
       // 1. Phải là Cơ sở I
-      const matchFacility = isCoSo1(b.dryFacility);
-      if (!matchFacility) return false;
+      if (!isCoSo1(b.dryFacility)) return false;
 
-      // 2. Chú 6 Thanh là Đội Xuất: So khớp chính xác theo NGÀY XUỐNG LÚA (dischargeDate).
-      // Nếu mẻ chưa có dischargeDate thì mới dùng dryDate.
-      const actualDischargeDate = b.dischargeDate || b.dryDate;
-      return actualDischargeDate === date;
+      // 2. Chú 6 Thanh là Đội Xuất Lúa: Bắt buộc so khớp theo đúng cột "NGÀY XUỐNG LÚA KHÔ (NHẬN XUẤT TRẢ)"
+      // Tuyệt đối không lấy ngày nhập sấy hay ngày cân tươi
+      return b.dischargeDate === date;
     });
 
   // ─── Ghép mẻ 1 ngày ───────────────────────────────────────────────────────
