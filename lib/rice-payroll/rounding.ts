@@ -23,3 +23,4 @@ export function roundRiceTons(weightKg: number): number {
 
   return remainderKg >= 333 ? wholeTons + 1 : wholeTons;
 }
+
