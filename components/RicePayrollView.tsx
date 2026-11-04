@@ -543,6 +543,7 @@ export default function RicePayrollView() {
                         type="number"
                         min={0}
                         value={row.tonsCoTro || ''}
+                        onWheel={(e) => e.currentTarget.blur()}
                         onChange={(e) =>
                           updateRow(row.id, {
                             tonsCoTro: Number(e.target.value),
@@ -551,7 +552,7 @@ export default function RicePayrollView() {
                           })
                         }
                         placeholder="168"
-                        className="w-full rounded-lg border border-amber-300 bg-amber-50/40 px-2 py-1.5 text-center text-xs font-bold text-amber-900 focus:border-amber-500 focus:outline-none focus:bg-white"
+                        className="w-full rounded-lg border border-amber-300 bg-amber-50/40 px-2 py-1.5 text-center text-xs font-bold text-amber-900 focus:border-amber-500 focus:outline-none focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </td>
 
@@ -562,10 +563,11 @@ export default function RicePayrollView() {
                         min={0}
                         step={1000}
                         value={row.priceCoTro || ''}
+                        onWheel={(e) => e.currentTarget.blur()}
                         onChange={(e) =>
                           updateRow(row.id, { priceCoTro: Number(e.target.value) })
                         }
-                        className="w-full rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700 focus:border-amber-400 focus:outline-none"
+                        className="w-full rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700 focus:border-amber-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </td>
 
@@ -580,6 +582,7 @@ export default function RicePayrollView() {
                         type="number"
                         min={0}
                         value={row.tonsKhongTro || ''}
+                        onWheel={(e) => e.currentTarget.blur()}
                         onChange={(e) =>
                           updateRow(row.id, {
                             tonsKhongTro: Number(e.target.value),
@@ -588,7 +591,7 @@ export default function RicePayrollView() {
                           })
                         }
                         placeholder="253"
-                        className="w-full rounded-lg border border-indigo-300 bg-indigo-50/40 px-2 py-1.5 text-center text-xs font-bold text-indigo-900 focus:border-indigo-500 focus:outline-none focus:bg-white"
+                        className="w-full rounded-lg border border-indigo-300 bg-indigo-50/40 px-2 py-1.5 text-center text-xs font-bold text-indigo-900 focus:border-indigo-500 focus:outline-none focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </td>
 
@@ -599,10 +602,11 @@ export default function RicePayrollView() {
                         min={0}
                         step={1000}
                         value={row.priceKhongTro || ''}
+                        onWheel={(e) => e.currentTarget.blur()}
                         onChange={(e) =>
                           updateRow(row.id, { priceKhongTro: Number(e.target.value) })
                         }
-                        className="w-full rounded-lg border border-indigo-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700 focus:border-indigo-400 focus:outline-none"
+                        className="w-full rounded-lg border border-indigo-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700 focus:border-indigo-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </td>
 
@@ -769,6 +773,7 @@ export default function RicePayrollView() {
                           type="number"
                           min={0}
                           value={row.tonsCoTro || ''}
+                          onWheel={(e) => e.currentTarget.blur()}
                           onChange={(e) =>
                             updateRow(row.id, {
                               tonsCoTro: Number(e.target.value),
@@ -777,7 +782,7 @@ export default function RicePayrollView() {
                             })
                           }
                           placeholder="168"
-                          className="w-full rounded-lg border border-amber-300 px-2 py-1.5 text-center text-xs font-bold text-amber-900 focus:outline-none"
+                          className="w-full rounded-lg border border-amber-300 px-2 py-1.5 text-center text-xs font-bold text-amber-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                       <div>
@@ -787,10 +792,11 @@ export default function RicePayrollView() {
                           min={0}
                           step={1000}
                           value={row.priceCoTro || ''}
+                          onWheel={(e) => e.currentTarget.blur()}
                           onChange={(e) =>
                             updateRow(row.id, { priceCoTro: Number(e.target.value) })
                           }
-                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-center text-xs text-slate-700 focus:outline-none"
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-center text-xs text-slate-700 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                     </div>
@@ -808,6 +814,7 @@ export default function RicePayrollView() {
                           type="number"
                           min={0}
                           value={row.tonsKhongTro || ''}
+                          onWheel={(e) => e.currentTarget.blur()}
                           onChange={(e) =>
                             updateRow(row.id, {
                               tonsKhongTro: Number(e.target.value),
@@ -816,7 +823,7 @@ export default function RicePayrollView() {
                             })
                           }
                           placeholder="253"
-                          className="w-full rounded-lg border border-indigo-300 px-2 py-1.5 text-center text-xs font-bold text-indigo-900 focus:outline-none"
+                          className="w-full rounded-lg border border-indigo-300 px-2 py-1.5 text-center text-xs font-bold text-indigo-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                       <div>
@@ -826,10 +833,11 @@ export default function RicePayrollView() {
                           min={0}
                           step={1000}
                           value={row.priceKhongTro || ''}
+                          onWheel={(e) => e.currentTarget.blur()}
                           onChange={(e) =>
                             updateRow(row.id, { priceKhongTro: Number(e.target.value) })
                           }
-                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-center text-xs text-slate-700 focus:outline-none"
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-center text-xs text-slate-700 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                     </div>
