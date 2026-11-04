@@ -130,7 +130,7 @@ Khi đối soát công nhật cho Đội Chú 6 Thanh, hệ thống **bắt bu�
   ```bash
   cd contract-generator
   pnpm test
-  # Kết quả: 30/30 tests passed (5 test suites)
+  # Kết quả: 37/37 tests passed (6 test suites)
   ```
 - **Kiểm tra TypeScript:**
   ```bash
@@ -151,6 +151,24 @@ Khi đối soát công nhật cho Đội Chú 6 Thanh, hệ thống **bắt bu�
   git push origin main
   # Vercel tự động deploy từ nhánh main
   ```
+
+---
+
+## PHẦN 6: BẢO MẬT & PHÂN QUYỀN ĐĂNG NHẬP THEO MẬT KHẨU (ROLE-BASED ACCESS)
+
+Hệ thống hỗ trợ 2 vai trò phân quyền độc lập thông qua mật khẩu đăng nhập, bảo vệ bởi Middleware và HttpOnly Cookies:
+
+| Mật khẩu | Phân hệ truy cập | Quyền hạn & Điều hướng | Huy hiệu người dùng |
+|---|---|---|---|
+| **`hoaibao`** | **Tính Lương Nông Sản** (`/tinh-luong`) | - Tự động chuyển hướng ngay đến `/tinh-luong`.<br>- Bị chặn truy cập trang tạo hợp đồng (tự động điều hướng về `/tinh-luong`).<br>- Ẩn tab Tạo Hợp Đồng trên thanh điều hướng. | `👤 Hoài Bảo (Tính Lương)` |
+| **`chonchinh`** | **Tạo Hợp Đồng Mua Bán** (`/`) | - Tự động chuyển hướng ngay đến `/`.<br>- Bị chặn truy cập trang tính lương (tự động điều hướng về `/`).<br>- Ẩn tab Tính Lương trên thanh điều hướng. | `👤 Chơn Chính (Hợp Đồng)` |
+| **`matkhau123`** | **Toàn quyền Quản Trị** | - Toàn quyền truy cập cả hai phân hệ.<br>- Hiển thị đầy đủ cả hai tab chuyển đổi qua lại linh hoạt. | `👑 Quản Trị Viên` |
+
+- **Cơ chế kỹ thuật:**
+  - `lib/auth.ts`: Hàm `checkPassword(password)` kiểm tra mật khẩu, gán vai trò (`UserRole: 'payroll' | 'contracts' | 'admin'`), trả về `redirectUrl` và lưu cookie phiên `auth_contract_session` (httpOnly) cùng cookie vai trò `auth_user_role`.
+  - `middleware.ts`: Ngăn chặn người dùng trái phép truy cập chéo phân hệ (kiểm tra `getRequestUserRole(request)` và redirect tương ứng).
+  - `components/AppHeader.tsx`: Hiển thị huy hiệu vai trò và kiểm soát hiển thị các tab điều hướng theo vai trò thực tế.
+  - `__tests__/auth-roles.test.ts`: 7 bài kiểm thử tự động xác thực phân quyền mật khẩu.
 
 ---
 

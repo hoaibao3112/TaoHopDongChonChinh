@@ -1,14 +1,29 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { UserRole } from '@/lib/auth';
 
 export default function AppHeader() {
   const pathname = usePathname();
+  const [role, setRole] = useState<UserRole | null>(null);
+
+  useEffect(() => {
+    // Đọc cookie phân quyền trên client
+    const match = document.cookie.match(/(?:^|; )auth_user_role=([^;]*)/);
+    const val = match ? (decodeURIComponent(match[1]) as UserRole) : null;
+    if (val === 'payroll' || val === 'contracts' || val === 'admin') {
+      setRole(val);
+    }
+  }, []);
 
   const isContract = pathname === '/' || pathname.startsWith('/contracts');
   const isPayroll = pathname.startsWith('/tinh-luong');
+
+  // Quyền truy cập các tab
+  const canAccessContracts = role === 'contracts' || role === 'admin' || role === null;
+  const canAccessPayroll = role === 'payroll' || role === 'admin' || role === null;
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md transition-all shadow-xs">
@@ -34,39 +49,64 @@ export default function AppHeader() {
             </div>
           </div>
 
-          {/* Navigation Tabs */}
+          {/* Navigation Tabs (Hiển thị phân quyền theo vai trò) */}
           <nav className="flex items-center gap-1 rounded-xl bg-slate-100/80 p-1 border border-slate-200/70">
-            <Link
-              href="/"
-              className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                isContract
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-              }`}
-            >
-              <span>📄</span>
-              <span>Tạo Hợp Đồng</span>
-            </Link>
+            {canAccessContracts && (
+              <Link
+                href="/"
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                  isContract
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                <span>📄</span>
+                <span>Tạo Hợp Đồng</span>
+              </Link>
+            )}
 
-            <Link
-              href="/tinh-luong"
-              className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                isPayroll
-                  ? 'bg-white text-amber-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-              }`}
-            >
-              <span>🌾</span>
-              <span>Tính Lương Nông Sản</span>
-              <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 font-bold">
-                Mới
-              </span>
-            </Link>
+            {canAccessPayroll && (
+              <Link
+                href="/tinh-luong"
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                  isPayroll
+                    ? 'bg-white text-amber-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                <span>🌾</span>
+                <span>Tính Lương Nông Sản</span>
+                <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 font-bold">
+                  Mới
+                </span>
+              </Link>
+            )}
           </nav>
         </div>
 
-        {/* Right: Logout */}
+        {/* Right: User Role Badge & Logout */}
         <div className="flex items-center gap-3">
+          {role === 'payroll' && (
+            <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 shadow-2xs">
+              <span>👤</span>
+              <span>Hoài Bảo (Tính Lương)</span>
+            </div>
+          )}
+
+          {role === 'contracts' && (
+            <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800 shadow-2xs">
+              <span>👤</span>
+              <span>Chơn Chính (Hợp Đồng)</span>
+            </div>
+          )}
+
+          {role === 'admin' && (
+            <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-800 shadow-2xs">
+              <span>👑</span>
+              <span>Quản Trị Viên</span>
+            </div>
+          )}
+
           <form action="/api/auth/logout" method="POST">
             <button
               type="submit"
@@ -93,4 +133,3 @@ export default function AppHeader() {
     </header>
   );
 }
-

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isRequestAuthenticated } from '@/lib/auth';
+import { isRequestAuthenticated, getRequestUserRole } from '@/lib/auth';
 
 const PUBLIC_ROUTES = ['/login', '/api/auth/login'];
 
@@ -36,10 +36,29 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Phân quyền theo vai trò (Role-based access control)
+  const role = getRequestUserRole(request);
+
+  // 1. Phân quyền cho Hoài Bảo ('payroll'): Chỉ vào Tính Lương Nông Sản
+  if (role === 'payroll') {
+    // Nếu cố vào trang chủ / hoặc các trang contracts -> redirect về /tinh-luong
+    if (pathname === '/' || pathname.startsWith('/contracts')) {
+      return NextResponse.redirect(new URL('/tinh-luong', request.url));
+    }
+  }
+
+  // 2. Phân quyền cho Chơn Chính ('contracts'): Chỉ vào Tạo Hợp Đồng
+  if (role === 'contracts') {
+    // Nếu cố vào /tinh-luong -> redirect về trang chủ /
+    if (pathname.startsWith('/tinh-luong')) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+  }
+
+  // 3. Phân quyền Quản trị viên ('admin'): Toàn quyền truy cập cả hai phân hệ
   return NextResponse.next();
 }
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
-

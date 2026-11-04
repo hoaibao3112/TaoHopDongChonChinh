@@ -26,13 +26,20 @@ function LoginFormContent() {
         body: JSON.stringify({ password }),
       });
 
-      const data = (await res.json()) as { error?: string; success?: boolean };
+      const data = (await res.json()) as {
+        error?: string;
+        success?: boolean;
+        redirectUrl?: string;
+        role?: string;
+      };
 
       if (!res.ok) {
         throw new Error(data.error || 'Mật khẩu không đúng');
       }
 
-      router.push(redirectPath);
+      // Điều hướng thông minh theo phân quyền (hoaibao -> /tinh-luong, chonchinh -> /)
+      const targetUrl = data.redirectUrl || redirectPath || '/';
+      router.push(targetUrl);
       router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Đã có lỗi xảy ra');
