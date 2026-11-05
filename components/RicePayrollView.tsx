@@ -432,6 +432,154 @@ export default function RicePayrollView() {
     [autoBalance]
   );
 
+  // Chọn chế độ xuất cho ngày: 'coTro' (100% Có trở) | 'khongTro' (100% Không trở) | 'caHai' (Chia cả 2)
+  const handleSetRowMode = useCallback(
+    (rowId: string, newMode: 'coTro' | 'khongTro' | 'caHai', dayFileTons: number, rowDate: string) => {
+      setRows((prev) =>
+        prev.map((r) => {
+          if (r.id !== rowId) return r;
+
+          const total = dayFileTons > 0 ? dayFileTons : (r.tonsCoTro + r.tonsKhongTro) || 0;
+
+          if (newMode === 'coTro') {
+            return {
+              ...r,
+              tonsCoTro: total,
+              tonsKhongTro: 0,
+              status: 'idle',
+              errorMsg: '',
+            };
+          } else if (newMode === 'khongTro') {
+            return {
+              ...r,
+              tonsCoTro: 0,
+              tonsKhongTro: total,
+              status: 'idle',
+              errorMsg: '',
+            };
+          } else {
+            // 'caHai': nếu 1 bên đang = 0, chia 50/50 để user dễ gõ tiếp
+            let co = r.tonsCoTro;
+            let khong = r.tonsKhongTro;
+            if (co === 0 || khong === 0) {
+              co = Math.round(total / 2);
+              khong = Math.max(0, total - co);
+            }
+            return {
+              ...r,
+              tonsCoTro: co,
+              tonsKhongTro: khong,
+              status: 'idle',
+              errorMsg: '',
+            };
+          }
+        })
+      );
+
+      // Đồng bộ sang mẻ lúa thực tế trong ngày (nếu chọn 100% Có hoặc 100% Không)
+      if (rowDate && (newMode === 'coTro' || newMode === 'khongTro')) {
+        const dayBatches = monthBatches.filter((b) => b.dischargeDate === rowDate);
+        if (dayBatches.length > 0) {
+          setBatchOverrides((prev) => {
+            const next = { ...prev };
+            dayBatches.forEach((b) => {
+              next[b.id] = {
+                isCoTro: newMode === 'coTro',
+                tons: prev[b.id]?.tons ?? getDefaultTons(b),
+              };
+            });
+            return next;
+          });
+        }
+      }
+    },
+    [monthBatches]
+  );
+
+  // Chuyển đổi phân loại của một mẻ lúa thực tế và đồng bộ tự động về Sổ tay ngày
+  const handleToggleBatch = useCallback(
+    (batch: RiceBatch, newIsCoTro: boolean) => {
+      const tons = batchOverrides[batch.id]?.tons ?? getDefaultTons(batch);
+      setBatchOverrides((prev) => ({
+        ...prev,
+        [batch.id]: { isCoTro: newIsCoTro, tons },
+      }));
+
+      // Cập nhật lại số tấn tương ứng trong bảng Sổ tay ngày
+      if (batch.dischargeDate) {
+        setRows((prevRows) => {
+          return prevRows.map((r) => {
+            if (r.date !== batch.dischargeDate) return r;
+
+            const dayBatches = monthBatches.filter((b) => b.dischargeDate === r.date);
+            let sumCo = 0;
+            let sumKhong = 0;
+
+            dayBatches.forEach((b) => {
+              const bTons = b.id === batch.id ? tons : (batchOverrides[b.id]?.tons ?? getDefaultTons(b));
+              const bIsCo =
+                b.id === batch.id
+                  ? newIsCoTro
+                  : batchOverrides[b.id]?.isCoTro !== undefined
+                  ? batchOverrides[b.id].isCoTro
+                  : getDefaultClassification(b);
+              if (bIsCo) sumCo += bTons;
+              else sumKhong += bTons;
+            });
+
+            return {
+              ...r,
+              tonsCoTro: sumCo,
+              tonsKhongTro: sumKhong,
+              status: 'idle',
+              errorMsg: '',
+            };
+          });
+        });
+      }
+    },
+    [batchOverrides, monthBatches]
+  );
+
+  // Gán hàng loạt toàn bộ mẻ trong tháng thành Có trở hoặc Không trở
+  const handleSetAllBatches = useCallback(
+    (newIsCoTro: boolean) => {
+      const nextOverrides: Record<string, { isCoTro: boolean; tons?: number }> = {};
+      monthBatches.forEach((b) => {
+        nextOverrides[b.id] = {
+          isCoTro: newIsCoTro,
+          tons: batchOverrides[b.id]?.tons ?? getDefaultTons(b),
+        };
+      });
+      setBatchOverrides(nextOverrides);
+
+      // Cập nhật tất cả các ngày trong Sổ tay
+      setRows((prevRows) =>
+        prevRows.map((r) => {
+          const dayBatches = monthBatches.filter((b) => b.dischargeDate === r.date);
+          const dayTons = dayBatches.reduce(
+            (s, b) => s + (nextOverrides[b.id]?.tons ?? getDefaultTons(b)),
+            0
+          );
+          return {
+            ...r,
+            tonsCoTro: newIsCoTro ? dayTons : 0,
+            tonsKhongTro: newIsCoTro ? 0 : dayTons,
+            status: 'idle',
+            errorMsg: '',
+          };
+        })
+      );
+    },
+    [monthBatches, batchOverrides]
+  );
+
+  // Khôi phục tất cả mẻ về phân loại chuẩn mẫu tháng 10
+  const handleResetBatchesToSample = useCallback(() => {
+    setBatchOverrides({});
+    populateMonthDays(selectedMonthKey, allBatches);
+  }, [populateMonthDays, selectedMonthKey, allBatches]);
+
   // Thay đổi đơn giá áp dụng cho TẤT CẢ các dòng trong tháng
   const handleMasterPriceChange = (type: 'coTro' | 'khongTro', newPrice: number) => {
     if (type === 'coTro') {
@@ -1000,6 +1148,17 @@ export default function RicePayrollView() {
                 const previewKhongTro = row.tonsKhongTro * row.priceKhongTro;
                 const previewTotal = previewCoTro + previewKhongTro;
                 const isActive = detailRow?.id === row.id;
+
+                // Xác định chế độ xuất: 'coTro' (chỉ có trở) | 'khongTro' (chỉ không trở) | 'caHai' (vừa có vừa không)
+                const rowMode: 'coTro' | 'khongTro' | 'caHai' =
+                  row.tonsCoTro > 0 && row.tonsKhongTro === 0
+                    ? 'coTro'
+                    : row.tonsKhongTro > 0 && row.tonsCoTro === 0
+                    ? 'khongTro'
+                    : row.tonsCoTro > 0 && row.tonsKhongTro > 0
+                    ? 'caHai'
+                    : 'coTro';
+
                 return (
                   <tr
                     key={row.id}
@@ -1015,8 +1174,8 @@ export default function RicePayrollView() {
                         : 'hover:bg-slate-50/80'
                     }`}
                   >
-                    {/* Chọn Ngày làm việc (Cho phép gõ tự do + Chọn dropdown phân nhóm tháng trước/này/sau) */}
-                    <td className="py-2 px-3">
+                    {/* Chọn Ngày làm việc + Chọn nhanh 3 Chế độ (Có trở / Không trở / Cả hai) */}
+                    <td className="py-2.5 px-3">
                       <div className="flex items-center gap-1">
                         <input
                           type="text"
@@ -1077,8 +1236,48 @@ export default function RicePayrollView() {
                         </select>
                       </div>
 
+                      {/* Bộ chọn 3 trường hợp: Có trở | Không trở | Cả hai */}
+                      <div className="mt-1.5 flex items-center p-0.5 rounded-lg bg-slate-100 border border-slate-200 shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => handleSetRowMode(row.id, 'coTro', dayFileTons, row.date)}
+                          className={`flex-1 py-1 px-1 rounded-md text-[10px] font-bold text-center transition-all cursor-pointer ${
+                            rowMode === 'coTro'
+                              ? 'bg-amber-500 text-white shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                          }`}
+                          title="Trường hợp 1: Toàn bộ là Có trở (Không trở = 0)"
+                        >
+                          🌾 Có trở
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSetRowMode(row.id, 'khongTro', dayFileTons, row.date)}
+                          className={`flex-1 py-1 px-1 rounded-md text-[10px] font-bold text-center transition-all cursor-pointer ${
+                            rowMode === 'khongTro'
+                              ? 'bg-indigo-600 text-white shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                          }`}
+                          title="Trường hợp 2: Toàn bộ là Không trở (Có trở = 0)"
+                        >
+                          🌾 Không trở
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSetRowMode(row.id, 'caHai', dayFileTons, row.date)}
+                          className={`flex-1 py-1 px-1 rounded-md text-[10px] font-bold text-center transition-all cursor-pointer ${
+                            rowMode === 'caHai'
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                          }`}
+                          title="Trường hợp 3: Cả hai (vừa có trở vừa không trở)"
+                        >
+                          ⚖️ Cả hai
+                        </button>
+                      </div>
+
                       {dayBatches.length > 0 && (
-                        <div className="mt-1 flex items-center justify-between text-[10px] gap-1">
+                        <div className="mt-1 flex items-center justify-between text-[10px]">
                           <span
                             className={`font-semibold truncate ${
                               isOverLimit ? 'text-red-600 font-bold' : 'text-emerald-700'
@@ -1087,135 +1286,139 @@ export default function RicePayrollView() {
                           >
                             🌾 {dayBatches.length} mẻ &bull; <strong>{dayFileTons}t</strong>
                           </span>
-                          <div className="flex gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateRow(row.id, {
-                                  tonsCoTro: dayFileTons,
-                                  tonsKhongTro: 0,
-                                  status: 'idle',
-                                  errorMsg: '',
-                                })
-                              }
-                              className="rounded bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-1.5 py-0.5 text-[9px] cursor-pointer transition-colors"
-                              title="Gán toàn bộ vào Có trở (Không trở = 0)"
-                            >
-                              100% Có
-                            </button>
+                          {(row.tonsCoTro > 0 || row.tonsKhongTro > 0) && (
                             <button
                               type="button"
                               onClick={() =>
                                 updateRow(row.id, {
                                   tonsCoTro: 0,
-                                  tonsKhongTro: dayFileTons,
+                                  tonsKhongTro: 0,
                                   status: 'idle',
                                   errorMsg: '',
                                 })
                               }
-                              className="rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-900 font-bold px-1.5 py-0.5 text-[9px] cursor-pointer transition-colors"
-                              title="Gán toàn bộ vào Không trở (Có trở = 0)"
+                              className="text-slate-400 hover:text-slate-600 font-bold px-1 py-0.5 text-[9px] cursor-pointer"
+                              title="Xóa trắng số tấn về 0"
                             >
-                              100% K
+                              ✕ Xóa
                             </button>
-                            {(row.tonsCoTro > 0 || row.tonsKhongTro > 0) && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateRow(row.id, {
-                                    tonsCoTro: 0,
-                                    tonsKhongTro: 0,
-                                    status: 'idle',
-                                    errorMsg: '',
-                                  })
-                                }
-                                className="rounded bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-1.5 py-0.5 text-[9px] cursor-pointer transition-colors"
-                                title="Xóa trắng số tấn ngày này về 0"
-                              >
-                                Xóa
-                              </button>
-                            )}
-                          </div>
+                          )}
                         </div>
                       )}
                     </td>
 
                     {/* Có trở: tấn */}
                     <td className="py-2 px-3">
-                      <input
-                        type="number"
-                        min={0}
-                        value={row.tonsCoTro === 0 ? '' : row.tonsCoTro}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onChange={(e) =>
-                          handleTonsChange(row.id, 'coTro', e.target.value, dayFileTons)
-                        }
-                        placeholder="0"
-                        className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
-                          isOverLimit || (row.errorMsg && row.tonsCoTro > dayFileTons)
-                            ? 'border-red-500 bg-red-50 text-red-900 focus:border-red-600 focus:ring-1 focus:ring-red-400'
-                            : 'border-amber-300 bg-amber-50/40 text-amber-900 focus:border-amber-500 focus:bg-white'
-                        }`}
-                      />
+                      {rowMode === 'khongTro' ? (
+                        <div
+                          onClick={() => handleSetRowMode(row.id, 'caHai', dayFileTons, row.date)}
+                          title="Ngày này là 100% Không trở. Bấm vào đây để chuyển sang Cả hai"
+                          className="w-full rounded-lg border border-dashed border-slate-200 bg-slate-50/70 px-2 py-1.5 text-center text-xs font-semibold text-slate-300 hover:border-amber-300 hover:bg-amber-50/40 hover:text-amber-700 transition-all cursor-pointer"
+                        >
+                          -
+                        </div>
+                      ) : (
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.tonsCoTro === 0 ? '' : row.tonsCoTro}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          onChange={(e) =>
+                            handleTonsChange(row.id, 'coTro', e.target.value, dayFileTons)
+                          }
+                          placeholder="0"
+                          className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
+                            isOverLimit || (row.errorMsg && row.tonsCoTro > dayFileTons)
+                              ? 'border-red-500 bg-red-50 text-red-900 focus:border-red-600 focus:ring-1 focus:ring-red-400'
+                              : 'border-amber-300 bg-amber-50/40 text-amber-900 focus:border-amber-500 focus:bg-white'
+                          }`}
+                        />
+                      )}
                     </td>
 
                     {/* Có trở: giá */}
                     <td className="py-2 px-3">
-                      <input
-                        type="number"
-                        min={0}
-                        step={1000}
-                        value={row.priceCoTro || ''}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onChange={(e) =>
-                          updateRow(row.id, { priceCoTro: Number(e.target.value) })
-                        }
-                        className="w-full rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700 focus:border-amber-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
+                      {rowMode === 'khongTro' ? (
+                        <div className="text-center text-xs text-slate-300">-</div>
+                      ) : (
+                        <input
+                          type="number"
+                          min={0}
+                          step={1000}
+                          value={row.priceCoTro || ''}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          onChange={(e) =>
+                            updateRow(row.id, { priceCoTro: Number(e.target.value) })
+                          }
+                          className="w-full rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700 focus:border-amber-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      )}
                     </td>
 
                     {/* Tiền có trở */}
                     <td className="py-2 px-3 text-right font-semibold text-amber-700 whitespace-nowrap">
-                      {formatVND(previewCoTro)}&thinsp;đ
+                      {rowMode === 'khongTro' ? (
+                        <span className="text-slate-300">-</span>
+                      ) : (
+                        `${formatVND(previewCoTro)} đ`
+                      )}
                     </td>
 
                     {/* Không trở: tấn */}
                     <td className="py-2 px-3">
-                      <input
-                        type="number"
-                        min={0}
-                        value={row.tonsKhongTro === 0 ? '' : row.tonsKhongTro}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onChange={(e) =>
-                          handleTonsChange(row.id, 'khongTro', e.target.value, dayFileTons)
-                        }
-                        placeholder="0"
-                        className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
-                          isOverLimit || (row.errorMsg && row.tonsKhongTro > dayFileTons)
-                            ? 'border-red-500 bg-red-50 text-red-900 focus:border-red-600 focus:ring-1 focus:ring-red-400'
-                            : 'border-indigo-300 bg-indigo-50/40 text-indigo-900 focus:border-indigo-500 focus:bg-white'
-                        }`}
-                      />
+                      {rowMode === 'coTro' ? (
+                        <div
+                          onClick={() => handleSetRowMode(row.id, 'caHai', dayFileTons, row.date)}
+                          title="Ngày này là 100% Có trở. Bấm vào đây để chuyển sang Cả hai"
+                          className="w-full rounded-lg border border-dashed border-slate-200 bg-slate-50/70 px-2 py-1.5 text-center text-xs font-semibold text-slate-300 hover:border-indigo-300 hover:bg-indigo-50/40 hover:text-indigo-700 transition-all cursor-pointer"
+                        >
+                          -
+                        </div>
+                      ) : (
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.tonsKhongTro === 0 ? '' : row.tonsKhongTro}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          onChange={(e) =>
+                            handleTonsChange(row.id, 'khongTro', e.target.value, dayFileTons)
+                          }
+                          placeholder="0"
+                          className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
+                            isOverLimit || (row.errorMsg && row.tonsKhongTro > dayFileTons)
+                              ? 'border-red-500 bg-red-50 text-red-900 focus:border-red-600 focus:ring-1 focus:ring-red-400'
+                              : 'border-indigo-300 bg-indigo-50/40 text-indigo-900 focus:border-indigo-500 focus:bg-white'
+                          }`}
+                        />
+                      )}
                     </td>
 
                     {/* Không trở: giá */}
                     <td className="py-2 px-3">
-                      <input
-                        type="number"
-                        min={0}
-                        step={1000}
-                        value={row.priceKhongTro || ''}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onChange={(e) =>
-                          updateRow(row.id, { priceKhongTro: Number(e.target.value) })
-                        }
-                        className="w-full rounded-lg border border-indigo-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700 focus:border-indigo-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
+                      {rowMode === 'coTro' ? (
+                        <div className="text-center text-xs text-slate-300">-</div>
+                      ) : (
+                        <input
+                          type="number"
+                          min={0}
+                          step={1000}
+                          value={row.priceKhongTro || ''}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          onChange={(e) =>
+                            updateRow(row.id, { priceKhongTro: Number(e.target.value) })
+                          }
+                          className="w-full rounded-lg border border-indigo-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700 focus:border-indigo-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      )}
                     </td>
 
                     {/* Tiền không trở */}
                     <td className="py-2 px-3 text-right font-semibold text-indigo-700 whitespace-nowrap">
-                      {formatVND(previewKhongTro)}&thinsp;đ
+                      {rowMode === 'coTro' ? (
+                        <span className="text-slate-300">-</span>
+                      ) : (
+                        `${formatVND(previewKhongTro)} đ`
+                      )}
                     </td>
 
                     {/* Tổng ngày */}
@@ -1330,6 +1533,17 @@ export default function RicePayrollView() {
             const previewCoTro = row.tonsCoTro * row.priceCoTro;
             const previewKhongTro = row.tonsKhongTro * row.priceKhongTro;
             const previewTotal = previewCoTro + previewKhongTro;
+
+            // Xác định chế độ xuất: 'coTro' | 'khongTro' | 'caHai'
+            const rowMode: 'coTro' | 'khongTro' | 'caHai' =
+              row.tonsCoTro > 0 && row.tonsKhongTro === 0
+                ? 'coTro'
+                : row.tonsKhongTro > 0 && row.tonsCoTro === 0
+                ? 'khongTro'
+                : row.tonsCoTro > 0 && row.tonsKhongTro > 0
+                ? 'caHai'
+                : 'coTro';
+
             return (
               <div key={row.id} className={`p-4 space-y-3 ${isOverLimit ? 'bg-red-50/30' : ''}`}>
                 <div className="flex items-center justify-between gap-2">
@@ -1393,142 +1607,171 @@ export default function RicePayrollView() {
                   <StatusBadge status={isOverLimit ? 'mismatch' : row.status} />
                 </div>
 
+                {/* 3 Trường Hợp: Có trở | Không trở | Cả hai */}
+                <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200 gap-1 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => handleSetRowMode(row.id, 'coTro', dayFileTons, row.date)}
+                    className={`flex-1 py-1.5 rounded-lg text-center transition-all cursor-pointer ${
+                      rowMode === 'coTro'
+                        ? 'bg-amber-500 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    🌾 Có trở
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSetRowMode(row.id, 'khongTro', dayFileTons, row.date)}
+                    className={`flex-1 py-1.5 rounded-lg text-center transition-all cursor-pointer ${
+                      rowMode === 'khongTro'
+                        ? 'bg-indigo-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    🌾 Không trở
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSetRowMode(row.id, 'caHai', dayFileTons, row.date)}
+                    className={`flex-1 py-1.5 rounded-lg text-center transition-all cursor-pointer ${
+                      rowMode === 'caHai'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    ⚖️ Cả hai
+                  </button>
+                </div>
+
                 {dayBatches.length > 0 && (
                   <div className="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-xl border border-slate-200">
                     <span className={`font-bold ${isOverLimit ? 'text-red-600' : 'text-emerald-700'}`}>
                       🌾 {dayBatches.length} mẻ &bull; <strong>{dayFileTons}t</strong>
                     </span>
-                    <div className="flex gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateRow(row.id, {
-                            tonsCoTro: dayFileTons,
-                            tonsKhongTro: 0,
-                            status: 'idle',
-                            errorMsg: '',
-                          })
-                        }
-                        className="rounded bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-2 py-1 text-[10px] cursor-pointer"
-                      >
-                        100% Có
-                      </button>
+                    {(row.tonsCoTro > 0 || row.tonsKhongTro > 0) && (
                       <button
                         type="button"
                         onClick={() =>
                           updateRow(row.id, {
                             tonsCoTro: 0,
-                            tonsKhongTro: dayFileTons,
+                            tonsKhongTro: 0,
                             status: 'idle',
                             errorMsg: '',
                           })
                         }
-                        className="rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-900 font-bold px-2 py-1 text-[10px] cursor-pointer"
+                        className="text-slate-500 hover:text-slate-700 font-bold px-2 py-0.5 text-[11px] cursor-pointer"
                       >
-                        100% K
+                        ✕ Xóa số
                       </button>
-                      {(row.tonsCoTro > 0 || row.tonsKhongTro > 0) && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateRow(row.id, {
-                              tonsCoTro: 0,
-                              tonsKhongTro: 0,
-                              status: 'idle',
-                              errorMsg: '',
-                            })
-                          }
-                          className="rounded bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-2 py-1 text-[10px] cursor-pointer"
-                        >
-                          Xóa
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
-                    <p className="text-[11px] font-bold text-amber-800">🌾 Có trở</p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <div>
-                        <label className="text-[10px] text-slate-500">Tấn</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.tonsCoTro === 0 ? '' : row.tonsCoTro}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          onChange={(e) =>
-                            handleTonsChange(row.id, 'coTro', e.target.value, dayFileTons)
-                          }
-                          placeholder="0"
-                          className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold text-amber-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                            isOverLimit || (row.errorMsg && row.tonsCoTro > dayFileTons)
-                              ? 'border-red-500 bg-red-50 text-red-900'
-                              : 'border-amber-300'
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-500">Giá</label>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1000}
-                          value={row.priceCoTro || ''}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          onChange={(e) =>
-                            updateRow(row.id, { priceCoTro: Number(e.target.value) })
-                          }
-                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-center text-xs text-slate-700 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        />
-                      </div>
+                  {rowMode === 'khongTro' ? (
+                    <div
+                      onClick={() => handleSetRowMode(row.id, 'caHai', dayFileTons, row.date)}
+                      className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3 text-center text-xs text-slate-400 font-semibold cursor-pointer hover:border-amber-300 hover:bg-amber-50/40 hover:text-amber-700 flex flex-col justify-center items-center gap-1"
+                    >
+                      <span className="text-[11px] font-bold text-slate-400">🌾 Có trở</span>
+                      <span className="text-sm font-extrabold text-slate-300">-</span>
+                      <span className="text-[10px] text-amber-700">(Bấm bật cả hai)</span>
                     </div>
-                    <p className="text-right text-xs font-bold text-amber-800">
-                      = {formatVND(previewCoTro)} đ
-                    </p>
-                  </div>
+                  ) : (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+                      <p className="text-[11px] font-bold text-amber-800">🌾 Có trở</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div>
+                          <label className="text-[10px] text-slate-500">Tấn</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={row.tonsCoTro === 0 ? '' : row.tonsCoTro}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            onChange={(e) =>
+                              handleTonsChange(row.id, 'coTro', e.target.value, dayFileTons)
+                            }
+                            placeholder="0"
+                            className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold text-amber-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                              isOverLimit || (row.errorMsg && row.tonsCoTro > dayFileTons)
+                                ? 'border-red-500 bg-red-50 text-red-900'
+                                : 'border-amber-300'
+                            }`}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-500">Giá</label>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1000}
+                            value={row.priceCoTro || ''}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            onChange={(e) =>
+                              updateRow(row.id, { priceCoTro: Number(e.target.value) })
+                            }
+                            className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-center text-xs text-slate-700 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-right text-xs font-bold text-amber-800">
+                        = {formatVND(previewCoTro)} đ
+                      </p>
+                    </div>
+                  )}
 
-                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3 space-y-2">
-                    <p className="text-[11px] font-bold text-indigo-800">🌾 Không trở</p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <div>
-                        <label className="text-[10px] text-slate-500">Tấn</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.tonsKhongTro === 0 ? '' : row.tonsKhongTro}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          onChange={(e) =>
-                            handleTonsChange(row.id, 'khongTro', e.target.value, dayFileTons)
-                          }
-                          placeholder="0"
-                          className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold text-indigo-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                            isOverLimit || (row.errorMsg && row.tonsKhongTro > dayFileTons)
-                              ? 'border-red-500 bg-red-50 text-red-900'
-                              : 'border-indigo-300'
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-500">Giá</label>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1000}
-                          value={row.priceKhongTro || ''}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          onChange={(e) =>
-                            updateRow(row.id, { priceKhongTro: Number(e.target.value) })
-                          }
-                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-center text-xs text-slate-700 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        />
-                      </div>
+                  {rowMode === 'coTro' ? (
+                    <div
+                      onClick={() => handleSetRowMode(row.id, 'caHai', dayFileTons, row.date)}
+                      className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3 text-center text-xs text-slate-400 font-semibold cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/40 hover:text-indigo-700 flex flex-col justify-center items-center gap-1"
+                    >
+                      <span className="text-[11px] font-bold text-slate-400">🌾 Không trở</span>
+                      <span className="text-sm font-extrabold text-slate-300">-</span>
+                      <span className="text-[10px] text-indigo-700">(Bấm bật cả hai)</span>
                     </div>
-                    <p className="text-right text-xs font-bold text-indigo-800">
-                      = {formatVND(previewKhongTro)} đ
-                    </p>
-                  </div>
+                  ) : (
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3 space-y-2">
+                      <p className="text-[11px] font-bold text-indigo-800">🌾 Không trở</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div>
+                          <label className="text-[10px] text-slate-500">Tấn</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={row.tonsKhongTro === 0 ? '' : row.tonsKhongTro}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            onChange={(e) =>
+                              handleTonsChange(row.id, 'khongTro', e.target.value, dayFileTons)
+                            }
+                            placeholder="0"
+                            className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold text-indigo-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                              isOverLimit || (row.errorMsg && row.tonsKhongTro > dayFileTons)
+                                ? 'border-red-500 bg-red-50 text-red-900'
+                                : 'border-indigo-300'
+                            }`}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-500">Giá</label>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1000}
+                            value={row.priceKhongTro || ''}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            onChange={(e) =>
+                              updateRow(row.id, { priceKhongTro: Number(e.target.value) })
+                            }
+                            className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-center text-xs text-slate-700 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-right text-xs font-bold text-indigo-800">
+                        = {formatVND(previewKhongTro)} đ
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -1638,6 +1881,33 @@ export default function RicePayrollView() {
                 >
                   🌾 Không trở ({monthBatches.filter((b) => !(batchOverrides[b.id]?.isCoTro !== undefined ? batchOverrides[b.id].isCoTro : getDefaultClassification(b))).length})
                 </button>
+
+                <div className="hidden sm:block h-4 w-px bg-slate-200 mx-1" />
+
+                <button
+                  type="button"
+                  onClick={() => handleSetAllBatches(true)}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-50 border border-amber-200 text-amber-900 hover:bg-amber-100 transition-all cursor-pointer shadow-2xs"
+                  title="Gán toàn bộ 52 mẻ lúa trong tháng thành Có trở"
+                >
+                  ＋ Tất cả Có trở
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetAllBatches(false)}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-900 hover:bg-indigo-100 transition-all cursor-pointer shadow-2xs"
+                  title="Gán toàn bộ 52 mẻ lúa trong tháng thành Không trở"
+                >
+                  ＋ Tất cả Không trở
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetBatchesToSample}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-all cursor-pointer shadow-2xs"
+                  title="Khôi phục phân loại theo file mẫu tháng 10 chuẩn (1.586t Có trở, 1.703t Không trở)"
+                >
+                  🔄 Chuẩn mẫu T10
+                </button>
               </div>
             </div>
 
@@ -1707,38 +1977,30 @@ export default function RicePayrollView() {
                           </td>
                           <td className="py-2 px-3 text-slate-700">{b.dryVehicle || '-'}</td>
                           <td className="py-2 px-3 text-center">
-                            <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-100">
+                            <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-100 shadow-2xs">
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setBatchOverrides((prev) => ({
-                                    ...prev,
-                                    [b.id]: { isCoTro: true, tons },
-                                  }))
-                                }
+                                onClick={() => handleToggleBatch(b, true)}
                                 className={`px-2 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
                                   isCoTro
                                     ? 'bg-amber-500 text-white shadow-2xs'
                                     : 'text-slate-600 hover:text-slate-900'
                                 }`}
+                                title="Tính giá Có trở"
                               >
-                                Có trở ({formatVND(masterPriceCoTro)})
+                                🌾 Có trở ({formatVND(masterPriceCoTro)})
                               </button>
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setBatchOverrides((prev) => ({
-                                    ...prev,
-                                    [b.id]: { isCoTro: false, tons },
-                                  }))
-                                }
+                                onClick={() => handleToggleBatch(b, false)}
                                 className={`px-2 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
                                   !isCoTro
                                     ? 'bg-indigo-600 text-white shadow-2xs'
                                     : 'text-slate-600 hover:text-slate-900'
                                 }`}
+                                title="Tính giá Không trở"
                               >
-                                Không trở ({formatVND(masterPriceKhongTro)})
+                                🌾 Không trở ({formatVND(masterPriceKhongTro)})
                               </button>
                             </div>
                           </td>
