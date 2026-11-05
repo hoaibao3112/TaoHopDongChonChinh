@@ -456,7 +456,7 @@ export default function RicePayrollView() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Bang_Ke_Luong_Thang_${m || 10}_${y || 2026}_Chu_6_Thanh.xlsx`;
+      a.download = `DOI_THANH-XUAT_CS1_T${String(m || 10).padStart(2, '0')}_${y || 2026}_HOAN_CHINH.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -1264,68 +1264,98 @@ export default function RicePayrollView() {
 
         {effectiveLogs.length === 0 ? (
           <div className="py-12 text-center text-xs text-slate-400">
-            Chưa có ngày công nào trong Tháng {selectedMonthKey} được ghép. Hãy chọn ngày, điền số tấn ở bảng trên rồi bấm <strong>&quot;🔍 Ghép&quot;</strong> hoặc <strong>&quot;🔍 Ghép Tất Cả&quot;</strong>, hệ thống sẽ tự động tổng hợp vào đây!
+            Chưa có ngày công nào trong Tháng {selectedMonthKey} được nhập. Hãy điền số tấn ở bảng trên rồi bấm <strong>&quot;📥 Xuất Excel&quot;</strong>, hệ thống sẽ kết xuất bảng kê hoàn chỉnh!
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500 border-b border-slate-200">
-                <tr>
-                  <th className="py-2.5 px-3">Ngày Làm</th>
-                  <th className="py-2.5 px-3 text-right text-amber-700">Có trở (tấn)</th>
-                  <th className="py-2.5 px-3 text-right text-amber-700">Tiền có trở</th>
-                  <th className="py-2.5 px-3 text-right text-indigo-700">Không trở (tấn)</th>
-                  <th className="py-2.5 px-3 text-right text-indigo-700">Tiền không trở</th>
-                  <th className="py-2.5 px-3 text-right font-extrabold text-slate-700">Tổng ngày</th>
-                  <th className="py-2.5 px-3 text-center">Xóa</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {effectiveLogs.map((log) => (
-                  <tr key={log.date} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-3 font-bold text-slate-900">{log.date}</td>
-                    <td className="py-2.5 px-3 text-right text-amber-700 font-semibold">{log.expectedTonsCoTro}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{formatVND(log.amountCoTro)}&thinsp;đ</td>
-                    <td className="py-2.5 px-3 text-right text-indigo-700 font-semibold">{log.expectedTonsKhongTro}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{formatVND(log.amountKhongTro)}&thinsp;đ</td>
-                    <td className="py-2.5 px-3 text-right font-extrabold text-slate-900 whitespace-nowrap">{formatVND(log.totalAmount)}&thinsp;đ</td>
-                    <td className="py-2.5 px-3 text-center">
-                      <button
-                        onClick={() =>
-                          setSavedLogs((prev) => prev.filter((l) => l.date !== log.date))
-                        }
-                        className="text-[11px] text-red-500 hover:text-red-700 font-semibold cursor-pointer"
-                      >
-                        Xóa
-                      </button>
-                    </td>
+          <div>
+            {/* Thanh TỔNG CỘNG mô phỏng Hàng 3 trong File Excel Master */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-amber-50/80 border-b border-amber-200 p-3 text-xs">
+              <div className="rounded-lg bg-white p-2.5 border border-amber-200 shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-slate-500">🌾 Cân sấy (Tấn)</span>
+                <p className="text-sm font-extrabold text-slate-900 mt-0.5">
+                  {effectiveLogs.reduce((s, l) => s + l.expectedTonsCoTro + l.expectedTonsKhongTro, 0)} tấn
+                </p>
+              </div>
+              <div className="rounded-lg bg-white p-2.5 border border-amber-200 shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-amber-700">🌾 Tiền Có Trở</span>
+                <p className="text-sm font-extrabold text-amber-800 mt-0.5">
+                  {formatVND(effectiveLogs.reduce((s, l) => s + l.amountCoTro, 0))}&thinsp;đ
+                </p>
+              </div>
+              <div className="rounded-lg bg-white p-2.5 border border-indigo-200 shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-indigo-700">🌾 Tiền Không Trở</span>
+                <p className="text-sm font-extrabold text-indigo-800 mt-0.5">
+                  {formatVND(effectiveLogs.reduce((s, l) => s + l.amountKhongTro, 0))}&thinsp;đ
+                </p>
+              </div>
+              <div className="rounded-lg bg-amber-400 p-2.5 border border-amber-500 shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-amber-950">💰 TỔNG CỘNG LƯƠNG</span>
+                <p className="text-base font-black text-amber-950 mt-0.5">
+                  {formatVND(monthlyTotal)}&thinsp;đ
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th className="py-2.5 px-3">Ngày Làm</th>
+                    <th className="py-2.5 px-3 text-right text-amber-700">Có trở (tấn)</th>
+                    <th className="py-2.5 px-3 text-right text-amber-700">Tiền có trở</th>
+                    <th className="py-2.5 px-3 text-right text-indigo-700">Không trở (tấn)</th>
+                    <th className="py-2.5 px-3 text-right text-indigo-700">Tiền không trở</th>
+                    <th className="py-2.5 px-3 text-right font-extrabold text-slate-700">Tổng ngày</th>
+                    <th className="py-2.5 px-3 text-center">Xóa</th>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-slate-50 border-t-2 border-slate-200 font-bold text-xs">
-                  <td className="py-3 px-3 text-slate-700 uppercase">
-                    Tổng cộng Tháng {selectedMonthKey}
-                  </td>
-                  <td className="py-3 px-3 text-right text-amber-800">
-                    {effectiveLogs.reduce((s, l) => s + l.expectedTonsCoTro, 0)} tấn
-                  </td>
-                  <td className="py-3 px-3 text-right text-slate-800 whitespace-nowrap">
-                    {formatVND(effectiveLogs.reduce((s, l) => s + l.amountCoTro, 0))}&thinsp;đ
-                  </td>
-                  <td className="py-3 px-3 text-right text-indigo-800">
-                    {effectiveLogs.reduce((s, l) => s + l.expectedTonsKhongTro, 0)} tấn
-                  </td>
-                  <td className="py-3 px-3 text-right text-slate-800 whitespace-nowrap">
-                    {formatVND(effectiveLogs.reduce((s, l) => s + l.amountKhongTro, 0))}&thinsp;đ
-                  </td>
-                  <td className="py-3 px-3 text-right text-base text-blue-700 whitespace-nowrap">
-                    {formatVND(monthlyTotal)}&thinsp;đ
-                  </td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {effectiveLogs.map((log) => (
+                    <tr key={log.date} className="hover:bg-slate-50">
+                      <td className="py-2.5 px-3 font-bold text-slate-900">{log.date}</td>
+                      <td className="py-2.5 px-3 text-right text-amber-700 font-semibold">{log.expectedTonsCoTro}</td>
+                      <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{formatVND(log.amountCoTro)}&thinsp;đ</td>
+                      <td className="py-2.5 px-3 text-right text-indigo-700 font-semibold">{log.expectedTonsKhongTro}</td>
+                      <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{formatVND(log.amountKhongTro)}&thinsp;đ</td>
+                      <td className="py-2.5 px-3 text-right font-extrabold text-slate-900 whitespace-nowrap">{formatVND(log.totalAmount)}&thinsp;đ</td>
+                      <td className="py-2.5 px-3 text-center">
+                        <button
+                          onClick={() =>
+                            setSavedLogs((prev) => prev.filter((l) => l.date !== log.date))
+                          }
+                          className="text-[11px] text-red-500 hover:text-red-700 font-semibold cursor-pointer"
+                        >
+                          Xóa
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50 border-t-2 border-slate-200 font-bold text-xs">
+                    <td className="py-3 px-3 text-slate-700 uppercase">
+                      Tổng cộng Tháng {selectedMonthKey}
+                    </td>
+                    <td className="py-3 px-3 text-right text-amber-800">
+                      {effectiveLogs.reduce((s, l) => s + l.expectedTonsCoTro, 0)} tấn
+                    </td>
+                    <td className="py-3 px-3 text-right text-slate-800 whitespace-nowrap">
+                      {formatVND(effectiveLogs.reduce((s, l) => s + l.amountCoTro, 0))}&thinsp;đ
+                    </td>
+                    <td className="py-3 px-3 text-right text-indigo-800">
+                      {effectiveLogs.reduce((s, l) => s + l.expectedTonsKhongTro, 0)} tấn
+                    </td>
+                    <td className="py-3 px-3 text-right text-slate-800 whitespace-nowrap">
+                      {formatVND(effectiveLogs.reduce((s, l) => s + l.amountKhongTro, 0))}&thinsp;đ
+                    </td>
+                    <td className="py-3 px-3 text-right text-base text-blue-700 whitespace-nowrap">
+                      {formatVND(monthlyTotal)}&thinsp;đ
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
         )}
       </div>

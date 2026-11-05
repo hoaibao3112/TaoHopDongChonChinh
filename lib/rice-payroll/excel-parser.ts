@@ -53,10 +53,13 @@ function findColumnIndexes(headerRow: unknown[]) {
       .trim();
 
   let colWeighDate = 1;      // Cột B: NGÀY CÂN
+  let colPurchaser = 2;      // Cột C: NHÂN VIÊN THU MUA
   let colCustomer = 3;       // Cột D: KHÁCH HÀNG
   let colVehicle = 4;        // Cột E: PHƯƠNG TIỆN
   let colRiceType = 5;       // Cột F: LOẠI LÚA
   let colBatchCode = 6;      // Cột G: MÃ LÔ
+  let colFreshWeight = 7;    // Cột H: SỐ LƯỢNG (KG)
+  let colFreshBoVehicle = 18;// Cột S: PHƯƠNG TIỆN TĂNG BO LÚA TƯƠI
   let colDryDate = 24;       // Cột Y: NGÀY NHẬP SẤY
   let colDryFacility = 25;   // Cột Z: CƠ SỞ SẤY
   let colDryWeight = 27;     // Cột AB: CÂN NHẬP SẤY (KG)
@@ -66,10 +69,13 @@ function findColumnIndexes(headerRow: unknown[]) {
   headerRow.forEach((cell, idx) => {
     const text = norm(cell);
     if (text.includes('ngày') && text.includes('cân')) colWeighDate = idx;
+    if (text.includes('nhân viên') && text.includes('thu mua')) colPurchaser = idx;
     if (text.includes('khách hàng')) colCustomer = idx;
     if (text === 'phương tiện') colVehicle = idx;
     if (text.includes('loại lúa')) colRiceType = idx;
     if (text.includes('mã lô')) colBatchCode = idx;
+    if (text.includes('số lượng') && text.includes('kg')) colFreshWeight = idx;
+    if (text.includes('tăng bo') && text.includes('lúa tươi')) colFreshBoVehicle = idx;
     if (text.includes('ngày') && text.includes('nhập sấy')) colDryDate = idx;
     if (text.includes('cơ sở sấy') || text.includes('địa điểm sấy')) colDryFacility = idx;
     if (text.includes('cân nhập sấy')) colDryWeight = idx;
@@ -82,10 +88,13 @@ function findColumnIndexes(headerRow: unknown[]) {
 
   return {
     colWeighDate,
+    colPurchaser,
     colCustomer,
     colVehicle,
     colRiceType,
     colBatchCode,
+    colFreshWeight,
+    colFreshBoVehicle,
     colDryDate,
     colDryFacility,
     colDryWeight,
@@ -157,6 +166,12 @@ export function parseRiceMasterExcel(
     // Áp dụng quy tắc làm tròn chuẩn: >= 0.333 tấn làm tròn lên
     const roundedTons = roundRiceTons(dryWeightRaw);
 
+    const weighDate = formatExcelDate(row[cols.colWeighDate]);
+    const purchaser = String(row[cols.colPurchaser] ?? '').trim();
+    const freshWeightRaw = Number(row[cols.colFreshWeight]);
+    const freshWeightKg = !isNaN(freshWeightRaw) && freshWeightRaw > 0 ? freshWeightRaw : undefined;
+    const freshBoVehicle = String(row[cols.colFreshBoVehicle] ?? '').trim() || undefined;
+
     const batch: RiceBatch = {
       id: `batch-${r}-${batchCode}`,
       batchCode,
@@ -169,6 +184,10 @@ export function parseRiceMasterExcel(
       dryVehicle,
       dryWeightKg: dryWeightRaw,
       roundedTons,
+      weighDate,
+      purchaser,
+      freshWeightKg,
+      freshBoVehicle,
     };
 
     batches.push(batch);

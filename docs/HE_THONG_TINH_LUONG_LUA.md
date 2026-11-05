@@ -98,11 +98,21 @@ Khi đối soát công nhật cho Đội Chú 6 Thanh, hệ thống **bắt bu�
    - Nhập 1 lần duy nhất tại đây, tự động điền đơn giá cho tất cả các dòng ngày công bên dưới.
    - Người dùng chỉ cần gõ đúng 2 con số: **Số tấn có trở** và **Số tấn không trở**.
 
-7. **Xuất Excel ngay lập tức (Instant Export):**
-   - Người dùng gõ số tấn xong là nút **[📥 Xuất Excel Tháng ...]** **SÁNG LÊN NGAY LẬP TỨC**.
-   - Không bắt buộc phải bấm "Ghép Tất Cả" mới được xuất.
-   - Hỗ trợ xuất nửa tháng (15 ngày), vài ngày, hoặc trọn tháng.
-   - File Excel kết xuất ra (`Bang_Ke_Luong_Thang_...xlsx`) chuẩn chỉnh từng dòng, có phân loại mẻ, đơn giá và tổng tiền.
+7. **Định dạng file Excel xuất ra chuẩn 100% theo mẫu thực tế (`DOI_THANH-XUAT_CS1_T10_2026_HOAN_CHINH_DA_CHINH_IN.xlsx`):**
+   - Người dùng gõ số tấn xong là nút **[📥 Xuất Excel Tháng ...]** sáng lên tải file ngay.
+   - **Tên file tải về:** `DOI_THANH-XUAT_CS1_T{MM}_{YYYY}_HOAN_CHINH.xlsx`.
+   - **Sheet 1 (`BK`):**
+     - Tiêu đề (Hàng 1): `BẢNG KÊ ĐỘI THANH - XUẤT CƠ SỞ I THÁNG {MM}/{YYYY}`.
+     - **Dòng Tổng Cộng trên đầu (Hàng 3):** Nền vàng nhạt `#FFF2CC` và vàng tươi `#FFFF00`, dùng đúng công thức Excel chuẩn:
+       - `J3`: `=SUBTOTAL(109, J5:J{N})` (Tổng Cân nhập sấy KG)
+       - `K3`: `=SUBTOTAL(109, K5:K{N})` (Tổng Cân nhập sấy TẤN)
+       - `Q3`: `=SUBTOTAL(109, Q5:Q{N})` (Tổng tiền Xuất có trở)
+       - `S3`: `=SUBTOTAL(109, S5:S{N})` (Tổng tiền Xuất không trở)
+       - `T3`: `=Q3+S3` (Tổng tiền thanh toán cả 2 loại)
+     - **20 Cột bảng kê (Hàng 4):** Nền xanh Navy `#1F4E78`, chữ trắng in đậm:
+       `NGÀY CÂN`, `NHÂN VIÊN THU MUA (ẩn)`, `KHÁCH HÀNG`, `PHƯƠNG TIỆN`, `LOẠI LÚA`, `SỐ LƯỢNG (KG)`, `PHƯƠNG TIỆN TĂNG BO LÚA TƯƠI`, `NGÀY NHẬP SẤY`, `ĐỊA ĐIỂM SẤY (CƠ SỞ I)`, `CÂN NHẬP SẤY (KG)`, `CÂN NHẬP SẤY (TẤN)`, `NGÀY XUỐNG LÚA KHÔ (NHẬN XUẤT TRẢ)`, `PHƯƠNG TIỆN CHỞ LÚA KHÔ`, `TRỞ MẺ (ẩn)`, `THÀNH TIỀN (ẩn)`, `ĐƠN GIÁ XUẤT+TRỞ (20.000đ/TẤN)`, `THÀNH TIỀN XUẤT+TRỞ (=K*P)`, `XUẤT KHÔNG TRỞ 16.000/TẤN`, `THÀNH TIỀN XUẤT KHÔNG TRỞ (=K*R)`.
+     - **Khối chữ ký cuối bảng:** Người lập bảng (*Võ Hoàng Cẩm Tiên*) và Xác nhận (*Huỳnh Hải Long Hồ*).
+   - **Sheet 2 (`CL ĐỘI THANH`):** Bảng tổng hợp chi lương và bảng quyết toán các khoản (Xuất có trở, Xuất không trở, Tiền nước đá, Trừ tạm ứng, Còn lại thực lãnh).
 
 ---
 
@@ -130,7 +140,7 @@ Khi đối soát công nhật cho Đội Chú 6 Thanh, hệ thống **bắt bu�
   ```bash
   cd contract-generator
   pnpm test
-  # Kết quả: 37/37 tests passed (6 test suites)
+  # Kết quả: 38/38 tests passed (7 test suites)
   ```
 - **Kiểm tra TypeScript:**
   ```bash
