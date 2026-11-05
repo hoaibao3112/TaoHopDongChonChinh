@@ -47,3 +47,4 @@ describe('Rice Payroll: Lọc đúng Cơ Sở I và trích xuất đúng 52 mẻ
     expect(getDefaultTons(b0)).toBe(59);
   });
 });
+

@@ -25,3 +25,4 @@ export function isCoSo1(facility?: string | null): boolean {
     f.includes('CS1')
   );
 }
+

@@ -124,6 +124,9 @@ export default function RicePayrollView() {
   // ── Phân loại mẻ lúa thực tế (override thủ công của user) ──
   const [batchOverrides, setBatchOverrides] = useState<Record<string, { isCoTro: boolean; tons?: number }>>({});
 
+  // ── Tự động cân đối số tấn (nhập Có trở tự tính Không trở và ngược lại) ──
+  const [autoBalance, setAutoBalance] = useState<boolean>(true);
+
   // ── Tìm kiếm & lọc ở Tab mẻ lúa ──
   const [batchSearch, setBatchSearch] = useState('');
   const [batchFilterType, setBatchFilterType] = useState<'all' | 'coTro' | 'khongTro'>('all');
@@ -358,6 +361,77 @@ export default function RicePayrollView() {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }, []);
 
+  // Cập nhật số tấn Có trở / Không trở với tính năng tự động cân đối thông minh
+  const handleTonsChange = useCallback(
+    (rowId: string, field: 'coTro' | 'khongTro', valStr: string, dayTotalTons: number) => {
+      const val = valStr === '' ? 0 : Number(valStr);
+
+      setRows((prev) =>
+        prev.map((r) => {
+          if (r.id !== rowId) return r;
+
+          // Nếu bật tự động cân đối và ngày đó có mẻ lúa thực tế
+          if (autoBalance && dayTotalTons > 0) {
+            if (field === 'coTro') {
+              if (val > dayTotalTons) {
+                return {
+                  ...r,
+                  tonsCoTro: val,
+                  tonsKhongTro: 0,
+                  status: 'mismatch',
+                  errorMsg: `Tổng nhập (${val}t) vượt quá số tấn thực tế trong ngày (${dayTotalTons}t)`,
+                };
+              }
+              const autoKhongTro = val === 0 ? 0 : Math.max(0, dayTotalTons - val);
+              return {
+                ...r,
+                tonsCoTro: val,
+                tonsKhongTro: autoKhongTro,
+                status: 'idle',
+                errorMsg: '',
+              };
+            } else {
+              // field === 'khongTro'
+              if (val > dayTotalTons) {
+                return {
+                  ...r,
+                  tonsKhongTro: val,
+                  tonsCoTro: 0,
+                  status: 'mismatch',
+                  errorMsg: `Tổng nhập (${val}t) vượt quá số tấn thực tế trong ngày (${dayTotalTons}t)`,
+                };
+              }
+              const autoCoTro = val === 0 ? 0 : Math.max(0, dayTotalTons - val);
+              return {
+                ...r,
+                tonsKhongTro: val,
+                tonsCoTro: autoCoTro,
+                status: 'idle',
+                errorMsg: '',
+              };
+            }
+          }
+
+          // Nhập tự do khi tắt cân đối
+          const newCo = field === 'coTro' ? val : r.tonsCoTro;
+          const newKhong = field === 'khongTro' ? val : r.tonsKhongTro;
+          const isOver = dayTotalTons > 0 && newCo + newKhong > dayTotalTons;
+
+          return {
+            ...r,
+            tonsCoTro: newCo,
+            tonsKhongTro: newKhong,
+            status: isOver ? 'mismatch' : 'idle',
+            errorMsg: isOver
+              ? `Tổng ${newCo + newKhong}t vượt quá số tấn thực tế trong ngày (${dayTotalTons}t)`
+              : '',
+          };
+        })
+      );
+    },
+    [autoBalance]
+  );
+
   // Thay đổi đơn giá áp dụng cho TẤT CẢ các dòng trong tháng
   const handleMasterPriceChange = (type: 'coTro' | 'khongTro', newPrice: number) => {
     if (type === 'coTro') {
@@ -523,6 +597,29 @@ export default function RicePayrollView() {
   const handleExportExcel = async () => {
     setIsExporting(true);
     try {
+      // Kiểm tra nếu có ngày bị nhập vượt quá số tấn thực tế
+      const invalidRow = rows.find((r) => {
+        const dayBatches = monthBatches.filter((b) => b.dischargeDate === r.date);
+        const dayFileTons = dayBatches.reduce(
+          (s, b) => s + (batchOverrides[b.id]?.tons ?? getDefaultTons(b)),
+          0
+        );
+        return dayFileTons > 0 && r.tonsCoTro + r.tonsKhongTro > dayFileTons;
+      });
+
+      if (invalidRow) {
+        const dayBatches = monthBatches.filter((b) => b.dischargeDate === invalidRow.date);
+        const dayFileTons = dayBatches.reduce(
+          (s, b) => s + (batchOverrides[b.id]?.tons ?? getDefaultTons(b)),
+          0
+        );
+        alert(
+          `⚠️ Không thể xuất Excel: Ngày ${invalidRow.date} đang nhập ${invalidRow.tonsCoTro + invalidRow.tonsKhongTro} tấn, vượt quá tổng thực tế ${dayFileTons} tấn! Vui lòng kiểm tra lại.`
+        );
+        setIsExporting(false);
+        return;
+      }
+
       const [m, y] = selectedMonthKey.split('/').map(Number);
 
       // Chuẩn bị danh sách mẻ lúa thực tế từ File Lúa Master (Cơ sở I)
@@ -857,6 +954,18 @@ export default function RicePayrollView() {
               />
               <span className="text-xs text-slate-500 font-semibold">đ/tấn</span>
             </div>
+
+            <label className="flex items-center gap-1.5 bg-white border border-blue-200 rounded-xl px-3 py-1.5 shadow-2xs cursor-pointer select-none hover:bg-blue-50/50 transition-colors" title="Khi nhập Có trở sẽ tự động tính số tấn Không trở còn lại và ngược lại">
+              <input
+                type="checkbox"
+                checked={autoBalance}
+                onChange={(e) => setAutoBalance(e.target.checked)}
+                className="h-4 w-4 rounded border-blue-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="text-xs font-bold text-blue-900">
+                ⚖️ Tự cân đối số tấn
+              </span>
+            </label>
           </div>
         </div>
 
@@ -881,6 +990,12 @@ export default function RicePayrollView() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((row) => {
+                const dayBatches = monthBatches.filter((b) => b.dischargeDate === row.date);
+                const dayFileTons = dayBatches.reduce(
+                  (s, b) => s + (batchOverrides[b.id]?.tons ?? getDefaultTons(b)),
+                  0
+                );
+                const isOverLimit = dayFileTons > 0 && row.tonsCoTro + row.tonsKhongTro > dayFileTons;
                 const previewCoTro = row.tonsCoTro * row.priceCoTro;
                 const previewKhongTro = row.tonsKhongTro * row.priceKhongTro;
                 const previewTotal = previewCoTro + previewKhongTro;
@@ -891,12 +1006,12 @@ export default function RicePayrollView() {
                     className={`transition-colors ${
                       isActive
                         ? 'bg-blue-50/70'
+                        : isOverLimit || row.status === 'error'
+                        ? 'bg-red-50/40 hover:bg-red-50'
                         : row.status === 'matched'
                         ? 'bg-emerald-50/40 hover:bg-emerald-50/60'
                         : row.status === 'mismatch'
                         ? 'bg-amber-50/40 hover:bg-amber-50/60'
-                        : row.status === 'error'
-                        ? 'bg-red-50/40 hover:bg-red-50'
                         : 'hover:bg-slate-50/80'
                     }`}
                   >
@@ -911,6 +1026,7 @@ export default function RicePayrollView() {
                               date: e.target.value.trim(),
                               status: 'idle',
                               result: null,
+                              errorMsg: '',
                             })
                           }
                           placeholder={`01/${selectedMonthKey}`}
@@ -925,6 +1041,7 @@ export default function RicePayrollView() {
                                 date: e.target.value,
                                 status: 'idle',
                                 result: null,
+                                errorMsg: '',
                               });
                             }
                           }}
@@ -960,41 +1077,67 @@ export default function RicePayrollView() {
                         </select>
                       </div>
 
-                      {(() => {
-                        const dayBatches = monthBatches.filter((b) => b.dischargeDate === row.date);
-                        const dayFileTons = dayBatches.reduce(
-                          (s, b) => s + (batchOverrides[b.id]?.tons ?? getDefaultTons(b)),
-                          0
-                        );
-                        if (dayBatches.length === 0) return null;
-                        return (
-                          <div className="mt-1 flex items-center justify-between text-[10px]">
-                            <span className="text-emerald-700 font-semibold" title="Mẻ lúa và số tấn cân sấy từ file lúa">
-                              🌾 {dayBatches.length} mẻ &bull; <strong>{dayFileTons}t</strong>
-                            </span>
-                            {row.tonsCoTro === 0 && row.tonsKhongTro === 0 && (
-                              <div className="flex gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => updateRow(row.id, { tonsCoTro: dayFileTons, tonsKhongTro: 0 })}
-                                  className="rounded bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-1 py-0.5 text-[9px] cursor-pointer"
-                                  title="Điền toàn bộ vào Có trở"
-                                >
-                                  +Có
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => updateRow(row.id, { tonsCoTro: 0, tonsKhongTro: dayFileTons })}
-                                  className="rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-900 font-bold px-1 py-0.5 text-[9px] cursor-pointer"
-                                  title="Điền toàn bộ vào Không trở"
-                                >
-                                  +K
-                                </button>
-                              </div>
+                      {dayBatches.length > 0 && (
+                        <div className="mt-1 flex items-center justify-between text-[10px] gap-1">
+                          <span
+                            className={`font-semibold truncate ${
+                              isOverLimit ? 'text-red-600 font-bold' : 'text-emerald-700'
+                            }`}
+                            title="Mẻ lúa và số tấn cân sấy từ file lúa"
+                          >
+                            🌾 {dayBatches.length} mẻ &bull; <strong>{dayFileTons}t</strong>
+                          </span>
+                          <div className="flex gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateRow(row.id, {
+                                  tonsCoTro: dayFileTons,
+                                  tonsKhongTro: 0,
+                                  status: 'idle',
+                                  errorMsg: '',
+                                })
+                              }
+                              className="rounded bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-1.5 py-0.5 text-[9px] cursor-pointer transition-colors"
+                              title="Gán toàn bộ vào Có trở (Không trở = 0)"
+                            >
+                              100% Có
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateRow(row.id, {
+                                  tonsCoTro: 0,
+                                  tonsKhongTro: dayFileTons,
+                                  status: 'idle',
+                                  errorMsg: '',
+                                })
+                              }
+                              className="rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-900 font-bold px-1.5 py-0.5 text-[9px] cursor-pointer transition-colors"
+                              title="Gán toàn bộ vào Không trở (Có trở = 0)"
+                            >
+                              100% K
+                            </button>
+                            {(row.tonsCoTro > 0 || row.tonsKhongTro > 0) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateRow(row.id, {
+                                    tonsCoTro: 0,
+                                    tonsKhongTro: 0,
+                                    status: 'idle',
+                                    errorMsg: '',
+                                  })
+                                }
+                                className="rounded bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-1.5 py-0.5 text-[9px] cursor-pointer transition-colors"
+                                title="Xóa trắng số tấn ngày này về 0"
+                              >
+                                Xóa
+                              </button>
                             )}
                           </div>
-                        );
-                      })()}
+                        </div>
+                      )}
                     </td>
 
                     {/* Có trở: tấn */}
@@ -1002,17 +1145,17 @@ export default function RicePayrollView() {
                       <input
                         type="number"
                         min={0}
-                        value={row.tonsCoTro || ''}
+                        value={row.tonsCoTro === 0 ? '' : row.tonsCoTro}
                         onWheel={(e) => e.currentTarget.blur()}
                         onChange={(e) =>
-                          updateRow(row.id, {
-                            tonsCoTro: Number(e.target.value),
-                            status: 'idle',
-                            result: null,
-                          })
+                          handleTonsChange(row.id, 'coTro', e.target.value, dayFileTons)
                         }
-                        placeholder="168"
-                        className="w-full rounded-lg border border-amber-300 bg-amber-50/40 px-2 py-1.5 text-center text-xs font-bold text-amber-900 focus:border-amber-500 focus:outline-none focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        placeholder="0"
+                        className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
+                          isOverLimit || (row.errorMsg && row.tonsCoTro > dayFileTons)
+                            ? 'border-red-500 bg-red-50 text-red-900 focus:border-red-600 focus:ring-1 focus:ring-red-400'
+                            : 'border-amber-300 bg-amber-50/40 text-amber-900 focus:border-amber-500 focus:bg-white'
+                        }`}
                       />
                     </td>
 
@@ -1041,17 +1184,17 @@ export default function RicePayrollView() {
                       <input
                         type="number"
                         min={0}
-                        value={row.tonsKhongTro || ''}
+                        value={row.tonsKhongTro === 0 ? '' : row.tonsKhongTro}
                         onWheel={(e) => e.currentTarget.blur()}
                         onChange={(e) =>
-                          updateRow(row.id, {
-                            tonsKhongTro: Number(e.target.value),
-                            status: 'idle',
-                            result: null,
-                          })
+                          handleTonsChange(row.id, 'khongTro', e.target.value, dayFileTons)
                         }
-                        placeholder="253"
-                        className="w-full rounded-lg border border-indigo-300 bg-indigo-50/40 px-2 py-1.5 text-center text-xs font-bold text-indigo-900 focus:border-indigo-500 focus:outline-none focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        placeholder="0"
+                        className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
+                          isOverLimit || (row.errorMsg && row.tonsKhongTro > dayFileTons)
+                            ? 'border-red-500 bg-red-50 text-red-900 focus:border-red-600 focus:ring-1 focus:ring-red-400'
+                            : 'border-indigo-300 bg-indigo-50/40 text-indigo-900 focus:border-indigo-500 focus:bg-white'
+                        }`}
                       />
                     </td>
 
@@ -1082,10 +1225,10 @@ export default function RicePayrollView() {
 
                     {/* Trạng thái */}
                     <td className="py-2 px-3 text-center">
-                      <StatusBadge status={row.status} />
+                      <StatusBadge status={isOverLimit ? 'mismatch' : row.status} />
                       {row.errorMsg && (
-                        <p className="mt-1 text-[10px] text-red-500 text-left max-w-36">
-                          {row.errorMsg}
+                        <p className="mt-1 text-[10px] text-red-600 font-bold text-left max-w-40 bg-red-50 p-1 rounded border border-red-200">
+                          ⚠️ {row.errorMsg}
                         </p>
                       )}
                     </td>
@@ -1178,11 +1321,17 @@ export default function RicePayrollView() {
         {/* ── Thẻ Mobile ── */}
         <div className="lg:hidden divide-y divide-slate-100">
           {rows.map((row) => {
+            const dayBatches = monthBatches.filter((b) => b.dischargeDate === row.date);
+            const dayFileTons = dayBatches.reduce(
+              (s, b) => s + (batchOverrides[b.id]?.tons ?? getDefaultTons(b)),
+              0
+            );
+            const isOverLimit = dayFileTons > 0 && row.tonsCoTro + row.tonsKhongTro > dayFileTons;
             const previewCoTro = row.tonsCoTro * row.priceCoTro;
             const previewKhongTro = row.tonsKhongTro * row.priceKhongTro;
             const previewTotal = previewCoTro + previewKhongTro;
             return (
-              <div key={row.id} className="p-4 space-y-3">
+              <div key={row.id} className={`p-4 space-y-3 ${isOverLimit ? 'bg-red-50/30' : ''}`}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1 flex items-center gap-1.5">
                     <input
@@ -1193,6 +1342,7 @@ export default function RicePayrollView() {
                           date: e.target.value.trim(),
                           status: 'idle',
                           result: null,
+                          errorMsg: '',
                         })
                       }
                       placeholder={`01/${selectedMonthKey}`}
@@ -1206,6 +1356,7 @@ export default function RicePayrollView() {
                             date: e.target.value,
                             status: 'idle',
                             result: null,
+                            errorMsg: '',
                           });
                         }
                       }}
@@ -1239,8 +1390,62 @@ export default function RicePayrollView() {
                       )}
                     </select>
                   </div>
-                  <StatusBadge status={row.status} />
+                  <StatusBadge status={isOverLimit ? 'mismatch' : row.status} />
                 </div>
+
+                {dayBatches.length > 0 && (
+                  <div className="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-xl border border-slate-200">
+                    <span className={`font-bold ${isOverLimit ? 'text-red-600' : 'text-emerald-700'}`}>
+                      🌾 {dayBatches.length} mẻ &bull; <strong>{dayFileTons}t</strong>
+                    </span>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateRow(row.id, {
+                            tonsCoTro: dayFileTons,
+                            tonsKhongTro: 0,
+                            status: 'idle',
+                            errorMsg: '',
+                          })
+                        }
+                        className="rounded bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-2 py-1 text-[10px] cursor-pointer"
+                      >
+                        100% Có
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateRow(row.id, {
+                            tonsCoTro: 0,
+                            tonsKhongTro: dayFileTons,
+                            status: 'idle',
+                            errorMsg: '',
+                          })
+                        }
+                        className="rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-900 font-bold px-2 py-1 text-[10px] cursor-pointer"
+                      >
+                        100% K
+                      </button>
+                      {(row.tonsCoTro > 0 || row.tonsKhongTro > 0) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateRow(row.id, {
+                              tonsCoTro: 0,
+                              tonsKhongTro: 0,
+                              status: 'idle',
+                              errorMsg: '',
+                            })
+                          }
+                          className="rounded bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-2 py-1 text-[10px] cursor-pointer"
+                        >
+                          Xóa
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
@@ -1251,17 +1456,17 @@ export default function RicePayrollView() {
                         <input
                           type="number"
                           min={0}
-                          value={row.tonsCoTro || ''}
+                          value={row.tonsCoTro === 0 ? '' : row.tonsCoTro}
                           onWheel={(e) => e.currentTarget.blur()}
                           onChange={(e) =>
-                            updateRow(row.id, {
-                              tonsCoTro: Number(e.target.value),
-                              status: 'idle',
-                              result: null,
-                            })
+                            handleTonsChange(row.id, 'coTro', e.target.value, dayFileTons)
                           }
-                          placeholder="168"
-                          className="w-full rounded-lg border border-amber-300 px-2 py-1.5 text-center text-xs font-bold text-amber-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          placeholder="0"
+                          className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold text-amber-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                            isOverLimit || (row.errorMsg && row.tonsCoTro > dayFileTons)
+                              ? 'border-red-500 bg-red-50 text-red-900'
+                              : 'border-amber-300'
+                          }`}
                         />
                       </div>
                       <div>
@@ -1292,17 +1497,17 @@ export default function RicePayrollView() {
                         <input
                           type="number"
                           min={0}
-                          value={row.tonsKhongTro || ''}
+                          value={row.tonsKhongTro === 0 ? '' : row.tonsKhongTro}
                           onWheel={(e) => e.currentTarget.blur()}
                           onChange={(e) =>
-                            updateRow(row.id, {
-                              tonsKhongTro: Number(e.target.value),
-                              status: 'idle',
-                              result: null,
-                            })
+                            handleTonsChange(row.id, 'khongTro', e.target.value, dayFileTons)
                           }
-                          placeholder="253"
-                          className="w-full rounded-lg border border-indigo-300 px-2 py-1.5 text-center text-xs font-bold text-indigo-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          placeholder="0"
+                          className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold text-indigo-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                            isOverLimit || (row.errorMsg && row.tonsKhongTro > dayFileTons)
+                              ? 'border-red-500 bg-red-50 text-red-900'
+                              : 'border-indigo-300'
+                          }`}
                         />
                       </div>
                       <div>
@@ -1365,7 +1570,9 @@ export default function RicePayrollView() {
                 </div>
 
                 {row.errorMsg && (
-                  <p className="text-[11px] text-red-500">{row.errorMsg}</p>
+                  <p className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">
+                    ⚠️ {row.errorMsg}
+                  </p>
                 )}
               </div>
             );
