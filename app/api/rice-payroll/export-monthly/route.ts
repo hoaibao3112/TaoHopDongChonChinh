@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import XLSX from 'xlsx-js-style';
+import * as fs from 'fs';
+import * as path from 'path';
 import { isRequestAuthenticated } from '@/lib/auth';
 import { DailyReconciliationResult, RiceBatch } from '@/lib/rice-payroll/types';
+import { isCoSo1 } from '@/lib/rice-payroll/facility-filter';
+import { getDefaultClassification } from '@/lib/rice-payroll/sample-classification';
 
 export const runtime = 'nodejs';
 
@@ -118,94 +122,100 @@ export async function POST(req: NextRequest) {
 
     const items: ExportBatchItem[] = [];
 
-    dailyLogs.forEach((log) => {
-      const hasBatches =
-        (log.batchesCoTro && log.batchesCoTro.length > 0) ||
-        (log.batchesKhongTro && log.batchesKhongTro.length > 0);
+    // Cách 1: Client gửi trực tiếp danh sách mẻ lúa thực tế (từ file lúa) đã gán phân loại
+    if (Array.isArray(body.items) && body.items.length > 0) {
+      body.items.forEach((it: ExportBatchItem) => items.push(it));
+    } else {
+      // Cách 2: Trích xuất từ dailyLogs nếu có batches
+      dailyLogs.forEach((log) => {
+        const hasBatches =
+          (log.batchesCoTro && log.batchesCoTro.length > 0) ||
+          (log.batchesKhongTro && log.batchesKhongTro.length > 0);
 
-      if (hasBatches) {
-        log.batchesCoTro.forEach((b: RiceBatch) => {
-          items.push({
-            weighDate: b.weighDate || b.dryDate || log.date,
-            purchaser: b.purchaser || '',
-            customer: b.customerName || 'VINH MỸ ĐÔNG',
-            vehicle: b.vehicleName || '',
-            riceType: b.riceType || 'OM18',
-            freshWeightKg: b.freshWeightKg || null,
-            freshBoVehicle: b.freshBoVehicle || '',
-            dryDate: b.dryDate || log.date,
-            dryFacility: b.dryFacility || 'CƠ SỞ I',
-            dryWeightKg: b.dryWeightKg,
-            roundedTons: b.roundedTons,
-            dischargeDate: b.dischargeDate || log.date,
-            dryVehicle: b.dryVehicle || '',
-            isCoTro: true,
-            unitPrice: log.unitPriceCoTro || 20000,
+        if (hasBatches) {
+          log.batchesCoTro.forEach((b: RiceBatch) => {
+            items.push({
+              weighDate: b.weighDate || b.dryDate || log.date,
+              purchaser: b.purchaser || '',
+              customer: b.customerName || 'VINH MỸ ĐÔNG',
+              vehicle: b.vehicleName || '',
+              riceType: b.riceType || 'OM18',
+              freshWeightKg: b.freshWeightKg || null,
+              freshBoVehicle: b.freshBoVehicle || '',
+              dryDate: b.dryDate || log.date,
+              dryFacility: b.dryFacility || 'CƠ SỞ I',
+              dryWeightKg: b.dryWeightKg,
+              roundedTons: b.roundedTons,
+              dischargeDate: b.dischargeDate || log.date,
+              dryVehicle: b.dryVehicle || '',
+              isCoTro: true,
+              unitPrice: log.unitPriceCoTro || 20000,
+            });
           });
-        });
 
-        log.batchesKhongTro.forEach((b: RiceBatch) => {
-          items.push({
-            weighDate: b.weighDate || b.dryDate || log.date,
-            purchaser: b.purchaser || '',
-            customer: b.customerName || 'VINH MỸ ĐÔNG',
-            vehicle: b.vehicleName || '',
-            riceType: b.riceType || 'OM18',
-            freshWeightKg: b.freshWeightKg || null,
-            freshBoVehicle: b.freshBoVehicle || '',
-            dryDate: b.dryDate || log.date,
-            dryFacility: b.dryFacility || 'CƠ SỞ I',
-            dryWeightKg: b.dryWeightKg,
-            roundedTons: b.roundedTons,
-            dischargeDate: b.dischargeDate || log.date,
-            dryVehicle: b.dryVehicle || '',
-            isCoTro: false,
-            unitPrice: log.unitPriceKhongTro || 16000,
-          });
-        });
-      } else {
-        // Trường hợp nhập sổ tay trực tiếp
-        if (log.expectedTonsCoTro > 0) {
-          items.push({
-            weighDate: log.date,
-            purchaser: '',
-            customer: 'ĐỘI CHÚ 6 THANH',
-            vehicle: 'XUẤT CƠ SỞ I',
-            riceType: 'LÚA KHÔ',
-            freshWeightKg: null,
-            freshBoVehicle: '',
-            dryDate: log.date,
-            dryFacility: 'CƠ SỞ I',
-            dryWeightKg: log.expectedTonsCoTro * 1000,
-            roundedTons: log.expectedTonsCoTro,
-            dischargeDate: log.date,
-            dryVehicle: 'XUẤT LÒ',
-            isCoTro: true,
-            unitPrice: log.unitPriceCoTro || 20000,
+          log.batchesKhongTro.forEach((b: RiceBatch) => {
+            items.push({
+              weighDate: b.weighDate || b.dryDate || log.date,
+              purchaser: b.purchaser || '',
+              customer: b.customerName || 'VINH MỸ ĐÔNG',
+              vehicle: b.vehicleName || '',
+              riceType: b.riceType || 'OM18',
+              freshWeightKg: b.freshWeightKg || null,
+              freshBoVehicle: b.freshBoVehicle || '',
+              dryDate: b.dryDate || log.date,
+              dryFacility: b.dryFacility || 'CƠ SỞ I',
+              dryWeightKg: b.dryWeightKg,
+              roundedTons: b.roundedTons,
+              dischargeDate: b.dischargeDate || log.date,
+              dryVehicle: b.dryVehicle || '',
+              isCoTro: false,
+              unitPrice: log.unitPriceKhongTro || 16000,
+            });
           });
         }
+      });
 
-        if (log.expectedTonsKhongTro > 0) {
-          items.push({
-            weighDate: log.date,
-            purchaser: '',
-            customer: 'ĐỘI CHÚ 6 THANH',
-            vehicle: 'XUẤT CƠ SỞ I',
-            riceType: 'LÚA KHÔ',
-            freshWeightKg: null,
-            freshBoVehicle: '',
-            dryDate: log.date,
-            dryFacility: 'CƠ SỞ I',
-            dryWeightKg: log.expectedTonsKhongTro * 1000,
-            roundedTons: log.expectedTonsKhongTro,
-            dischargeDate: log.date,
-            dryVehicle: 'XUẤT LÒ',
-            isCoTro: false,
-            unitPrice: log.unitPriceKhongTro || 16000,
-          });
+      // Cách 3: Nếu vẫn chưa có mẻ lúa thực tế -> ĐỌC TRỰC TIẾP TỪ FILE LÚA MASTER THEO THÁNG & CƠ SỞ I
+      if (items.length === 0) {
+        try {
+          const sampleJsonPath = path.join(process.cwd(), 'data', 'sample-batches.json');
+          if (fs.existsSync(sampleJsonPath)) {
+            const fileContent = fs.readFileSync(sampleJsonPath, 'utf8');
+            const parsedJson = JSON.parse(fileContent);
+            const monthSuffix = `/${String(month).padStart(2, '0')}/${year}`;
+
+            // Lọc ra các mẻ lúa đúng CƠ SỞ I và đúng THÁNG yêu cầu
+            const matchedBatches: RiceBatch[] = (parsedJson.batches || []).filter((b: RiceBatch) => {
+              if (!isCoSo1(b.dryFacility)) return false;
+              return (b.dischargeDate || '').endsWith(monthSuffix);
+            });
+
+            matchedBatches.forEach((b: RiceBatch) => {
+              const isCoTro = getDefaultClassification(b);
+              items.push({
+                weighDate: b.weighDate || b.dryDate || '',
+                purchaser: b.purchaser || '',
+                customer: b.customerName || '',
+                vehicle: b.vehicleName || '',
+                riceType: b.riceType || 'OM18',
+                freshWeightKg: b.freshWeightKg || null,
+                freshBoVehicle: b.freshBoVehicle || '',
+                dryDate: b.dryDate || '',
+                dryFacility: b.dryFacility || 'CƠ SỞ I',
+                dryWeightKg: b.dryWeightKg,
+                roundedTons: b.roundedTons,
+                dischargeDate: b.dischargeDate || '',
+                dryVehicle: b.dryVehicle || '',
+                isCoTro,
+                unitPrice: isCoTro ? 20000 : 16000,
+              });
+            });
+          }
+        } catch (readErr) {
+          console.error('Lỗi tự động nạp mẻ từ file lúa:', readErr);
         }
       }
-    });
+    }
 
     // 4. Ghi các dòng dữ liệu (Bắt đầu từ Hàng 5)
     const startRow = 5;

@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { RiceBatch, DailyReconciliationResult } from '@/lib/rice-payroll/types';
+import { isCoSo1 } from '@/lib/rice-payroll/facility-filter';
+import { getDefaultClassification, getDefaultTons } from '@/lib/rice-payroll/sample-classification';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -61,22 +63,6 @@ function addOneDay(dateStr: string): string {
   return '';
 }
 
-/**
- * Kiểm tra xem địa điểm sấy có phải Cơ sở I (Cơ sở 1) hay không
- */
-function isCoSo1(facility: string): boolean {
-  if (!facility) return false;
-  const f = facility.toUpperCase().trim();
-  return (
-    f === 'CƠ SỞ I' ||
-    f === 'CƠ SỞ 1' ||
-    f.includes('CƠ SỞ I') ||
-    f.includes('CƠ SỞ 1') ||
-    f.includes('CS1') ||
-    f.includes('CS 1')
-  );
-}
-
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: DayRow['status'] }) {
@@ -131,6 +117,16 @@ export default function RicePayrollView() {
 
   // ── Bảng ngày công trong tháng (Mặc định ngày 01/10/2026 ngay từ đầu) ──
   const [rows, setRows] = useState<DayRow[]>([newRow('01/10/2026')]);
+
+  // ── Chế độ xem: 'notebook' (Sổ tay ngày Chú 6) hoặc 'batches' (🌾 Chi tiết mẻ lúa thực tế) ──
+  const [activeTab, setActiveTab] = useState<'notebook' | 'batches'>('notebook');
+
+  // ── Phân loại mẻ lúa thực tế (override thủ công của user) ──
+  const [batchOverrides, setBatchOverrides] = useState<Record<string, { isCoTro: boolean; tons?: number }>>({});
+
+  // ── Tìm kiếm & lọc ở Tab mẻ lúa ──
+  const [batchSearch, setBatchSearch] = useState('');
+  const [batchFilterType, setBatchFilterType] = useState<'all' | 'coTro' | 'khongTro'>('all');
 
   // ── Chi tiết mẻ đang xem ──
   const [detailRow, setDetailRow] = useState<DayRow | null>(null);
@@ -227,6 +223,105 @@ export default function RicePayrollView() {
     return cs1DischargeDates.filter((d) => d.endsWith(`/${selectedMonthKey}`));
   }, [cs1DischargeDates, selectedMonthKey]);
 
+  // ─── Danh sách tất cả các mẻ lúa thực tế tại Cơ sở I thuộc tháng đang chọn ─────
+  const monthBatches = useMemo(() => {
+    if (!selectedMonthKey) return [];
+    return allBatches.filter(
+      (b) => isCoSo1(b.dryFacility) && (b.dischargeDate || '').endsWith(`/${selectedMonthKey}`)
+    );
+  }, [allBatches, selectedMonthKey]);
+
+  // ─── TỰ ĐỘNG NẠP CÁC NGÀY XUẤT LÚA THỰC TẾ TRONG THÁNG TỪ FILE MASTER ──────────
+  const populateMonthDays = useCallback(
+    (monthKey: string, batches: RiceBatch[]) => {
+      const isOct2026 = monthKey === '10/2026';
+      const validDates = Array.from(
+        new Set(
+          batches
+            .filter((b) => isCoSo1(b.dryFacility) && (b.dischargeDate || '').endsWith(`/${monthKey}`))
+            .map((b) => b.dischargeDate)
+        )
+      ).sort((a, b) => {
+        const [d1, m1, y1] = a.split('/').map(Number);
+        const [d2, m2, y2] = b.split('/').map(Number);
+        return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
+      });
+
+      if (validDates.length === 0) return;
+
+      const newRows: DayRow[] = validDates.map((d) => {
+        const dayBatches = batches.filter(
+          (b) => isCoSo1(b.dryFacility) && b.dischargeDate === d
+        );
+        let tonsCo = 0;
+        let tonsKhong = 0;
+
+        if (isOct2026) {
+          dayBatches.forEach((b) => {
+            const isCo = getDefaultClassification(b);
+            const t = getDefaultTons(b);
+            if (isCo) tonsCo += t;
+            else tonsKhong += t;
+          });
+        } else {
+          // Các tháng khác: mặc định lấy tổng số tấn của ngày
+          const dayTons = dayBatches.reduce((s, b) => s + b.roundedTons, 0);
+          tonsCo = dayTons;
+          tonsKhong = 0;
+        }
+
+        return {
+          ...newRow(d),
+          tonsCoTro: tonsCo,
+          tonsKhongTro: tonsKhong,
+          priceCoTro: masterPriceCoTro,
+          priceKhongTro: masterPriceKhongTro,
+        };
+      });
+
+      setRows(newRows);
+      setDetailRow(null);
+      setSavedLogs([]);
+    },
+    [masterPriceCoTro, masterPriceKhongTro]
+  );
+
+  // Khi nạp dữ liệu xong lần đầu hoặc khi có dữ liệu, tự động nạp các ngày công của tháng
+  const hasInitializedRef = React.useRef(false);
+  useEffect(() => {
+    if (allBatches.length > 0 && selectedMonthKey && !hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      populateMonthDays(selectedMonthKey, allBatches);
+    }
+  }, [allBatches, selectedMonthKey, populateMonthDays]);
+
+  // ─── Danh sách mẻ lúa hiển thị ở Tab 2 (theo tìm kiếm và bộ lọc) ────────────
+  const filteredMonthBatches = useMemo(() => {
+    return monthBatches.filter((b) => {
+      // 1. Lọc theo text tìm kiếm (khách hàng, ghe, loại lúa, ngày)
+      if (batchSearch) {
+        const q = batchSearch.toLowerCase();
+        const match =
+          (b.customerName || '').toLowerCase().includes(q) ||
+          (b.vehicleName || '').toLowerCase().includes(q) ||
+          (b.dryVehicle || '').toLowerCase().includes(q) ||
+          (b.riceType || '').toLowerCase().includes(q) ||
+          (b.dischargeDate || '').includes(q);
+        if (!match) return false;
+      }
+      // 2. Lọc theo loại Có trở / Không trở
+      if (batchFilterType !== 'all') {
+        const isCoTro =
+          batchOverrides[b.id]?.isCoTro !== undefined
+            ? batchOverrides[b.id].isCoTro
+            : getDefaultClassification(b);
+        if (batchFilterType === 'coTro' && !isCoTro) return false;
+        if (batchFilterType === 'khongTro' && isCoTro) return false;
+      }
+      return true;
+    });
+  }, [monthBatches, batchSearch, batchFilterType, batchOverrides]);
+
   // ─── Danh sách ngày mở rộng (bao gồm cả các ngày cuối tháng trước & đầu tháng sau) ──
   const nearbyDates = useMemo(() => {
     if (!selectedMonthKey) return { current: [], prev: [], next: [] };
@@ -251,31 +346,10 @@ export default function RicePayrollView() {
     };
   }, [cs1DischargeDates, selectedMonthKey, datesInSelectedMonth]);
 
-  // Đảm bảo dòng đầu tiên luôn có ngày thực tế khi mở trang hoặc khi đổi tháng
-  useEffect(() => {
-    setRows((prev) => {
-      if (prev.length > 0 && !prev[0].date) {
-        const defaultDate = datesInSelectedMonth[0] || `01/${selectedMonthKey}`;
-        return prev.map((r, i) => (i === 0 && !r.date ? { ...r, date: defaultDate } : r));
-      }
-      return prev;
-    });
-  }, [datesInSelectedMonth, selectedMonthKey]);
-
-  // Khi đổi tháng, tự động set ngày cho hàng đầu tiên là ngày đầu tiên của tháng (Ngày 01)
+  // Khi đổi tháng, tự động nạp toàn bộ các ngày làm việc thực tế từ file lúa
   const handleSelectMonth = (monthKey: string) => {
     setSelectedMonthKey(monthKey);
-    const validDates = cs1DischargeDates.filter((d) => d.endsWith(`/${monthKey}`));
-    // Mặc định ngày đầu tiên trong tháng (ví dụ 01/10/2026)
-    setRows([
-      {
-        ...newRow(validDates[0] || `01/${monthKey}`),
-        priceCoTro: masterPriceCoTro,
-        priceKhongTro: masterPriceKhongTro,
-      },
-    ]);
-    setDetailRow(null);
-    setSavedLogs([]); // Reset bảng lương tháng khi chuyển sang tháng khác
+    populateMonthDays(monthKey, allBatches);
   };
 
   // ─── Thao tác bảng ngày & Cập nhật đơn giá toàn bộ ─────────────────────────
@@ -447,14 +521,41 @@ export default function RicePayrollView() {
 
   // ─── Xuất Excel bảng lương tháng ─────────────────────────────────────────
   const handleExportExcel = async () => {
-    const logsToExport = effectiveLogs;
-    if (logsToExport.length === 0) {
-      alert('Vui lòng điền số tấn của các ngày công trước khi bấm xuất Excel!');
-      return;
-    }
     setIsExporting(true);
     try {
       const [m, y] = selectedMonthKey.split('/').map(Number);
+
+      // Chuẩn bị danh sách mẻ lúa thực tế từ File Lúa Master (Cơ sở I)
+      const itemsToExport = monthBatches.map((b) => {
+        const isCoTro =
+          batchOverrides[b.id]?.isCoTro !== undefined
+            ? batchOverrides[b.id].isCoTro
+            : getDefaultClassification(b);
+        const roundedTons =
+          batchOverrides[b.id]?.tons !== undefined
+            ? batchOverrides[b.id].tons!
+            : getDefaultTons(b);
+        const unitPrice = isCoTro ? masterPriceCoTro : masterPriceKhongTro;
+
+        return {
+          weighDate: b.weighDate || b.dryDate || '',
+          purchaser: b.purchaser || '',
+          customer: b.customerName || '',
+          vehicle: b.vehicleName || '',
+          riceType: b.riceType || 'OM18',
+          freshWeightKg: b.freshWeightKg || null,
+          freshBoVehicle: b.freshBoVehicle || '',
+          dryDate: b.dryDate || '',
+          dryFacility: b.dryFacility || 'CƠ SỞ I',
+          dryWeightKg: b.dryWeightKg,
+          roundedTons,
+          dischargeDate: b.dischargeDate || '',
+          dryVehicle: b.dryVehicle || '',
+          isCoTro,
+          unitPrice,
+        };
+      });
+
       const res = await fetch('/api/rice-payroll/export-monthly', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -462,7 +563,8 @@ export default function RicePayrollView() {
           month: m || 10,
           year: y || 2026,
           teamName: 'ĐỘI CHÚ 6 THANH - XUẤT CS1',
-          dailyLogs: logsToExport,
+          items: itemsToExport,
+          dailyLogs: effectiveLogs,
         }),
       });
       if (!res.ok) throw new Error('Lỗi khi xuất Excel');
@@ -484,6 +586,35 @@ export default function RicePayrollView() {
 
   // ─── Computed ─────────────────────────────────────────────────────────────
   const monthlyTotal = effectiveLogs.reduce((s, l) => s + l.totalAmount, 0);
+
+  const monthCoTroBatchesTons = useMemo(() => {
+    return monthBatches
+      .filter((b) => (batchOverrides[b.id]?.isCoTro !== undefined ? batchOverrides[b.id].isCoTro : getDefaultClassification(b)))
+      .reduce((s, b) => s + (batchOverrides[b.id]?.tons ?? getDefaultTons(b)), 0);
+  }, [monthBatches, batchOverrides]);
+
+  const monthKhongTroBatchesTons = useMemo(() => {
+    return monthBatches
+      .filter((b) => !(batchOverrides[b.id]?.isCoTro !== undefined ? batchOverrides[b.id].isCoTro : getDefaultClassification(b)))
+      .reduce((s, b) => s + (batchOverrides[b.id]?.tons ?? getDefaultTons(b)), 0);
+  }, [monthBatches, batchOverrides]);
+
+  const displayTotalAmount =
+    monthlyTotal > 0
+      ? monthlyTotal
+      : monthCoTroBatchesTons * masterPriceCoTro + monthKhongTroBatchesTons * masterPriceKhongTro;
+
+  const displayTonsCoTro =
+    effectiveLogs.length > 0
+      ? effectiveLogs.reduce((s, l) => s + l.expectedTonsCoTro, 0)
+      : monthCoTroBatchesTons;
+
+  const displayTonsKhongTro =
+    effectiveLogs.length > 0
+      ? effectiveLogs.reduce((s, l) => s + l.expectedTonsKhongTro, 0)
+      : monthKhongTroBatchesTons;
+
+  const displayTotalTons = displayTonsCoTro + displayTonsKhongTro;
   const [currentMonthNum, currentYearNum] = selectedMonthKey.split('/');
 
   return (
@@ -597,34 +728,84 @@ export default function RicePayrollView() {
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          BẢNG NHẬP NHANH CÔNG NHẬT TRONG THÁNG
+          BẢNG NHẬP NHANH CÔNG NHẬT & CHI TIẾT MẺ LÚA TỪ FILE MASTER
       ══════════════════════════════════════════════════════════════════════ */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-        {/* Header bảng */}
+        {/* Header bảng & Tabs chuyển đổi */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
-              Nhập Sổ Tay Chú 6 Thanh &bull; Tháng {selectedMonthKey}
+              Quản Lý Công Nhật & Mẻ Lúa &bull; Tháng {selectedMonthKey} &bull; Cơ sở I
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Chỉ hiển thị các ngày trong <strong>Tháng {selectedMonthKey}</strong>. Gõ số tấn rồi bấm <strong>Ghép Mẻ</strong>.
+              Đọc tự động từ <strong>File Lúa Master</strong>. Nhập số tấn sổ tay hoặc xem chi tiết từng mẻ lúa thực tế.
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={addRow}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 cursor-pointer transition-all"
+              type="button"
+              onClick={() => populateMonthDays(selectedMonthKey, allBatches)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer transition-all shadow-2xs"
+              title="Tự động nạp đủ tất cả các ngày có xuất lúa trong tháng từ file lúa"
             >
-              ＋ Thêm ngày
+              ⚡ Nạp {datesInSelectedMonth.length} ngày từ File Lúa
+            </button>
+            {activeTab === 'notebook' && (
+              <>
+                <button
+                  type="button"
+                  onClick={addRow}
+                  className="inline-flex items-center gap-1 rounded-xl border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 cursor-pointer transition-all"
+                >
+                  ＋ Thêm ngày
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReconcileAll}
+                  disabled={allBatches.length === 0}
+                  className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-40 cursor-pointer transition-all shadow-xs"
+                >
+                  🔍 Ghép Tất Cả
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Thanh chuyển đổi Tabs */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 border-b border-slate-200 px-5 py-2.5">
+          <div className="flex rounded-xl bg-slate-200/80 p-1 gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('notebook')}
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'notebook'
+                  ? 'bg-white text-blue-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              📝 Sổ Tay Chú 6 ({rows.length} ngày)
             </button>
             <button
-              onClick={handleReconcileAll}
-              disabled={allBatches.length === 0}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-40 cursor-pointer transition-all shadow-xs"
+              type="button"
+              onClick={() => setActiveTab('batches')}
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'batches'
+                  ? 'bg-white text-blue-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              🔍 Ghép Tất Cả
+              🌾 Chi Tiết Mẻ Lúa Từ File ({monthBatches.length} mẻ • Cơ sở I)
             </button>
+          </div>
+
+          <div className="text-[11px] text-slate-500 font-medium">
+            {activeTab === 'notebook' ? (
+              <span>Gõ số tấn Có trở / Không trở theo ngày rồi bấm Ghép Mẻ</span>
+            ) : (
+              <span>Xem 52 mẻ lúa thực tế và bấm nút chuyển Có trở / Không trở</span>
+            )}
           </div>
         </div>
 
@@ -679,8 +860,10 @@ export default function RicePayrollView() {
           </div>
         </div>
 
-        {/* ── Bảng Desktop ── */}
-        <div className="hidden lg:block overflow-x-auto">
+        {activeTab === 'notebook' ? (
+          <>
+            {/* ── Bảng Desktop ── */}
+            <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500 border-b border-slate-200">
               <tr>
@@ -776,6 +959,42 @@ export default function RicePayrollView() {
                           )}
                         </select>
                       </div>
+
+                      {(() => {
+                        const dayBatches = monthBatches.filter((b) => b.dischargeDate === row.date);
+                        const dayFileTons = dayBatches.reduce(
+                          (s, b) => s + (batchOverrides[b.id]?.tons ?? getDefaultTons(b)),
+                          0
+                        );
+                        if (dayBatches.length === 0) return null;
+                        return (
+                          <div className="mt-1 flex items-center justify-between text-[10px]">
+                            <span className="text-emerald-700 font-semibold" title="Mẻ lúa và số tấn cân sấy từ file lúa">
+                              🌾 {dayBatches.length} mẻ &bull; <strong>{dayFileTons}t</strong>
+                            </span>
+                            {row.tonsCoTro === 0 && row.tonsKhongTro === 0 && (
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => updateRow(row.id, { tonsCoTro: dayFileTons, tonsKhongTro: 0 })}
+                                  className="rounded bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-1 py-0.5 text-[9px] cursor-pointer"
+                                  title="Điền toàn bộ vào Có trở"
+                                >
+                                  +Có
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => updateRow(row.id, { tonsCoTro: 0, tonsKhongTro: dayFileTons })}
+                                  className="rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-900 font-bold px-1 py-0.5 text-[9px] cursor-pointer"
+                                  title="Điền toàn bộ vào Không trở"
+                                >
+                                  +K
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* Có trở: tấn */}
@@ -1161,6 +1380,173 @@ export default function RicePayrollView() {
             </button>
           </div>
         </div>
+          </>
+        ) : (
+          <div className="p-4 space-y-4">
+            {/* Thanh công cụ tìm kiếm và lọc mẻ lúa */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-2 flex-1 max-w-md">
+                <span className="text-slate-400 text-xs">🔍</span>
+                <input
+                  type="text"
+                  value={batchSearch}
+                  onChange={(e) => setBatchSearch(e.target.value)}
+                  placeholder="Tìm theo Khách hàng, Ghe/Tàu, Loại lúa, Ngày xuất..."
+                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-500 mr-1">Lọc:</span>
+                <button
+                  type="button"
+                  onClick={() => setBatchFilterType('all')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-bold transition-all cursor-pointer ${
+                    batchFilterType === 'all'
+                      ? 'bg-blue-600 text-white shadow-2xs'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  Tất cả ({monthBatches.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBatchFilterType('coTro')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-bold transition-all cursor-pointer ${
+                    batchFilterType === 'coTro'
+                      ? 'bg-amber-500 text-white shadow-2xs'
+                      : 'bg-white border border-amber-200 text-amber-800 hover:bg-amber-50'
+                  }`}
+                >
+                  🌾 Có trở ({monthBatches.filter((b) => (batchOverrides[b.id]?.isCoTro !== undefined ? batchOverrides[b.id].isCoTro : getDefaultClassification(b))).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBatchFilterType('khongTro')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-bold transition-all cursor-pointer ${
+                    batchFilterType === 'khongTro'
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'bg-white border border-indigo-200 text-indigo-800 hover:bg-indigo-50'
+                  }`}
+                >
+                  🌾 Không trở ({monthBatches.filter((b) => !(batchOverrides[b.id]?.isCoTro !== undefined ? batchOverrides[b.id].isCoTro : getDefaultClassification(b))).length})
+                </button>
+              </div>
+            </div>
+
+            {/* Bảng chi tiết 52 mẻ lúa thực tế */}
+            <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs max-h-[600px] overflow-y-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="sticky top-0 bg-[#1F4E78] text-white text-[11px] font-bold uppercase z-10">
+                  <tr>
+                    <th className="py-2.5 px-2 text-center w-10">STT</th>
+                    <th className="py-2.5 px-2.5 text-center">Ngày cân</th>
+                    <th className="py-2.5 px-3">Khách hàng</th>
+                    <th className="py-2.5 px-3">Phương tiện</th>
+                    <th className="py-2.5 px-2 text-center">Loại lúa</th>
+                    <th className="py-2.5 px-2.5 text-right">Cân tươi (kg)</th>
+                    <th className="py-2.5 px-2.5 text-center">Ngày sấy</th>
+                    <th className="py-2.5 px-2.5 text-right">Cân sấy (kg)</th>
+                    <th className="py-2.5 px-2 text-center text-amber-200">Tấn</th>
+                    <th className="py-2.5 px-2.5 text-center text-amber-200">Ngày xuất (Chú 6)</th>
+                    <th className="py-2.5 px-3">Ghe chở lúa khô</th>
+                    <th className="py-2.5 px-3 text-center">Phân loại đơn giá</th>
+                    <th className="py-2.5 px-3 text-right">Thành tiền</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredMonthBatches.length === 0 ? (
+                    <tr>
+                      <td colSpan={13} className="py-8 text-center text-slate-400">
+                        Không tìm thấy mẻ lúa nào phù hợp với bộ lọc
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredMonthBatches.map((b, idx) => {
+                      const isCoTro =
+                        batchOverrides[b.id]?.isCoTro !== undefined
+                          ? batchOverrides[b.id].isCoTro
+                          : getDefaultClassification(b);
+                      const tons =
+                        batchOverrides[b.id]?.tons !== undefined
+                          ? batchOverrides[b.id].tons!
+                          : getDefaultTons(b);
+                      const unitPrice = isCoTro ? masterPriceCoTro : masterPriceKhongTro;
+                      const amount = tons * unitPrice;
+                      return (
+                        <tr
+                          key={b.id}
+                          className={`transition-colors ${
+                            idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'
+                          } hover:bg-blue-50/40`}
+                        >
+                          <td className="py-2 px-2 text-center font-bold text-slate-500">{idx + 1}</td>
+                          <td className="py-2 px-2.5 text-center text-slate-600">{b.weighDate || b.dryDate}</td>
+                          <td className="py-2 px-3 font-semibold text-slate-900">{b.customerName}</td>
+                          <td className="py-2 px-3 text-slate-700">{b.vehicleName}</td>
+                          <td className="py-2 px-2 text-center font-medium text-slate-600">{b.riceType}</td>
+                          <td className="py-2 px-2.5 text-right text-slate-600">
+                            {b.freshWeightKg ? b.freshWeightKg.toLocaleString() : '-'}
+                          </td>
+                          <td className="py-2 px-2.5 text-center text-slate-600">{b.dryDate}</td>
+                          <td className="py-2 px-2.5 text-right font-medium text-slate-800">
+                            {b.dryWeightKg.toLocaleString()}
+                          </td>
+                          <td className="py-2 px-2 text-center font-extrabold text-blue-900 bg-blue-50/50">
+                            {tons}
+                          </td>
+                          <td className="py-2 px-2.5 text-center font-bold text-emerald-800 bg-emerald-50/50">
+                            {b.dischargeDate}
+                          </td>
+                          <td className="py-2 px-3 text-slate-700">{b.dryVehicle || '-'}</td>
+                          <td className="py-2 px-3 text-center">
+                            <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-100">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setBatchOverrides((prev) => ({
+                                    ...prev,
+                                    [b.id]: { isCoTro: true, tons },
+                                  }))
+                                }
+                                className={`px-2 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
+                                  isCoTro
+                                    ? 'bg-amber-500 text-white shadow-2xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                Có trở ({formatVND(masterPriceCoTro)})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setBatchOverrides((prev) => ({
+                                    ...prev,
+                                    [b.id]: { isCoTro: false, tons },
+                                  }))
+                                }
+                                className={`px-2 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
+                                  !isCoTro
+                                    ? 'bg-indigo-600 text-white shadow-2xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                Không trở ({formatVND(masterPriceKhongTro)})
+                              </button>
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 text-right font-extrabold text-slate-900 whitespace-nowrap">
+                            {formatVND(amount)} đ
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
@@ -1255,28 +1641,30 @@ export default function RicePayrollView() {
               Bảng Kê Lương Tháng {selectedMonthKey} &bull; Đội Chú 6 Thanh
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              {effectiveLogs.length > 0 ? (
+              {effectiveLogs.length > 0 || monthBatches.length > 0 ? (
                 <>
-                  Đã chốt <strong>{effectiveLogs.length}</strong> ngày công &bull; Tổng tiền lương:{' '}
+                  Đã chốt{' '}
+                  <strong>{effectiveLogs.length > 0 ? effectiveLogs.length : monthBatches.length}</strong>{' '}
+                  {effectiveLogs.length > 0 ? 'ngày công' : 'mẻ lúa thực tế'} &bull; Tổng tiền lương:{' '}
                   <strong className="text-blue-700 font-extrabold">
-                    {formatVND(monthlyTotal)} đ
+                    {formatVND(displayTotalAmount)} đ
                   </strong>
                 </>
               ) : (
-                'Bấm nút 🔍 Ghép Tất Cả ở bảng trên để kiểm tra mẻ lúa và tự động chốt lương'
+                'Bấm nút ⚡ Nạp ngày từ File Lúa để tự động chốt lương'
               )}
             </p>
           </div>
           <button
             onClick={handleExportExcel}
-            disabled={isExporting || effectiveLogs.length === 0}
+            disabled={isExporting || (effectiveLogs.length === 0 && monthBatches.length === 0)}
             className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:from-blue-800 hover:to-indigo-700 disabled:opacity-40 cursor-pointer transition-all"
           >
             📥 {isExporting ? 'Đang kết xuất...' : `Xuất Excel Tháng ${selectedMonthKey}`}
           </button>
         </div>
 
-        {effectiveLogs.length === 0 ? (
+        {effectiveLogs.length === 0 && monthBatches.length === 0 ? (
           <div className="py-12 text-center text-xs text-slate-400">
             Chưa có ngày công nào trong Tháng {selectedMonthKey} được nhập. Hãy điền số tấn ở bảng trên rồi bấm <strong>&quot;📥 Xuất Excel&quot;</strong>, hệ thống sẽ kết xuất bảng kê hoàn chỉnh!
           </div>
@@ -1287,25 +1675,29 @@ export default function RicePayrollView() {
               <div className="rounded-lg bg-white p-2.5 border border-amber-200 shadow-2xs">
                 <span className="text-[10px] uppercase font-bold text-slate-500">🌾 Cân sấy (Tấn)</span>
                 <p className="text-sm font-extrabold text-slate-900 mt-0.5">
-                  {effectiveLogs.reduce((s, l) => s + l.expectedTonsCoTro + l.expectedTonsKhongTro, 0)} tấn
+                  {displayTotalTons} tấn
                 </p>
               </div>
               <div className="rounded-lg bg-white p-2.5 border border-amber-200 shadow-2xs">
-                <span className="text-[10px] uppercase font-bold text-amber-700">🌾 Tiền Có Trở</span>
+                <span className="text-[10px] uppercase font-bold text-amber-700">
+                  🌾 Có Trở ({displayTonsCoTro}t)
+                </span>
                 <p className="text-sm font-extrabold text-amber-800 mt-0.5">
-                  {formatVND(effectiveLogs.reduce((s, l) => s + l.amountCoTro, 0))}&thinsp;đ
+                  {formatVND(displayTonsCoTro * masterPriceCoTro)}&thinsp;đ
                 </p>
               </div>
               <div className="rounded-lg bg-white p-2.5 border border-indigo-200 shadow-2xs">
-                <span className="text-[10px] uppercase font-bold text-indigo-700">🌾 Tiền Không Trở</span>
+                <span className="text-[10px] uppercase font-bold text-indigo-700">
+                  🌾 Không Trở ({displayTonsKhongTro}t)
+                </span>
                 <p className="text-sm font-extrabold text-indigo-800 mt-0.5">
-                  {formatVND(effectiveLogs.reduce((s, l) => s + l.amountKhongTro, 0))}&thinsp;đ
+                  {formatVND(displayTonsKhongTro * masterPriceKhongTro)}&thinsp;đ
                 </p>
               </div>
               <div className="rounded-lg bg-amber-400 p-2.5 border border-amber-500 shadow-2xs">
                 <span className="text-[10px] uppercase font-bold text-amber-950">💰 TỔNG CỘNG LƯƠNG</span>
                 <p className="text-base font-black text-amber-950 mt-0.5">
-                  {formatVND(monthlyTotal)}&thinsp;đ
+                  {formatVND(displayTotalAmount)}&thinsp;đ
                 </p>
               </div>
             </div>

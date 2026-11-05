@@ -182,4 +182,36 @@ Hệ thống hỗ trợ 2 vai trò phân quyền độc lập thông qua mật k
 
 ---
 
-*Tài liệu được cập nhật ngày 04/11/2026. Mọi AI tiếp nhận phiên làm việc tiếp theo hãy tuân thủ nghiêm ngặt các quy tắc trên để bảo đảm hệ thống hoạt động ổn định và chính xác.*
+## PHẦN 7: TỰ ĐỘNG ĐỌC & TRÍCH XUẤT 52 MẺ LÚA THỰC TẾ THÁNG 10 TỪ FILE MASTER
+
+### 7.1. Chuẩn hóa bộ lọc Cơ Sở I (loại trừ Cơ Sở II)
+- File nguồn `THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx` chứa 2.902 mẻ lúa của cả năm 2026.
+- Hàm lọc `isCoSo1` tại `lib/rice-payroll/facility-filter.ts`:
+  - Loại trừ triệt để Cơ Sở II (tránh lỗi `f.includes('CƠ SỞ I')` ăn nhầm `'CƠ SỞ II'`).
+  - Lọc chuẩn xác các mẻ lúa có `dryFacility === 'CƠ SỞ I'` và `dischargeDate` thuộc tháng chọn (ví dụ: `Tháng 10/2026`).
+  - Kết quả: Tháng 10/2026 tại Cơ sở I có **đúng 52 mẻ lúa** trải dài trên **23 ngày làm việc**, khớp 100% với file thực tế `DOI_THANH-XUAT_CS1_T10_2026_HOAN_CHINH_DA_CHINH_IN.xlsx`.
+
+### 7.2. Hai chế độ xem đồng bộ trong giao diện
+1. **Tab 1: Sổ Tay Chú 6 (Nhập theo ngày)**
+   - Nút `⚡ Nạp 23 ngày từ File Lúa`: Tự động nạp toàn bộ các ngày làm việc thực tế trong tháng từ file lúa.
+   - Mỗi ngày hiển thị badge số liệu gốc từ file lúa: `🌾 {mẻ} mẻ • {tổng tấn}t (Cân sấy)`.
+   - Có phím tắt điền nhanh `+Có` và `+K` để nạp số tấn của file lúa vào ô Có trở / Không trở.
+   - Tự động điền trước số tấn sổ tay của Chú 6 cho Tháng 10 (1.586 tấn Có trở, 1.703 tấn Không trở).
+
+2. **Tab 2: Chi Tiết Mẻ Lúa Từ File ({monthBatches.length} mẻ • Cơ sở I)**
+   - Hiển thị trực quan toàn bộ 52 mẻ lúa thực tế lấy trực tiếp từ file lúa.
+   - Đầy đủ các trường: Ngày cân, Khách hàng, Phương tiện (ghe/tàu), Loại lúa, Số lượng tươi kg, Ngày sấy, Cân sấy (kg), Tấn làm tròn, Ngày xuất lúa khô, Phương tiện chở lúa khô.
+   - Nút chuyển đổi trực tiếp `Có trở (20.000đ)` / `Không trở (16.000đ)` cho từng mẻ lúa.
+   - Bộ lọc tìm kiếm nhanh theo tên khách hàng, tên ghe, loại lúa, ngày xuất.
+
+### 7.3. Kết xuất file Excel hoàn chỉnh
+- API `/api/rice-payroll/export-monthly`:
+  - Nhận danh sách mẻ lúa thực tế (`items`) từ client hoặc tự động nạp từ `sample-batches.json` server-side.
+  - Tuyệt đối không sinh dòng giả lập "ĐỘI CHÚ 6 THANH" khi đã có dữ liệu mẻ lúa thực tế.
+  - **Sheet BK**: Xuất chuẩn 20 cột (A đến T), 52 dòng mẻ lúa thực tế, công thức SUBTOTAL hàng 3, header xanh Navy, chữ ký cuối trang.
+  - **Sheet CL ĐỘI THANH**: Bảng lương 14 nhân công, tổng xuất có trở, tổng xuất không trở, tiền nước đá 23 ngày (230.000đ), trừ tạm ứng, còn lại.
+- Nút "Xuất Excel" luôn kích hoạt (không bị vô hiệu hóa khi có dữ liệu mẻ lúa trong tháng).
+
+---
+
+*Tài liệu được cập nhật ngày 05/11/2026. Mọi AI tiếp nhận phiên làm việc tiếp theo hãy tuân thủ nghiêm ngặt các quy tắc trên để bảo đảm hệ thống hoạt động ổn định và chính xác.*
