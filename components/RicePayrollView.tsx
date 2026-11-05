@@ -129,8 +129,8 @@ export default function RicePayrollView() {
   const [masterPriceCoTro, setMasterPriceCoTro] = useState<number>(20000);
   const [masterPriceKhongTro, setMasterPriceKhongTro] = useState<number>(16000);
 
-  // ── Bảng ngày công trong tháng ──
-  const [rows, setRows] = useState<DayRow[]>([newRow()]);
+  // ── Bảng ngày công trong tháng (Mặc định ngày 01/10/2026 ngay từ đầu) ──
+  const [rows, setRows] = useState<DayRow[]>([newRow('01/10/2026')]);
 
   // ── Chi tiết mẻ đang xem ──
   const [detailRow, setDetailRow] = useState<DayRow | null>(null);
@@ -251,6 +251,17 @@ export default function RicePayrollView() {
     };
   }, [cs1DischargeDates, selectedMonthKey, datesInSelectedMonth]);
 
+  // Đảm bảo dòng đầu tiên luôn có ngày thực tế khi mở trang hoặc khi đổi tháng
+  useEffect(() => {
+    setRows((prev) => {
+      if (prev.length > 0 && !prev[0].date) {
+        const defaultDate = datesInSelectedMonth[0] || `01/${selectedMonthKey}`;
+        return prev.map((r, i) => (i === 0 && !r.date ? { ...r, date: defaultDate } : r));
+      }
+      return prev;
+    });
+  }, [datesInSelectedMonth, selectedMonthKey]);
+
   // Khi đổi tháng, tự động set ngày cho hàng đầu tiên là ngày đầu tiên của tháng (Ngày 01)
   const handleSelectMonth = (monthKey: string) => {
     setSelectedMonthKey(monthKey);
@@ -327,15 +338,15 @@ export default function RicePayrollView() {
 
   // ─── Ghép mẻ 1 ngày ───────────────────────────────────────────────────────
   const handleReconcileRow = async (row: DayRow) => {
-    if (!row.date) {
-      updateRow(row.id, { status: 'error', errorMsg: 'Chưa chọn ngày làm việc' });
-      return;
+    const effectiveDate = row.date && row.date.trim() ? row.date.trim() : (datesInSelectedMonth[0] || `01/${selectedMonthKey}`);
+    if (!row.date || !row.date.trim()) {
+      updateRow(row.id, { date: effectiveDate });
     }
-    const dayBatches = getDayBatches(row.date);
+    const dayBatches = getDayBatches(effectiveDate);
     if (dayBatches.length === 0) {
       updateRow(row.id, {
         status: 'error',
-        errorMsg: `Không có mẻ lúa nào tại ${selectedFacility} ngày ${row.date}`,
+        errorMsg: `Không có mẻ lúa nào tại ${selectedFacility} ngày ${effectiveDate}`,
       });
       return;
     }
@@ -400,25 +411,28 @@ export default function RicePayrollView() {
 
   // ─── Danh sách công nhật có hiệu lực (Tự động liên kết NGAY KHI GÕ SỐ TẤN) ──
   const effectiveLogs = useMemo<DailyReconciliationResult[]>(() => {
-    // Lấy tất cả các dòng người dùng đã nhập (có ngày và có số tấn > 0)
-    const validRows = rows.filter((r) => r.date && (r.tonsCoTro > 0 || r.tonsKhongTro > 0));
+    // Lấy tất cả các dòng người dùng đã nhập số tấn > 0 (không bị chặn bởi chuỗi ngày trống)
+    const validRows = rows.filter((r) => r.tonsCoTro > 0 || r.tonsKhongTro > 0);
     if (validRows.length === 0) {
       return savedLogs;
     }
 
-    return validRows.map((r) => {
+    return validRows.map((r, index) => {
       // Nếu đã bấm ghép mẻ thì dùng kết quả ghép chi tiết
       if (r.result) return r.result;
+
+      // Xác định ngày hợp lệ: nếu ô ngày trống, tự động lấy ngày tương ứng trong tháng hoặc 01/MM/YYYY
+      const dateVal = r.date && r.date.trim() ? r.date.trim() : (datesInSelectedMonth[index] || `01/${selectedMonthKey}`);
 
       // Nếu vừa gõ số xong mà chưa bấm ghép, vẫn lập tức tính tiền chuẩn và cho phép xuất Excel
       const amountCoTro = (r.tonsCoTro || 0) * (r.priceCoTro || 0);
       const amountKhongTro = (r.tonsKhongTro || 0) * (r.priceKhongTro || 0);
       return {
-        date: r.date,
+        date: dateVal,
         expectedTonsCoTro: r.tonsCoTro || 0,
         expectedTonsKhongTro: r.tonsKhongTro || 0,
-        unitPriceCoTro: r.priceCoTro || 0,
-        unitPriceKhongTro: r.priceKhongTro || 0,
+        unitPriceCoTro: r.priceCoTro || masterPriceCoTro || 20000,
+        unitPriceKhongTro: r.priceKhongTro || masterPriceKhongTro || 16000,
         amountCoTro,
         amountKhongTro,
         totalAmount: amountCoTro + amountKhongTro,
@@ -429,7 +443,7 @@ export default function RicePayrollView() {
         message: 'Số liệu sổ tay nhập trực tiếp',
       };
     });
-  }, [rows, savedLogs]);
+  }, [rows, savedLogs, datesInSelectedMonth, selectedMonthKey, masterPriceCoTro, masterPriceKhongTro]);
 
   // ─── Xuất Excel bảng lương tháng ─────────────────────────────────────────
   const handleExportExcel = async () => {
