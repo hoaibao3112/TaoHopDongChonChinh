@@ -327,8 +327,8 @@ export async function POST(req: NextRequest) {
       };
 
       // Col N & O: Trở mẻ & Thành tiền trở (Ẩn)
-      wsBK[`N${r}`] = { t: 's', v: '', s: cellBaseStyle };
-      wsBK[`O${r}`] = { t: 's', v: '', s: cellBaseStyle };
+      wsBK[`N${r}`] = { t: 'z', s: cellBaseStyle };
+      wsBK[`O${r}`] = { t: 'z', s: cellBaseStyle };
 
       // Col P & Q: Đơn giá và Thành tiền Có Trở
       if (item.isCoTro) {
@@ -350,11 +350,10 @@ export async function POST(req: NextRequest) {
           },
         };
       } else {
-        wsBK[`P${r}`] = { t: 's', v: '', s: cellBaseStyle };
+        wsBK[`P${r}`] = { t: 'z', s: cellBaseStyle };
         wsBK[`Q${r}`] = {
           t: 'n',
           v: 0,
-          f: `K${r}*P${r}`,
           z: '#,##0;\\-#,##0;\\-',
           s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } },
         };
@@ -380,18 +379,17 @@ export async function POST(req: NextRequest) {
           },
         };
       } else {
-        wsBK[`R${r}`] = { t: 's', v: '', s: cellBaseStyle };
+        wsBK[`R${r}`] = { t: 'z', s: cellBaseStyle };
         wsBK[`S${r}`] = {
           t: 'n',
           v: 0,
-          f: `K${r}*R${r}`,
           z: '#,##0;\\-#,##0;\\-',
           s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } },
         };
       }
 
       // Col T: Trống
-      wsBK[`T${r}`] = { t: 's', v: '', s: cellBaseStyle };
+      wsBK[`T${r}`] = { t: 'z', s: cellBaseStyle };
     });
 
     // 5. Dòng TỔNG CỘNG TRÊN ĐẦU (Hàng 3) — ĐÚNG CHUẨN FORMULA SUBTOTAL CỦA EXCEL

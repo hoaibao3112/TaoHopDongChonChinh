@@ -46,5 +46,58 @@ describe('Rice Payroll: Lọc đúng Cơ Sở I và trích xuất đúng 52 mẻ
     expect(getDefaultClassification(b0)).toBe(true); // Có trở (20.000)
     expect(getDefaultTons(b0)).toBe(59);
   });
+
+  it('xuất Excel không có bất kỳ lỗi #VALUE! nào trong toàn bộ bảng kê', async () => {
+    const { POST } = await import('../app/api/rice-payroll/export-monthly/route');
+    const { NextRequest } = await import('next/server');
+    const { SESSION_COOKIE_NAME } = await import('../lib/auth');
+    const XLSX = await import('xlsx');
+
+    const req = new NextRequest('http://localhost:3000/api/rice-payroll/export-monthly', {
+      method: 'POST',
+      headers: {
+        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        month: 10,
+        year: 2026,
+        teamName: 'ĐỘI CHÚ 6 THANH - XUẤT CS1',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(Buffer.from(buf), { type: 'buffer' });
+    const ws = wb.Sheets['BK'];
+    expect(ws).toBeDefined();
+
+    // Duyệt qua tất cả các ô trong Sheet, đảm bảo không có ô nào chứa chuỗi "#VALUE!"
+    for (const cellKey of Object.keys(ws)) {
+      if (cellKey.startsWith('!')) continue;
+      const cell = ws[cellKey];
+      if (cell && cell.v !== undefined) {
+        expect(String(cell.v)).not.toContain('#VALUE!');
+      }
+      if (cell && cell.f) {
+        expect(cell.f).not.toContain('#VALUE!');
+      }
+    }
+
+    // Kiểm tra dòng 5: Có trở
+    expect(ws['P5'].v).toBe(20000);
+    expect(ws['Q5'].v).toBe(ws['K5'].v * 20000);
+    expect(ws['Q5'].f).toBe('K5*P5');
+    expect(ws['S5'].v).toBe(0);
+    expect(ws['S5'].f).toBeUndefined(); // Không có formula nhân ô rỗng gây #VALUE!
+
+    // Kiểm tra tổng cộng ở hàng 3
+    expect(ws['Q3'].f).toBe('SUBTOTAL(109,Q5:Q56)');
+    expect(ws['S3'].f).toBe('SUBTOTAL(109,S5:S56)');
+    expect(ws['T3'].f).toBe('Q3+S3');
+    expect(ws['T3'].v).toBe(ws['Q3'].v + ws['S3'].v);
+  });
 });
 
