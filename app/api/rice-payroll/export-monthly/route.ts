@@ -13,19 +13,33 @@ export const runtime = 'nodejs';
 // ─── Font & Color Constants theo mẫu DOI_THANH-XUAT_CS1_T10_2026 ───────────
 const FONT_NAME = 'Times New Roman';
 
-const BORDER_HEADER = {
-  top: { style: 'thin', color: { rgb: '000000' } },
-  bottom: { style: 'medium', color: { rgb: '000000' } },
-  left: { style: 'thin', color: { rgb: '000000' } },
-  right: { style: 'thin', color: { rgb: '000000' } },
+// ─── Border chuẩn theo file mẫu (đen mỏng mọi cạnh) ─────────────────────────
+const BORDER_THIN_BLACK = {
+  top:    { style: 'thin', color: { rgb: '000000' } },
+  bottom: { style: 'thin', color: { rgb: '000000' } },
+  left:   { style: 'thin', color: { rgb: '000000' } },
+  right:  { style: 'thin', color: { rgb: '000000' } },
 };
 
-const BORDER_DATA = {
-  top: { style: 'thin', color: { rgb: 'D9D9D9' } },
-  bottom: { style: 'thin', color: { rgb: 'D9D9D9' } },
-  left: { style: 'thin', color: { rgb: 'D9D9D9' } },
-  right: { style: 'thin', color: { rgb: 'D9D9D9' } },
+// Header hàng 4 BK: đáy medium
+const BORDER_HEADER = {
+  top:    { style: 'thin',   color: { rgb: '000000' } },
+  bottom: { style: 'medium', color: { rgb: '000000' } },
+  left:   { style: 'thin',   color: { rgb: '000000' } },
+  right:  { style: 'thin',   color: { rgb: '000000' } },
 };
+
+// Dữ liệu BK: xám nhạt giữa các ô (giống file gốc dùng fgColor EAF1FA/FFFFFF)
+const BORDER_DATA = {
+  top:    { style: 'thin', color: { rgb: 'D9D9D9' } },
+  bottom: { style: 'thin', color: { rgb: 'D9D9D9' } },
+  left:   { style: 'thin', color: { rgb: 'D9D9D9' } },
+  right:  { style: 'thin', color: { rgb: 'D9D9D9' } },
+};
+
+// Format số tiền Việt Nam
+const FMT_MONEY = '#,##0;\\-#,##0;\\-';
+const FMT_NUMBER = '#,##0;\\-#,##0;\\-';
 
 export async function POST(req: NextRequest) {
   if (!isRequestAuthenticated(req)) {
@@ -53,18 +67,18 @@ export async function POST(req: NextRequest) {
     // ══════════════════════════════════════════════════════════════════════════
     const wsBK: XLSX.WorkSheet = {};
 
-    // 1. Title (Hàng 1)
+    // 1. Title (Hàng 1) — merge D1:T1 như mẫu
     const titleText = `BẢNG KÊ ${teamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year} `;
     wsBK['D1'] = {
       t: 's',
       v: titleText,
       s: {
-        font: { name: FONT_NAME, sz: 15, bold: true, color: { rgb: '1F3864' } },
+        font: { name: FONT_NAME, sz: 16, bold: true, color: { rgb: '1F3864' } },
         alignment: { horizontal: 'center', vertical: 'center' },
       },
     };
 
-    // 2. Header Columns (Hàng 4)
+    // 2. Header Columns (Hàng 4) — nền xanh đậm 1F4E78, chữ trắng
     const headers = [
       'NGÀY \r\nCÂN',                             // A (0)
       'NHÂN VIÊN \r\nTHU MUA',                    // B (1) - Ẩn
@@ -224,8 +238,8 @@ export async function POST(req: NextRequest) {
 
     items.forEach((item, idx) => {
       const r = startRow + idx;
-      const isEven = idx % 2 === 1;
-      const rowBg = isEven ? 'F9FAFB' : 'FFFFFF';
+      // Màu xen kẽ theo file mẫu: hàng lẻ (idx=0,2,4...) = EAF1FA, hàng chẵn (idx=1,3,5...) = FFFFFF
+      const rowBg = idx % 2 === 0 ? 'EAF1FA' : 'FFFFFF';
 
       const cellBaseStyle = {
         font: { name: FONT_NAME, sz: 10 },
@@ -268,11 +282,11 @@ export async function POST(req: NextRequest) {
         s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } },
       };
 
-      // Col F: Số lượng (kg) tươi
+      // Col F: Số lượng (kg) tươi — format #,##0
       wsBK[`F${r}`] = {
         t: item.freshWeightKg ? 'n' : 's',
         v: item.freshWeightKg || '',
-        z: '#,##0;\\-#,##0;\\-',
+        z: FMT_NUMBER,
         s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } },
       };
 
@@ -297,27 +311,35 @@ export async function POST(req: NextRequest) {
         s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } },
       };
 
-      // Col J: Cân nhập sấy (KG)
+      // Col J: Cân nhập sấy (KG) — format #,##0
       wsBK[`J${r}`] = {
         t: 'n',
         v: item.dryWeightKg,
-        z: '#,##0;\\-#,##0;\\-',
+        z: FMT_NUMBER,
         s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } },
       };
 
-      // Col K: Cân nhập sấy (TẤN)
+      // Col K: Số TẤN làm tròn — in đậm nổi bật
       wsBK[`K${r}`] = {
         t: 'n',
         v: item.roundedTons,
-        z: '#,##0;\\-#,##0;\\-',
-        s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center', bold: true } },
+        z: FMT_NUMBER,
+        s: {
+          ...cellBaseStyle,
+          font: { name: FONT_NAME, sz: 10, bold: true },
+          alignment: { horizontal: 'center', vertical: 'center' },
+        },
       };
 
-      // Col L: Ngày xuống lúa khô (Trường lọc khớp của Chú 6 Thanh)
+      // Col L: Ngày xuống lúa khô — in đậm theo mẫu
       wsBK[`L${r}`] = {
         t: 's',
         v: item.dischargeDate,
-        s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center', bold: true } },
+        s: {
+          ...cellBaseStyle,
+          font: { name: FONT_NAME, sz: 10, bold: true },
+          alignment: { horizontal: 'center', vertical: 'center' },
+        },
       };
 
       // Col M: Phương tiện chở lúa khô (tăng bo sau sấy)
@@ -331,23 +353,23 @@ export async function POST(req: NextRequest) {
       wsBK[`N${r}`] = { t: 'z', s: cellBaseStyle };
       wsBK[`O${r}`] = { t: 'z', s: cellBaseStyle };
 
-      // Col P & Q: Đơn giá và Thành tiền Có Trở
+      // Col P & Q: Đơn giá và Thành tiền Có Trở — chữ cam đậm
       if (item.isCoTro) {
         wsBK[`P${r}`] = {
           t: 'n',
           v: item.unitPrice,
-          z: '#,##0;\\-#,##0;\\-',
+          z: FMT_MONEY,
           s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } },
         };
         wsBK[`Q${r}`] = {
           t: 'n',
           v: item.roundedTons * item.unitPrice,
           f: `K${r}*P${r}`,
-          z: '#,##0;\\-#,##0;\\-',
+          z: FMT_MONEY,
           s: {
             ...cellBaseStyle,
             alignment: { horizontal: 'right', vertical: 'center' },
-            font: { name: FONT_NAME, sz: 10, bold: true, color: { rgb: 'B45309' } },
+            font: { name: FONT_NAME, sz: 10, bold: true, color: { rgb: 'C55A11' } },
           },
         };
       } else {
@@ -355,28 +377,28 @@ export async function POST(req: NextRequest) {
         wsBK[`Q${r}`] = {
           t: 'n',
           v: 0,
-          z: '#,##0;\\-#,##0;\\-',
+          z: FMT_MONEY,
           s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } },
         };
       }
 
-      // Col R & S: Đơn giá và Thành tiền Không Trở
+      // Col R & S: Đơn giá và Thành tiền Không Trở — chữ xanh tím đậm
       if (!item.isCoTro) {
         wsBK[`R${r}`] = {
           t: 'n',
           v: item.unitPrice,
-          z: '#,##0;\\-#,##0;\\-',
+          z: FMT_MONEY,
           s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } },
         };
         wsBK[`S${r}`] = {
           t: 'n',
           v: item.roundedTons * item.unitPrice,
           f: `K${r}*R${r}`,
-          z: '#,##0;\\-#,##0;\\-',
+          z: FMT_MONEY,
           s: {
             ...cellBaseStyle,
             alignment: { horizontal: 'right', vertical: 'center' },
-            font: { name: FONT_NAME, sz: 10, bold: true, color: { rgb: '4338CA' } },
+            font: { name: FONT_NAME, sz: 10, bold: true, color: { rgb: '2E5FA3' } },
           },
         };
       } else {
@@ -384,7 +406,7 @@ export async function POST(req: NextRequest) {
         wsBK[`S${r}`] = {
           t: 'n',
           v: 0,
-          z: '#,##0;\\-#,##0;\\-',
+          z: FMT_MONEY,
           s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } },
         };
       }
@@ -394,19 +416,19 @@ export async function POST(req: NextRequest) {
     });
 
     // 5. Dòng TỔNG CỘNG TRÊN ĐẦU (Hàng 3) — ĐÚNG CHUẨN FORMULA SUBTOTAL CỦA EXCEL
-    const totalRowBgYellow = 'FFF2CC'; // Vàng nhạt
-    const totalRowBgHighlight = 'FFFF00'; // Vàng tươi nổi bật
+    const totalRowBgYellow = 'FFF2CC'; // Vàng nhạt như file mẫu
+    const totalRowBgHighlight = 'FFFF00'; // Vàng tươi nổi bật cho các ô số tiền
 
     const styleTotalBase = {
       font: { name: FONT_NAME, sz: 11, bold: true },
       fill: { fgColor: { rgb: totalRowBgYellow } },
-      border: BORDER_HEADER,
+      border: BORDER_THIN_BLACK,
     };
 
     const styleTotalHighlight = {
-      font: { name: FONT_NAME, sz: 11, bold: true, color: { rgb: '991B1B' } },
+      font: { name: FONT_NAME, sz: 11, bold: true, color: { rgb: '7B0000' } },
       fill: { fgColor: { rgb: totalRowBgHighlight } },
-      border: BORDER_HEADER,
+      border: BORDER_THIN_BLACK,
       alignment: { horizontal: 'right', vertical: 'center' },
     };
 
@@ -423,13 +445,24 @@ export async function POST(req: NextRequest) {
       s: { ...styleTotalBase, alignment: { horizontal: 'center', vertical: 'center' } },
     };
 
+    // F3: Tổng KG tươi (nền vàng tươi)
+    const sumFreshKgVal = items.reduce((s, it) => s + (it.freshWeightKg || 0), 0);
+    if (sumFreshKgVal > 0) {
+      wsBK['F3'] = {
+        t: 'n',
+        v: sumFreshKgVal,
+        z: FMT_NUMBER,
+        s: styleTotalHighlight,
+      };
+    }
+
     // J3 = SUBTOTAL(109, J5:J{lastRow}) (Tổng Cân nhập sấy kg)
     const sumKgVal = items.reduce((s, it) => s + it.dryWeightKg, 0);
     wsBK['J3'] = {
       t: 'n',
       v: sumKgVal,
       f: `SUBTOTAL(109,J5:J${lastRow})`,
-      z: '#,##0;\\-#,##0;\\-',
+      z: FMT_NUMBER,
       s: { ...styleTotalBase, alignment: { horizontal: 'right', vertical: 'center' } },
     };
 
@@ -439,11 +472,11 @@ export async function POST(req: NextRequest) {
       t: 'n',
       v: sumTonsVal,
       f: `SUBTOTAL(109,K5:K${lastRow})`,
-      z: '#,##0;\\-#,##0;\\-',
+      z: FMT_NUMBER,
       s: { ...styleTotalBase, alignment: { horizontal: 'center', vertical: 'center' } },
     };
 
-    // Q3 = SUBTOTAL(109, Q5:Q{lastRow}) (Tổng tiền xuất có trở)
+    // Q3 = SUBTOTAL(109, Q5:Q{lastRow}) (Tổng tiền xuất có trở) — vàng tươi
     const sumCoTroVal = items
       .filter((it) => it.isCoTro)
       .reduce((s, it) => s + it.roundedTons * it.unitPrice, 0);
@@ -451,11 +484,11 @@ export async function POST(req: NextRequest) {
       t: 'n',
       v: sumCoTroVal,
       f: `SUBTOTAL(109,Q5:Q${lastRow})`,
-      z: '#,##0;\\-#,##0;\\-',
+      z: FMT_MONEY,
       s: styleTotalHighlight,
     };
 
-    // S3 = SUBTOTAL(109, S5:S{lastRow}) (Tổng tiền xuất không trở)
+    // S3 = SUBTOTAL(109, S5:S{lastRow}) (Tổng tiền xuất không trở) — vàng tươi
     const sumKhongTroVal = items
       .filter((it) => !it.isCoTro)
       .reduce((s, it) => s + it.roundedTons * it.unitPrice, 0);
@@ -463,16 +496,16 @@ export async function POST(req: NextRequest) {
       t: 'n',
       v: sumKhongTroVal,
       f: `SUBTOTAL(109,S5:S${lastRow})`,
-      z: '#,##0;\\-#,##0;\\-',
+      z: FMT_MONEY,
       s: styleTotalHighlight,
     };
 
-    // T3 = Q3 + S3 (Tổng thành tiền toàn bộ)
+    // T3 = Q3 + S3 (Tổng thành tiền toàn bộ) — vàng tươi
     wsBK['T3'] = {
       t: 'n',
       v: sumCoTroVal + sumKhongTroVal,
       f: 'Q3+S3',
-      z: '#,##0;\\-#,##0;\\-',
+      z: FMT_MONEY,
       s: styleTotalHighlight,
     };
 
@@ -520,13 +553,16 @@ export async function POST(req: NextRequest) {
     wsBK['!ref'] = `A1:T${sigNameRow + 1}`;
 
     wsBK['!merges'] = [
-      { s: { r: 0, c: 3 }, e: { r: 0, c: 19 } }, // D1:T1
-      { s: { r: 2, c: 3 }, e: { r: 2, c: 4 } },  // D3:E3
+      { s: { r: 0, c: 3 }, e: { r: 0, c: 19 } }, // D1:T1 — tiêu đề
+      { s: { r: 2, c: 3 }, e: { r: 2, c: 4 } },  // D3:E3 — TỔNG CỘNG
     ];
+
+    // Auto-filter từ hàng 4 (A4:T{lastRow}) giống file mẫu
+    wsBK['!autofilter'] = { ref: `A4:T${lastRow}` };
 
     wsBK['!cols'] = [
       { wch: 12.5 },                // A: NGÀY CÂN
-      { wch: 12.0, hidden: true },  // B: NHÂN VIÊN THU MUA
+      { wch: 12.0, hidden: true },  // B: NHÂN VIÊN THU MUA (ẩn)
       { wch: 27.0 },                // C: KHÁCH HÀNG
       { wch: 29.0 },                // D: PHƯƠNG TIỆN
       { wch: 17.5 },                // E: LOẠI LÚA
@@ -538,8 +574,8 @@ export async function POST(req: NextRequest) {
       { wch: 11.5 },                // K: CÂN NHẬP SẤY (TẤN)
       { wch: 16.0 },                // L: NGÀY XUỐNG LÚA KHÔ
       { wch: 26.0 },                // M: PHƯƠNG TIỆN CHỞ LÚA KHÔ
-      { wch: 15.5, hidden: true },  // N: TRỞ MẺ (Ẩn)
-      { wch: 15.5, hidden: true },  // O: THÀNH TIỀN (Ẩn)
+      { wch: 15.5, hidden: true },  // N: TRỞ MẺ (ẩn)
+      { wch: 15.5, hidden: true },  // O: THÀNH TIỀN (ẩn)
       { wch: 14.0 },                // P: ĐƠN GIÁ CÓ TRỞ
       { wch: 17.0 },                // Q: THÀNH TIỀN CÓ TRỞ
       { wch: 14.0 },                // R: ĐƠN GIÁ KHÔNG TRỞ
@@ -547,13 +583,14 @@ export async function POST(req: NextRequest) {
       { wch: 17.0 },                // T: TỔNG CỘNG
     ];
 
+    // Row heights khớp 100% file mẫu
     const rowHeights: XLSX.RowInfo[] = [];
-    rowHeights[0] = { hpt: 43.5 }; // Row 1
-    rowHeights[1] = { hpt: 7.5 };  // Row 2
-    rowHeights[2] = { hpt: 25.5 }; // Row 3
-    rowHeights[3] = { hpt: 66.0 }; // Row 4 (Header)
+    rowHeights[0] = { hpt: 43.5 };  // Row 1: tiêu đề lớn
+    rowHeights[1] = { hpt: 7.5 };   // Row 2: spacer mỏng
+    rowHeights[2] = { hpt: 25.5 };  // Row 3: tổng cộng
+    rowHeights[3] = { hpt: 66.0 };  // Row 4: header (cao chứa 3 dòng wrap)
     for (let r = 4; r < lastRow; r++) {
-      rowHeights[r] = { hpt: 21.75 };
+      rowHeights[r] = { hpt: 21.75 }; // Dữ liệu: cao đều 21.75pt
     }
     wsBK['!rows'] = rowHeights;
 
@@ -565,19 +602,25 @@ export async function POST(req: NextRequest) {
     // ══════════════════════════════════════════════════════════════════════════
     const wsUL: XLSX.WorkSheet = {};
     const sheetNameUL = `ỨL ĐỘI THANH T${String(month).padStart(2, '0')}.${year}`;
-    const cellBaseStyle = { font: { name: FONT_NAME, sz: 10 }, border: BORDER_DATA };
 
-    // 1. Tiêu đề
+    // Dùng border đen mỏng (giống file mẫu Sheet 2 & 3)
+    const cellBaseStyle = {
+      font: { name: FONT_NAME, sz: 11 },
+      border: BORDER_THIN_BLACK,
+    };
+
+    // 1. Tiêu đề — nền trắng, chữ xanh đậm, căn giữa
     wsUL['A1'] = {
       t: 's',
       v: `DANH SÁCH ỨNG LƯƠNG ${teamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`,
       s: {
         font: { name: FONT_NAME, sz: 14, bold: true, color: { rgb: '1F3864' } },
-        alignment: { horizontal: 'center', vertical: 'center' },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        fill: { fgColor: { rgb: 'FFFFFF' } },
       },
     };
 
-    // 2. Header
+    // 2. Header row (Hàng 2) — nền xanh đậm, chữ trắng, wrap text
     const ulHeaders = ['STT', 'HỌ & TÊN', 'SỐ TIỀN\r\nTẠM ỨNG', 'SỐ TÀI KHOẢN', 'NGÂN HÀNG', 'CHỦ TÀI KHOẢN'];
     const ulCols = ['A', 'B', 'C', 'D', 'E', 'F'];
     ulHeaders.forEach((h, idx) => {
@@ -585,96 +628,147 @@ export async function POST(req: NextRequest) {
         t: 's',
         v: h,
         s: {
-          font: { name: FONT_NAME, sz: 10, bold: true, color: { rgb: 'FFFFFF' } },
+          font: { name: FONT_NAME, sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
           fill: { fgColor: { rgb: '1F4E78' } },
           alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-          border: BORDER_HEADER,
+          border: BORDER_THIN_BLACK,
         },
       };
     });
 
-    // 3. Danh sách 14 công nhân
+    // 3. Danh sách 14 công nhân — xen kẽ nền trắng (theo mẫu không có màu nền xen kẽ)
     const isOct2026 = month === 10 && year === 2026;
     DOI_CHU_6_THANH_WORKERS.forEach((w, idx) => {
-      const r = idx + 3; // Hàng 3 đến 16
+      const r = idx + 3; // Hàng 3–16
       const advanceVal = isOct2026 ? w.sampleOctoberAdvance : 0;
 
-      // Col A: STT
+      // Hàng lẻ (STT 1,3,5...) có nền trắng, không tô màu (theo mẫu gốc)
+      const isOddRow = w.stt % 2 === 1;
+      const rowFill = isOddRow
+        ? { fill: { fgColor: { rgb: 'FFFFFF' } } }
+        : {};
+
+      // Col A: STT — in đậm, căn giữa
       wsUL[`A${r}`] = {
         t: 'n',
         v: w.stt,
-        s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } },
+        s: {
+          ...cellBaseStyle,
+          ...rowFill,
+          font: { name: FONT_NAME, sz: 11, bold: true },
+          alignment: { horizontal: 'center', vertical: 'center' },
+        },
       };
 
-      // Col B: Họ & tên
+      // Col B: Họ & tên — in đậm, căn trái
       wsUL[`B${r}`] = {
         t: 's',
         v: w.name,
-        s: { ...cellBaseStyle, font: { name: FONT_NAME, sz: 10, bold: true }, alignment: { horizontal: 'left', vertical: 'center' } },
+        s: {
+          ...cellBaseStyle,
+          ...rowFill,
+          font: { name: FONT_NAME, sz: 11, bold: true },
+          alignment: { horizontal: 'left', vertical: 'center' },
+        },
       };
 
-      // Col C: Số tiền tạm ứng
-      // Người dùng yêu cầu: "còn phần ứng tienf k có thì để yên tôi điền sao"
-      // Nếu là tháng 10 thì nạp 32tr mẫu, nếu tháng khác thì để 0 / trống để người dùng tự điền
+      // Col C: Số tiền tạm ứng — format tiền Việt, căn phải
       wsUL[`C${r}`] = {
         t: 'n',
         v: advanceVal,
-        z: '#,##0;\\-#,##0;\\-',
-        s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } },
+        z: FMT_MONEY,
+        s: {
+          ...cellBaseStyle,
+          ...rowFill,
+          alignment: { horizontal: 'right', vertical: 'center' },
+        },
       };
 
-      // Col D: Số tài khoản
+      // Col D: Số tài khoản — căn giữa, font bình thường
       wsUL[`D${r}`] = {
         t: 's',
         v: w.stk,
-        s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } },
+        s: {
+          ...cellBaseStyle,
+          ...rowFill,
+          alignment: { horizontal: 'center', vertical: 'center' },
+        },
       };
 
-      // Col E: Ngân hàng
+      // Col E: Ngân hàng — căn giữa
       wsUL[`E${r}`] = {
         t: 's',
         v: w.bank,
-        s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } },
+        s: {
+          ...cellBaseStyle,
+          ...rowFill,
+          alignment: { horizontal: 'center', vertical: 'center' },
+        },
       };
 
-      // Col F: Chủ tài khoản
+      // Col F: Chủ tài khoản — căn trái
       wsUL[`F${r}`] = {
         t: 's',
         v: w.accountHolder,
-        s: { ...cellBaseStyle, alignment: { horizontal: 'left', vertical: 'center' } },
+        s: {
+          ...cellBaseStyle,
+          ...rowFill,
+          alignment: { horizontal: 'left', vertical: 'center' },
+        },
       };
     });
 
-    // 4. Hàng tổng cộng (Hàng 17)
+    // 4. Hàng tổng cộng (Hàng 17) — nền vàng nhạt FFF2CC, in đậm
+    const styleSumRow = {
+      font: { name: FONT_NAME, sz: 12, bold: true, color: { rgb: '1F3864' } },
+      fill: { fgColor: { rgb: 'FFF2CC' } },
+      border: BORDER_THIN_BLACK,
+    };
+    wsUL['A17'] = { t: 's', v: '', s: styleSumRow };
     wsUL['B17'] = {
       t: 's',
       v: 'TỔNG CỘNG : ',
-      s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: BORDER_DATA },
+      s: { ...styleSumRow, alignment: { horizontal: 'left', vertical: 'center' } },
     };
     wsUL['C17'] = {
       t: 'n',
       v: isOct2026 ? 32000000 : 0,
       f: 'SUM(C3:C16)',
-      z: '#,##0;\\-#,##0;\\-',
-      s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA },
+      z: FMT_MONEY,
+      s: { ...styleSumRow, alignment: { horizontal: 'right', vertical: 'center' } },
     };
+    wsUL['D17'] = { t: 's', v: '', s: styleSumRow };
+    wsUL['E17'] = { t: 's', v: '', s: styleSumRow };
+    wsUL['F17'] = { t: 's', v: '', s: styleSumRow };
 
-    // 5. Chữ ký (Hàng 19 & 22)
-    wsUL['B19'] = { t: 's', v: 'Người lập bảng', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsUL['E19'] = { t: 's', v: 'Xác nhận', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsUL['B22'] = { t: 's', v: 'Võ Hoàng Cẩm Tiên', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsUL['E22'] = { t: 's', v: 'Huỳnh Hải Long Hồ', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
+    // 5. Hàng trống kẹt (Row 18)
+    // 6. Chữ ký (Hàng 19 & 22)
+    const styleSign = { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } };
+    wsUL['B19'] = { t: 's', v: 'Người lập bảng', s: styleSign };
+    wsUL['E19'] = { t: 's', v: 'Xác nhận',       s: styleSign };
+    wsUL['B22'] = { t: 's', v: 'Võ Hoàng Cẩm Tiên', s: styleSign };
+    wsUL['E22'] = { t: 's', v: 'Huỳnh Hải Long Hồ', s: styleSign };
 
     wsUL['!ref'] = 'A1:F25';
-    wsUL['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+    wsUL['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }]; // A1:F1
+
     wsUL['!cols'] = [
-      { wch: 8 },  // A
-      { wch: 28 }, // B
-      { wch: 20 }, // C
-      { wch: 20 }, // D
-      { wch: 20 }, // E
-      { wch: 25 }, // F
+      { wch: 9  },  // A: STT
+      { wch: 36 },  // B: HỌ & TÊN
+      { wch: 26.5 },// C: SỐ TIỀN TẠM ỨNG
+      { wch: 25 },  // D: SỐ TÀI KHOẢN
+      { wch: 22 },  // E: NGÂN HÀNG
+      { wch: 33 },  // F: CHỦ TÀI KHOẢN
     ];
+
+    // Row heights Sheet 2 — theo file mẫu
+    const ulRowHeights: XLSX.RowInfo[] = [];
+    ulRowHeights[0] = { hpt: 51.75 }; // Row 1 tiêu đề
+    ulRowHeights[1] = { hpt: 66.75 }; // Row 2 header (wrap 2 dòng)
+    for (let r = 2; r <= 16; r++) {
+      ulRowHeights[r] = { hpt: 30 };   // Dữ liệu 14 công nhân + tổng
+    }
+    wsUL['!rows'] = ulRowHeights;
 
     XLSX.utils.book_append_sheet(wb, wsUL, sheetNameUL);
 
@@ -684,17 +778,24 @@ export async function POST(req: NextRequest) {
     const wsCL: XLSX.WorkSheet = {};
     const sheetNameCL = `CL ĐỘI THANH-CS1-T${String(month).padStart(2, '0')}.${year}`;
 
-    // 1. Tiêu đề bảng chi lương
+    // Dùng border đen mỏng như file mẫu Sheet 3
+    const clCellStyle = {
+      font: { name: FONT_NAME, sz: 11 },
+      border: BORDER_THIN_BLACK,
+    };
+
+    // 1. Tiêu đề bảng chi lương — merge A1:H1
     wsCL['A1'] = {
       t: 's',
       v: `DANH SÁCH CHI LƯƠNG ${teamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`,
       s: {
         font: { name: FONT_NAME, sz: 14, bold: true, color: { rgb: '1F3864' } },
-        alignment: { horizontal: 'center', vertical: 'center' },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        fill: { fgColor: { rgb: 'FFFFFF' } },
       },
     };
 
-    // 2. Header bảng chi lương
+    // 2. Header bảng chi lương — nền xanh đậm, chữ trắng
     const clWorkerHeaders = [
       'STT',
       'HỌ & TÊN',
@@ -711,10 +812,10 @@ export async function POST(req: NextRequest) {
         t: 's',
         v: h,
         s: {
-          font: { name: FONT_NAME, sz: 10, bold: true, color: { rgb: 'FFFFFF' } },
+          font: { name: FONT_NAME, sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
           fill: { fgColor: { rgb: '1F4E78' } },
           alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-          border: BORDER_HEADER,
+          border: BORDER_THIN_BLACK,
         },
       };
     });
@@ -726,42 +827,124 @@ export async function POST(req: NextRequest) {
       const advanceVal = isOct2026 ? w.sampleOctoberAdvance : 0;
       const netVal = salaryVal - advanceVal;
 
-      // Col A: STT
-      wsCL[`A${r}`] = { t: 'n', v: w.stt, s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } } };
+      // Col A: STT — in đậm, căn giữa
+      wsCL[`A${r}`] = {
+        t: 'n',
+        v: w.stt,
+        s: {
+          ...clCellStyle,
+          font: { name: FONT_NAME, sz: 11, bold: true },
+          alignment: { horizontal: 'center', vertical: 'center' },
+        },
+      };
 
-      // Col B: Họ & tên
-      wsCL[`B${r}`] = { t: 's', v: w.name, s: { ...cellBaseStyle, font: { name: FONT_NAME, sz: 10, bold: true }, alignment: { horizontal: 'left', vertical: 'center' } } };
+      // Col B: Họ & tên — in đậm, căn trái
+      wsCL[`B${r}`] = {
+        t: 's',
+        v: w.name,
+        s: {
+          ...clCellStyle,
+          font: { name: FONT_NAME, sz: 11, bold: true },
+          alignment: { horizontal: 'left', vertical: 'center' },
+        },
+      };
 
-      // Col C: Số tiền
-      wsCL[`C${r}`] = { t: 'n', v: salaryVal, z: '#,##0;\\-#,##0;\\-', s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } } };
+      // Col C: Số tiền lương — format tiền, căn phải
+      wsCL[`C${r}`] = {
+        t: 'n',
+        v: salaryVal,
+        z: FMT_MONEY,
+        s: { ...clCellStyle, alignment: { horizontal: 'right', vertical: 'center' } },
+      };
 
-      // Col D: Số tiền tạm ứng
-      wsCL[`D${r}`] = { t: 'n', v: advanceVal, z: '#,##0;\\-#,##0;\\-', s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } } };
+      // Col D: Số tiền tạm ứng — format tiền, căn phải
+      wsCL[`D${r}`] = {
+        t: 'n',
+        v: advanceVal,
+        z: FMT_MONEY,
+        s: { ...clCellStyle, alignment: { horizontal: 'right', vertical: 'center' } },
+      };
 
-      // Col E: Số tiền thực lãnh (C - D)
-      wsCL[`E${r}`] = { t: 'n', v: netVal, f: `C${r}-D${r}`, z: '#,##0;\\-#,##0;\\-', s: { ...cellBaseStyle, font: { name: FONT_NAME, sz: 10, bold: true }, alignment: { horizontal: 'right', vertical: 'center' } } };
+      // Col E: Số tiền thực lãnh (C - D) — in đậm, format tiền
+      wsCL[`E${r}`] = {
+        t: 'n',
+        v: netVal,
+        f: `C${r}-D${r}`,
+        z: FMT_MONEY,
+        s: {
+          ...clCellStyle,
+          font: { name: FONT_NAME, sz: 11, bold: true },
+          alignment: { horizontal: 'right', vertical: 'center' },
+        },
+      };
 
-      // Col F: Số tài khoản
-      wsCL[`F${r}`] = { t: 's', v: w.stk, s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } } };
+      // Col F: Số tài khoản — căn giữa
+      wsCL[`F${r}`] = {
+        t: 's',
+        v: w.stk,
+        s: { ...clCellStyle, alignment: { horizontal: 'center', vertical: 'center' } },
+      };
 
-      // Col G: Ngân hàng
-      wsCL[`G${r}`] = { t: 's', v: w.bank, s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } } };
+      // Col G: Ngân hàng — căn giữa
+      wsCL[`G${r}`] = {
+        t: 's',
+        v: w.bank,
+        s: { ...clCellStyle, alignment: { horizontal: 'center', vertical: 'center' } },
+      };
 
-      // Col H: Chủ tài khoản
-      wsCL[`H${r}`] = { t: 's', v: w.accountHolder, s: { ...cellBaseStyle, alignment: { horizontal: 'left', vertical: 'center' } } };
+      // Col H: Chủ tài khoản — căn trái
+      wsCL[`H${r}`] = {
+        t: 's',
+        v: w.accountHolder,
+        s: { ...clCellStyle, alignment: { horizontal: 'left', vertical: 'center' } },
+      };
     });
 
-    // 4. Hàng tổng cộng (Hàng 17)
-    wsCL['B17'] = { t: 's', v: 'TỔNG CỘNG : ', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: BORDER_DATA } };
-    wsCL['C17'] = { t: 'n', v: isOct2026 ? 59198000 : 0, f: 'SUM(C3:C16)', z: '#,##0;\\-#,##0;\\-', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
-    wsCL['D17'] = { t: 'n', v: isOct2026 ? 32000000 : 0, f: 'SUM(D3:D16)', z: '#,##0;\\-#,##0;\\-', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
-    wsCL['E17'] = { t: 'n', v: isOct2026 ? 27198000 : 0, f: 'SUM(E3:E16)', z: '#,##0;\\-#,##0;\\-', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+    // 4. Hàng tổng cộng (Hàng 17) — nền vàng nhạt FFF2CC, in đậm
+    const clSumStyle = {
+      font: { name: FONT_NAME, sz: 12, bold: true, color: { rgb: '1F3864' } },
+      fill: { fgColor: { rgb: 'FFF2CC' } },
+      border: BORDER_THIN_BLACK,
+    };
+    ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].forEach((col) => {
+      wsCL[`${col}17`] = { t: 's', v: '', s: clSumStyle };
+    });
+    wsCL['B17'] = {
+      t: 's',
+      v: 'TỔNG CỘNG : ',
+      s: { ...clSumStyle, alignment: { horizontal: 'left', vertical: 'center' } },
+    };
+    wsCL['C17'] = {
+      t: 'n',
+      v: isOct2026 ? 59198000 : 0,
+      f: 'SUM(C3:C16)',
+      z: FMT_MONEY,
+      s: { ...clSumStyle, alignment: { horizontal: 'right', vertical: 'center' } },
+    };
+    wsCL['D17'] = {
+      t: 'n',
+      v: isOct2026 ? 32000000 : 0,
+      f: 'SUM(D3:D16)',
+      z: FMT_MONEY,
+      s: { ...clSumStyle, alignment: { horizontal: 'right', vertical: 'center' } },
+    };
+    wsCL['E17'] = {
+      t: 'n',
+      v: isOct2026 ? 27198000 : 0,
+      f: 'SUM(E3:E16)',
+      z: FMT_MONEY,
+      s: { ...clSumStyle, alignment: { horizontal: 'right', vertical: 'center' } },
+    };
 
     // 5. Chữ ký (Hàng 19 & 22)
-    wsCL['B19'] = { t: 's', v: 'Người lập bảng', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsCL['F19'] = { t: 's', v: 'Xác nhận', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsCL['B22'] = { t: 's', v: 'Võ Hoàng Cẩm Tiên', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsCL['F22'] = { t: 's', v: 'Huỳnh Hải Long Hồ', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
+    const clSignStyle = {
+      font: { name: FONT_NAME, sz: 11, bold: true },
+      alignment: { horizontal: 'center', vertical: 'center' },
+    };
+    wsCL['B19'] = { t: 's', v: 'Người lập bảng', s: clSignStyle };
+    wsCL['F19'] = { t: 's', v: 'Xác nhận',       s: clSignStyle };
+    wsCL['B22'] = { t: 's', v: 'Võ Hoàng Cẩm Tiên', s: clSignStyle };
+    wsCL['F22'] = { t: 's', v: 'Huỳnh Hải Long Hồ', s: clSignStyle };
 
     // ══════════════════════════════════════════════════════════════════════════
     // 6. BẢNG KÊ QUYẾT TOÁN THANH TOÁN (HÀNG 24 - 31 ĐÚNG CHUẨN MẪU HÌNH ẢNH)
@@ -776,96 +959,128 @@ export async function POST(req: NextRequest) {
     const advanceTotalVal = isOct2026 ? 32000000 : 0;
     const remainingVal = totalCalculated - advanceTotalVal;
 
-    // Hàng 24: Header tím nhạt
+    // Hàng 24: Header tím nhạt — merge B24:E24
     const styleH24 = {
       font: { name: FONT_NAME, sz: 13, bold: true, color: { rgb: '1F3864' } },
       fill: { fgColor: { rgb: 'E6E0EC' } },
-      alignment: { horizontal: 'center', vertical: 'center' },
-      border: BORDER_DATA,
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: BORDER_THIN_BLACK,
     };
     wsCL['B24'] = { t: 's', v: `BẢNG KÊ ${teamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`, s: styleH24 };
     wsCL['C24'] = { t: 's', v: '', s: styleH24 };
     wsCL['D24'] = { t: 's', v: '', s: styleH24 };
     wsCL['E24'] = { t: 's', v: '', s: styleH24 };
 
-    // Hàng 25: Header cột xanh ngọc nhạt
+    // Hàng 25: Header cột xanh ngọc nhạt DBEEF4
     const styleH25 = {
-      font: { name: FONT_NAME, sz: 10.5, bold: true, color: { rgb: '000000' } },
+      font: { name: FONT_NAME, sz: 11, bold: true, color: { rgb: '000000' } },
       fill: { fgColor: { rgb: 'DBEEF4' } },
-      alignment: { horizontal: 'center', vertical: 'center' },
-      border: BORDER_DATA,
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: BORDER_THIN_BLACK,
     };
-    wsCL['B25'] = { t: 's', v: 'XUẤT ', s: styleH25 };
-    wsCL['C25'] = { t: 's', v: 'SỐ LƯỢNG (TẤN)', s: styleH25 };
-    wsCL['D25'] = { t: 's', v: 'ĐƠN GIÁ (ĐỒNG/TẤN)', s: styleH25 };
-    wsCL['E25'] = { t: 's', v: 'THÀNH TIỀN', s: styleH25 };
+    wsCL['B25'] = { t: 's', v: 'XUẤT',              s: styleH25 };
+    wsCL['C25'] = { t: 's', v: 'SỐ LƯỢNG (TẤN)',    s: styleH25 };
+    wsCL['D25'] = { t: 's', v: 'ĐƠN GIÁ\r\n(ĐỒNG/TẤN)', s: styleH25 };
+    wsCL['E25'] = { t: 's', v: 'THÀNH TIỀN',        s: styleH25 };
+
+    // Style chung cho các hàng dữ liệu (26-28)
+    const styleDataLbl = {
+      font: { name: FONT_NAME, sz: 11, bold: true },
+      border: BORDER_THIN_BLACK,
+      fill: { fgColor: { rgb: 'FFFFFF' } },
+    };
+    const styleDataNum = {
+      font: { name: FONT_NAME, sz: 11 },
+      border: BORDER_THIN_BLACK,
+    };
 
     // Hàng 26: Tổng xuất có trở
-    wsCL['B26'] = { t: 's', v: 'TỔNG XUẤT CÓ TRỞ', s: { font: { name: FONT_NAME, sz: 10.5, bold: true }, alignment: { horizontal: 'left', vertical: 'center' }, border: BORDER_DATA } };
-    wsCL['C26'] = { t: 'n', v: tonsCoTroTotal, z: '#,##0', s: { alignment: { horizontal: 'center', vertical: 'center' }, border: BORDER_DATA } };
-    wsCL['D26'] = { t: 'n', v: priceCoTroDefault, z: '#,##0', s: { alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
-    wsCL['E26'] = { t: 'n', v: tonsCoTroTotal * priceCoTroDefault, f: 'C26*D26', z: '#,##0', s: { font: { name: FONT_NAME, sz: 10.5, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['B26'] = { t: 's', v: 'TỔNG XUẤT CÓ TRỞ',   s: { ...styleDataLbl, alignment: { horizontal: 'left', vertical: 'center' } } };
+    wsCL['C26'] = { t: 'n', v: tonsCoTroTotal,         z: FMT_NUMBER, s: { ...styleDataNum, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL['D26'] = { t: 'n', v: priceCoTroDefault,      z: FMT_MONEY,  s: { ...styleDataNum, alignment: { horizontal: 'right', vertical: 'center' } } };
+    wsCL['E26'] = { t: 'n', v: tonsCoTroTotal * priceCoTroDefault,   f: 'C26*D26', z: FMT_MONEY, s: { ...styleDataLbl, alignment: { horizontal: 'right', vertical: 'center' } } };
 
     // Hàng 27: Tổng xuất không trở
-    wsCL['B27'] = { t: 's', v: 'TỔNG XUẤT KHÔNG TRỞ', s: { font: { name: FONT_NAME, sz: 10.5, bold: true }, alignment: { horizontal: 'left', vertical: 'center' }, border: BORDER_DATA } };
-    wsCL['C27'] = { t: 'n', v: tonsKhongTroTotal, z: '#,##0', s: { alignment: { horizontal: 'center', vertical: 'center' }, border: BORDER_DATA } };
-    wsCL['D27'] = { t: 'n', v: priceKhongTroDefault, z: '#,##0', s: { alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
-    wsCL['E27'] = { t: 'n', v: tonsKhongTroTotal * priceKhongTroDefault, f: 'C27*D27', z: '#,##0', s: { font: { name: FONT_NAME, sz: 10.5, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['B27'] = { t: 's', v: 'TỔNG XUẤT KHÔNG TRỞ', s: { ...styleDataLbl, alignment: { horizontal: 'left', vertical: 'center' } } };
+    wsCL['C27'] = { t: 'n', v: tonsKhongTroTotal,      z: FMT_NUMBER, s: { ...styleDataNum, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL['D27'] = { t: 'n', v: priceKhongTroDefault,   z: FMT_MONEY,  s: { ...styleDataNum, alignment: { horizontal: 'right', vertical: 'center' } } };
+    wsCL['E27'] = { t: 'n', v: tonsKhongTroTotal * priceKhongTroDefault, f: 'C27*D27', z: FMT_MONEY, s: { ...styleDataLbl, alignment: { horizontal: 'right', vertical: 'center' } } };
 
-    // Hàng 28: Nước đá
-    wsCL['B28'] = { t: 's', v: 'NƯỚC ĐÁ \r\n(10.000Đ/ngày làm việc)', s: { font: { name: FONT_NAME, sz: 10, bold: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: BORDER_DATA } };
-    wsCL['C28'] = { t: 'n', v: workDaysCount, z: '#,##0', s: { alignment: { horizontal: 'center', vertical: 'center' }, border: BORDER_DATA } };
-    wsCL['D28'] = { t: 'n', v: 10000, z: '#,##0', s: { alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
-    wsCL['E28'] = { t: 'n', v: iceAmount, f: 'C28*D28', z: '#,##0', s: { font: { name: FONT_NAME, sz: 10.5, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+    // Hàng 28: Nước đá (10.000Đ/ngày làm việc)
+    wsCL['B28'] = { t: 's', v: 'NƯỚC ĐÁ\r\n(10.000Đ/ngày làm việc)', s: { ...styleDataLbl, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } } };
+    wsCL['C28'] = { t: 'n', v: workDaysCount, z: FMT_NUMBER, s: { ...styleDataNum, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL['D28'] = { t: 'n', v: 10000,         z: FMT_MONEY,  s: { ...styleDataNum, alignment: { horizontal: 'right', vertical: 'center' } } };
+    wsCL['E28'] = { t: 'n', v: iceAmount,     f: 'C28*D28',  z: FMT_MONEY, s: { ...styleDataLbl, alignment: { horizontal: 'right', vertical: 'center' } } };
 
-    // Hàng 29: TỔNG CỘNG : (Chữ đỏ)
-    const styleH29 = { font: { name: FONT_NAME, sz: 12, bold: true, color: { rgb: 'FF0000' } }, border: BORDER_DATA };
-    wsCL['B29'] = { t: 's', v: 'TỔNG CỘNG :', s: { ...styleH29, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsCL['C29'] = { t: 's', v: '', s: styleH29 };
-    wsCL['D29'] = { t: 's', v: '', s: styleH29 };
-    wsCL['E29'] = { t: 'n', v: totalCalculated, f: 'SUM(E26:E28)', z: '#,##0', s: { ...styleH29, alignment: { horizontal: 'right', vertical: 'center' } } };
-
-    // Hàng 30: TRỪ TẠM ỨNG :
-    const styleH30 = { font: { name: FONT_NAME, sz: 12, bold: true, color: { rgb: '000000' } }, border: BORDER_DATA };
-    wsCL['B30'] = { t: 's', v: 'TRỪ TẠM ỨNG :', s: { ...styleH30, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsCL['C30'] = { t: 's', v: '', s: styleH30 };
-    wsCL['D30'] = { t: 's', v: '', s: styleH30 };
-    wsCL['E30'] = {
-      t: 'n',
-      v: advanceTotalVal,
-      z: '#,##0',
-      s: { ...styleH30, alignment: { horizontal: 'right', vertical: 'center' } },
+    // Hàng 29: TỔNG CỘNG : — chữ đỏ đậm, nền trắng
+    const styleH29 = {
+      font: { name: FONT_NAME, sz: 13, bold: true, color: { rgb: 'FF0000' } },
+      fill: { fgColor: { rgb: 'FFFFFF' } },
+      border: BORDER_THIN_BLACK,
     };
+    wsCL['B29'] = { t: 's', v: 'TỔNG CỘNG :',  s: { ...styleH29, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL['C29'] = { t: 's', v: '',              s: styleH29 };
+    wsCL['D29'] = { t: 's', v: '',              s: styleH29 };
+    wsCL['E29'] = { t: 'n', v: totalCalculated, f: 'SUM(E26:E28)', z: FMT_MONEY, s: { ...styleH29, alignment: { horizontal: 'right', vertical: 'center' } } };
 
-    // Hàng 31: CÒN LẠI : (Nền vàng tươi FFFF00, chữ đỏ FF0000)
+    // Hàng 30: TRỪ TẠM ỨNG : — chữ đen đậm
+    const styleH30 = {
+      font: { name: FONT_NAME, sz: 13, bold: true, color: { rgb: '000000' } },
+      fill: { fgColor: { rgb: 'FFFFFF' } },
+      border: BORDER_THIN_BLACK,
+    };
+    wsCL['B30'] = { t: 's', v: 'TRỪ TẠM ỨNG :', s: { ...styleH30, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL['C30'] = { t: 's', v: '',               s: styleH30 };
+    wsCL['D30'] = { t: 's', v: '',               s: styleH30 };
+    wsCL['E30'] = { t: 'n', v: advanceTotalVal,  z: FMT_MONEY, s: { ...styleH30, alignment: { horizontal: 'right', vertical: 'center' } } };
+
+    // Hàng 31: CÒN LẠI : — nền vàng tươi FFFF00, chữ đỏ đậm
     const styleH31 = {
-      font: { name: FONT_NAME, sz: 12, bold: true, color: { rgb: 'FF0000' } },
+      font: { name: FONT_NAME, sz: 13, bold: true, color: { rgb: 'FF0000' } },
       fill: { fgColor: { rgb: 'FFFF00' } },
-      border: BORDER_DATA,
+      border: BORDER_THIN_BLACK,
     };
     wsCL['B31'] = { t: 's', v: 'CÒN LẠI :', s: { ...styleH31, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsCL['C31'] = { t: 's', v: '', s: styleH31 };
-    wsCL['D31'] = { t: 's', v: '', s: styleH31 };
-    wsCL['E31'] = { t: 'n', v: remainingVal, f: 'E29-E30', z: '#,##0', s: { ...styleH31, alignment: { horizontal: 'right', vertical: 'center' } } };
+    wsCL['C31'] = { t: 's', v: '',           s: styleH31 };
+    wsCL['D31'] = { t: 's', v: '',           s: styleH31 };
+    wsCL['E31'] = { t: 'n', v: remainingVal, f: 'E29-E30', z: FMT_MONEY, s: { ...styleH31, alignment: { horizontal: 'right', vertical: 'center' } } };
 
     wsCL['!ref'] = 'A1:H35';
     wsCL['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }, // A1:H1
-      { s: { r: 23, c: 1 }, e: { r: 23, c: 4 } }, // B24:E24
-      { s: { r: 28, c: 1 }, e: { r: 28, c: 3 } }, // B29:D29
-      { s: { r: 29, c: 1 }, e: { r: 29, c: 3 } }, // B30:D30
-      { s: { r: 30, c: 1 }, e: { r: 30, c: 3 } }, // B31:D31
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }, // A1:H1 — tiêu đề
+      { s: { r: 23, c: 1 }, e: { r: 23, c: 4 } }, // B24:E24 — header bảng quyết toán
+      { s: { r: 28, c: 2 }, e: { r: 28, c: 3 } }, // C29:D29 — merge C-D ở TỔNG CỘNG
+      { s: { r: 29, c: 2 }, e: { r: 29, c: 3 } }, // C30:D30
+      { s: { r: 30, c: 2 }, e: { r: 30, c: 3 } }, // C31:D31
     ];
     wsCL['!cols'] = [
-      { wch: 8 },  // A: STT
-      { wch: 32 }, // B: HỌ & TÊN / XUẤT
-      { wch: 20 }, // C: SỐ TIỀN / SỐ LƯỢNG (TẤN)
-      { wch: 22 }, // D: TẠM ỨNG / ĐƠN GIÁ (ĐỒNG/TẤN)
-      { wch: 22 }, // E: THỰC LÃNH / THÀNH TIỀN
-      { wch: 18 }, // F: SỐ TÀI KHOẢN
-      { wch: 18 }, // G: NGÂN HÀNG
-      { wch: 24 }, // H: CHỦ TÀI KHOẢN
+      { wch: 9  },  // A: STT
+      { wch: 36 },  // B: HỌ & TÊN / XUẤT
+      { wch: 22 },  // C: SỐ TIỀN / SỐ LƯỢNG (TẤN)
+      { wch: 24 },  // D: TẠM ỨNG / ĐƠN GIÁ (ĐỒNG/TẤN)
+      { wch: 24 },  // E: THỰC LÃNH / THÀNH TIỀN
+      { wch: 25 },  // F: SỐ TÀI KHOẢN
+      { wch: 22 },  // G: NGÂN HÀNG
+      { wch: 33 },  // H: CHỦ TÀI KHOẢN
     ];
+
+    // Row heights Sheet 3 — theo file mẫu (hpt 30 cho tất cả dữ liệu)
+    const clRowHeights: XLSX.RowInfo[] = [];
+    clRowHeights[0] = { hpt: 51.75 }; // Row 1 tiêu đề
+    clRowHeights[1] = { hpt: 66.75 }; // Row 2 header
+    for (let r = 2; r <= 16; r++) {
+      clRowHeights[r] = { hpt: 30 };   // 14 công nhân + hàng tổng
+    }
+    clRowHeights[22] = { hpt: 19.5 };  // Row 23 spacer nhỏ
+    clRowHeights[23] = { hpt: 41.45 }; // Row 24 tiêu đề bảng quyết toán
+    clRowHeights[24] = { hpt: 38.45 }; // Row 25 header cột
+    clRowHeights[25] = { hpt: 30 };    // Row 26
+    clRowHeights[26] = { hpt: 30 };    // Row 27
+    clRowHeights[27] = { hpt: 36.6 };  // Row 28 Nước đá (wrap 2 dòng)
+    clRowHeights[28] = { hpt: 30 };    // Row 29 TỔNG CỘNG
+    clRowHeights[29] = { hpt: 30 };    // Row 30 TRỪ TẠM ỨNG
+    clRowHeights[30] = { hpt: 30 };    // Row 31 CÒN LẠI
+    wsCL['!rows'] = clRowHeights;
 
     XLSX.utils.book_append_sheet(wb, wsCL, sheetNameCL);
 
