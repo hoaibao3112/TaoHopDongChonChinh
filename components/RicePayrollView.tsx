@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { RiceBatch, DailyReconciliationResult } from '@/lib/rice-payroll/types';
 import { isCoSo1 } from '@/lib/rice-payroll/facility-filter';
 import { getDefaultClassification, getDefaultTons } from '@/lib/rice-payroll/sample-classification';
+import { roundRiceTons } from '@/lib/rice-payroll/rounding';
+import { allocateSmartRiceTons } from '@/lib/rice-payroll/smart-round-allocation';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -361,119 +363,224 @@ export default function RicePayrollView() {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }, []);
 
-  // Cập nhật số tấn Có trở / Không trở với tính năng tự động cân đối thông minh
+  // Cập nhật số tấn Có trở / Không trở với tính năng tự động phân bổ làm tròn thông minh
   const handleTonsChange = useCallback(
-    (rowId: string, field: 'coTro' | 'khongTro', valStr: string, dayTotalTons: number) => {
-      const val = valStr === '' ? 0 : Number(valStr);
+    (rowId: string, field: 'coTro' | 'khongTro', valStr: string) => {
+      const val = valStr === '' ? 0 : Math.max(0, Number(valStr));
+      const targetRow = rows.find((r) => r.id === rowId);
+      if (!targetRow) return;
+
+      const dayBatches = monthBatches.filter((b) => b.dischargeDate === targetRow.date);
+      const fileBaseTons = dayBatches.reduce((s, b) => s + (b.roundedTons || roundRiceTons(b.dryWeightKg)), 0);
+
+      // Xác định mode hiện tại của dòng
+      const currentMode =
+        targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro === 0
+          ? 'coTro'
+          : targetRow.tonsKhongTro > 0 && targetRow.tonsCoTro === 0
+          ? 'khongTro'
+          : targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro > 0
+          ? 'caHai'
+          : field === 'coTro'
+          ? 'coTro'
+          : 'khongTro';
+
+      let newCo = targetRow.tonsCoTro;
+      let newKhong = targetRow.tonsKhongTro;
+
+      if (currentMode === 'coTro') {
+        newCo = val;
+        newKhong = 0;
+      } else if (currentMode === 'khongTro') {
+        newKhong = val;
+        newCo = 0;
+      } else {
+        // 'caHai'
+        if (field === 'coTro') {
+          newCo = val;
+        } else {
+          newKhong = val;
+        }
+      }
+
+      const targetDayTotal = newCo + newKhong;
+
+      // Nếu ngày đó có mẻ lúa thực tế trong file và targetDayTotal > 0:
+      // Tự động tìm mẻ phù hợp nhất để làm tròn lên/xuống bù trừ cho khớp targetDayTotal
+      if (dayBatches.length > 0 && targetDayTotal > 0) {
+        const alloc = allocateSmartRiceTons(dayBatches, targetDayTotal);
+        setBatchOverrides((prevOv) => {
+          const next = { ...prevOv };
+          dayBatches.forEach((b) => {
+            const isCo =
+              currentMode === 'coTro'
+                ? true
+                : currentMode === 'khongTro'
+                ? false
+                : (prevOv[b.id]?.isCoTro ?? getDefaultClassification(b));
+            next[b.id] = {
+              isCoTro: isCo,
+              tons: alloc.batchOverrides[b.id]?.tons ?? b.roundedTons,
+            };
+          });
+          return next;
+        });
+      }
 
       setRows((prev) =>
+        prev.map((r) =>
+          r.id === rowId
+            ? {
+                ...r,
+                tonsCoTro: newCo,
+                tonsKhongTro: newKhong,
+                status: 'idle',
+                errorMsg: '',
+              }
+            : r
+        )
+      );
+    },
+    [rows, monthBatches]
+  );
+
+  // Khôi phục số tấn của 1 ngày về đúng file gốc
+  const handleResetDayTons = useCallback(
+    (rowDate: string) => {
+      const dayBatches = monthBatches.filter((b) => b.dischargeDate === rowDate);
+      if (dayBatches.length === 0) return;
+
+      // Xóa overrides của các mẻ trong ngày này để trở về file gốc
+      setBatchOverrides((prev) => {
+        const next = { ...prev };
+        dayBatches.forEach((b) => {
+          delete next[b.id];
+        });
+        return next;
+      });
+
+      // Đặt lại số tấn của dòng về chuẩn file gốc
+      setRows((prev) =>
         prev.map((r) => {
-          if (r.id !== rowId) return r;
+          if (r.date !== rowDate) return r;
+          const isOct2026 = selectedMonthKey === '10/2026';
+          let sumCo = 0;
+          let sumKhong = 0;
 
-          // Nếu bật tự động cân đối và ngày đó có mẻ lúa thực tế
-          if (autoBalance && dayTotalTons > 0) {
-            if (field === 'coTro') {
-              if (val > dayTotalTons) {
-                return {
-                  ...r,
-                  tonsCoTro: val,
-                  tonsKhongTro: 0,
-                  status: 'mismatch',
-                  errorMsg: `Tổng nhập (${val}t) vượt quá số tấn thực tế trong ngày (${dayTotalTons}t)`,
-                };
-              }
-              const autoKhongTro = val === 0 ? 0 : Math.max(0, dayTotalTons - val);
-              return {
-                ...r,
-                tonsCoTro: val,
-                tonsKhongTro: autoKhongTro,
-                status: 'idle',
-                errorMsg: '',
-              };
-            } else {
-              // field === 'khongTro'
-              if (val > dayTotalTons) {
-                return {
-                  ...r,
-                  tonsKhongTro: val,
-                  tonsCoTro: 0,
-                  status: 'mismatch',
-                  errorMsg: `Tổng nhập (${val}t) vượt quá số tấn thực tế trong ngày (${dayTotalTons}t)`,
-                };
-              }
-              const autoCoTro = val === 0 ? 0 : Math.max(0, dayTotalTons - val);
-              return {
-                ...r,
-                tonsKhongTro: val,
-                tonsCoTro: autoCoTro,
-                status: 'idle',
-                errorMsg: '',
-              };
-            }
+          if (isOct2026) {
+            dayBatches.forEach((b) => {
+              const isCo = getDefaultClassification(b);
+              const t = getDefaultTons(b);
+              if (isCo) sumCo += t;
+              else sumKhong += t;
+            });
+          } else {
+            sumCo = dayBatches.reduce((s, b) => s + b.roundedTons, 0);
+            sumKhong = 0;
           }
-
-          // Nhập tự do khi tắt cân đối
-          const newCo = field === 'coTro' ? val : r.tonsCoTro;
-          const newKhong = field === 'khongTro' ? val : r.tonsKhongTro;
-          const isOver = dayTotalTons > 0 && newCo + newKhong > dayTotalTons;
 
           return {
             ...r,
-            tonsCoTro: newCo,
-            tonsKhongTro: newKhong,
-            status: isOver ? 'mismatch' : 'idle',
-            errorMsg: isOver
-              ? `Tổng ${newCo + newKhong}t vượt quá số tấn thực tế trong ngày (${dayTotalTons}t)`
-              : '',
+            tonsCoTro: sumCo,
+            tonsKhongTro: sumKhong,
+            status: 'idle',
+            errorMsg: '',
           };
         })
       );
     },
-    [autoBalance]
+    [monthBatches, selectedMonthKey]
+  );
+
+  // Điều chỉnh số tấn trực tiếp của 1 mẻ lúa trong Tab 2
+  const handleBatchTonsChange = useCallback(
+    (batch: RiceBatch, newTonsVal: number) => {
+      const tons = Math.max(0, newTonsVal);
+      const isCoTro =
+        batchOverrides[batch.id]?.isCoTro !== undefined
+          ? batchOverrides[batch.id].isCoTro
+          : getDefaultClassification(batch);
+
+      setBatchOverrides((prev) => ({
+        ...prev,
+        [batch.id]: { isCoTro, tons },
+      }));
+
+      // Đồng bộ về dòng Sổ tay ngày tương ứng
+      if (batch.dischargeDate) {
+        setRows((prevRows) =>
+          prevRows.map((r) => {
+            if (r.date !== batch.dischargeDate) return r;
+            const dayBatches = monthBatches.filter((b) => b.dischargeDate === r.date);
+            let sumCo = 0;
+            let sumKhong = 0;
+
+            dayBatches.forEach((b) => {
+              const bTons = b.id === batch.id ? tons : (batchOverrides[b.id]?.tons ?? getDefaultTons(b));
+              const bIsCo =
+                b.id === batch.id
+                  ? isCoTro
+                  : batchOverrides[b.id]?.isCoTro !== undefined
+                  ? batchOverrides[b.id].isCoTro
+                  : getDefaultClassification(b);
+              if (bIsCo) sumCo += bTons;
+              else sumKhong += bTons;
+            });
+
+            return {
+              ...r,
+              tonsCoTro: sumCo,
+              tonsKhongTro: sumKhong,
+              status: 'idle',
+              errorMsg: '',
+            };
+          })
+        );
+      }
+    },
+    [batchOverrides, monthBatches]
   );
 
   // Chọn chế độ xuất cho ngày: 'coTro' (100% Có trở) | 'khongTro' (100% Không trở) | 'caHai' (Chia cả 2)
   const handleSetRowMode = useCallback(
     (rowId: string, newMode: 'coTro' | 'khongTro' | 'caHai', dayFileTons: number, rowDate: string) => {
+      const targetRow = rows.find((r) => r.id === rowId);
+      const total =
+        (targetRow ? targetRow.tonsCoTro + targetRow.tonsKhongTro : 0) ||
+        (dayFileTons > 0 ? dayFileTons : 0);
+
+      let newCo = 0;
+      let newKhong = 0;
+
+      if (newMode === 'coTro') {
+        newCo = total;
+        newKhong = 0;
+      } else if (newMode === 'khongTro') {
+        newCo = 0;
+        newKhong = total;
+      } else {
+        // 'caHai': nếu 1 bên đang = 0, chia 50/50 để user dễ gõ tiếp
+        if (targetRow && targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro > 0) {
+          newCo = targetRow.tonsCoTro;
+          newKhong = targetRow.tonsKhongTro;
+        } else {
+          newCo = Math.round(total / 2);
+          newKhong = Math.max(0, total - newCo);
+        }
+      }
+
       setRows((prev) =>
-        prev.map((r) => {
-          if (r.id !== rowId) return r;
-
-          const total = dayFileTons > 0 ? dayFileTons : (r.tonsCoTro + r.tonsKhongTro) || 0;
-
-          if (newMode === 'coTro') {
-            return {
-              ...r,
-              tonsCoTro: total,
-              tonsKhongTro: 0,
-              status: 'idle',
-              errorMsg: '',
-            };
-          } else if (newMode === 'khongTro') {
-            return {
-              ...r,
-              tonsCoTro: 0,
-              tonsKhongTro: total,
-              status: 'idle',
-              errorMsg: '',
-            };
-          } else {
-            // 'caHai': nếu 1 bên đang = 0, chia 50/50 để user dễ gõ tiếp
-            let co = r.tonsCoTro;
-            let khong = r.tonsKhongTro;
-            if (co === 0 || khong === 0) {
-              co = Math.round(total / 2);
-              khong = Math.max(0, total - co);
-            }
-            return {
-              ...r,
-              tonsCoTro: co,
-              tonsKhongTro: khong,
-              status: 'idle',
-              errorMsg: '',
-            };
-          }
-        })
+        prev.map((r) =>
+          r.id === rowId
+            ? {
+                ...r,
+                tonsCoTro: newCo,
+                tonsKhongTro: newKhong,
+                status: 'idle',
+                errorMsg: '',
+              }
+            : r
+        )
       );
 
       // Đồng bộ sang mẻ lúa thực tế trong ngày (nếu chọn 100% Có hoặc 100% Không)
@@ -493,7 +600,7 @@ export default function RicePayrollView() {
         }
       }
     },
-    [monthBatches]
+    [rows, monthBatches]
   );
 
   // Chuyển đổi phân loại của một mẻ lúa thực tế và đồng bộ tự động về Sổ tay ngày
@@ -745,25 +852,17 @@ export default function RicePayrollView() {
   const handleExportExcel = async () => {
     setIsExporting(true);
     try {
-      // Kiểm tra nếu có ngày bị nhập vượt quá số tấn thực tế
-      const invalidRow = rows.find((r) => {
-        const dayBatches = monthBatches.filter((b) => b.dischargeDate === r.date);
-        const dayFileTons = dayBatches.reduce(
-          (s, b) => s + (batchOverrides[b.id]?.tons ?? getDefaultTons(b)),
-          0
-        );
-        return dayFileTons > 0 && r.tonsCoTro + r.tonsKhongTro > dayFileTons;
-      });
+      // Kiểm tra tính hợp lệ cơ bản trước khi xuất
+      const totalEnteredTons = rows.reduce((s, r) => s + (r.tonsCoTro || 0) + (r.tonsKhongTro || 0), 0);
+      if (totalEnteredTons === 0 && monthBatches.length === 0) {
+        alert('⚠️ Chưa có dữ liệu số tấn nào được nhập. Vui lòng nhập số tấn trước khi xuất Excel!');
+        setIsExporting(false);
+        return;
+      }
 
-      if (invalidRow) {
-        const dayBatches = monthBatches.filter((b) => b.dischargeDate === invalidRow.date);
-        const dayFileTons = dayBatches.reduce(
-          (s, b) => s + (batchOverrides[b.id]?.tons ?? getDefaultTons(b)),
-          0
-        );
-        alert(
-          `⚠️ Không thể xuất Excel: Ngày ${invalidRow.date} đang nhập ${invalidRow.tonsCoTro + invalidRow.tonsKhongTro} tấn, vượt quá tổng thực tế ${dayFileTons} tấn! Vui lòng kiểm tra lại.`
-        );
+      const hasNegative = rows.some((r) => r.tonsCoTro < 0 || r.tonsKhongTro < 0);
+      if (hasNegative) {
+        alert('⚠️ Số tấn không được là số âm. Vui lòng kiểm tra lại!');
         setIsExporting(false);
         return;
       }
@@ -1139,11 +1238,16 @@ export default function RicePayrollView() {
             <tbody className="divide-y divide-slate-100">
               {rows.map((row) => {
                 const dayBatches = monthBatches.filter((b) => b.dischargeDate === row.date);
+                const originalFileTons = dayBatches.reduce(
+                  (s, b) => s + (b.roundedTons || roundRiceTons(b.dryWeightKg)),
+                  0
+                );
                 const dayFileTons = dayBatches.reduce(
                   (s, b) => s + (batchOverrides[b.id]?.tons ?? getDefaultTons(b)),
                   0
                 );
-                const isOverLimit = dayFileTons > 0 && row.tonsCoTro + row.tonsKhongTro > dayFileTons;
+                const rowTotalTons = row.tonsCoTro + row.tonsKhongTro;
+                const diffTons = originalFileTons > 0 && rowTotalTons > 0 ? rowTotalTons - originalFileTons : 0;
                 const previewCoTro = row.tonsCoTro * row.priceCoTro;
                 const previewKhongTro = row.tonsKhongTro * row.priceKhongTro;
                 const previewTotal = previewCoTro + previewKhongTro;
@@ -1165,8 +1269,10 @@ export default function RicePayrollView() {
                     className={`transition-colors ${
                       isActive
                         ? 'bg-blue-50/70'
-                        : isOverLimit || row.status === 'error'
+                        : row.status === 'error'
                         ? 'bg-red-50/40 hover:bg-red-50'
+                        : diffTons !== 0
+                        ? 'bg-blue-50/20 hover:bg-blue-50/40'
                         : row.status === 'matched'
                         ? 'bg-emerald-50/40 hover:bg-emerald-50/60'
                         : row.status === 'mismatch'
@@ -1277,32 +1383,56 @@ export default function RicePayrollView() {
                       </div>
 
                       {dayBatches.length > 0 && (
-                        <div className="mt-1 flex items-center justify-between text-[10px]">
-                          <span
-                            className={`font-semibold truncate ${
-                              isOverLimit ? 'text-red-600 font-bold' : 'text-emerald-700'
-                            }`}
-                            title="Mẻ lúa và số tấn cân sấy từ file lúa"
-                          >
-                            🌾 {dayBatches.length} mẻ &bull; <strong>{dayFileTons}t</strong>
-                          </span>
-                          {(row.tonsCoTro > 0 || row.tonsKhongTro > 0) && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateRow(row.id, {
-                                  tonsCoTro: 0,
-                                  tonsKhongTro: 0,
-                                  status: 'idle',
-                                  errorMsg: '',
-                                })
-                              }
-                              className="text-slate-400 hover:text-slate-600 font-bold px-1 py-0.5 text-[9px] cursor-pointer"
-                              title="Xóa trắng số tấn về 0"
+                        <div className="mt-1 flex items-center justify-between text-[10px] gap-1 flex-wrap">
+                          <div className="flex items-center gap-1">
+                            <span
+                              className="font-semibold text-emerald-700 truncate"
+                              title="Mẻ lúa và số tấn cân sấy từ file lúa"
                             >
-                              ✕ Xóa
-                            </button>
-                          )}
+                              🌾 {dayBatches.length} mẻ &bull; Gốc <strong>{originalFileTons}t</strong>
+                            </span>
+                            {diffTons !== 0 && (
+                              <span
+                                className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                                  diffTons > 0
+                                    ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                    : 'bg-amber-100 text-amber-800 border border-amber-200'
+                                }`}
+                                title={`Đã điều chỉnh ${diffTons > 0 ? '+' : ''}${diffTons}t so với file gốc`}
+                              >
+                                {diffTons > 0 ? `+${diffTons}t` : `${diffTons}t`} vi vu
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {diffTons !== 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleResetDayTons(row.date)}
+                                className="text-blue-600 hover:text-blue-800 font-bold px-1 py-0.5 text-[9px] cursor-pointer rounded hover:bg-blue-50"
+                                title="Khôi phục lại số tấn gốc từ file lúa"
+                              >
+                                ↺ Về gốc
+                              </button>
+                            )}
+                            {(row.tonsCoTro > 0 || row.tonsKhongTro > 0) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateRow(row.id, {
+                                    tonsCoTro: 0,
+                                    tonsKhongTro: 0,
+                                    status: 'idle',
+                                    errorMsg: '',
+                                  })
+                                }
+                                className="text-slate-400 hover:text-slate-600 font-bold px-1 py-0.5 text-[9px] cursor-pointer"
+                                title="Xóa trắng số tấn về 0"
+                              >
+                                ✕ Xóa
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
                     </td>
@@ -1324,12 +1454,14 @@ export default function RicePayrollView() {
                           value={row.tonsCoTro === 0 ? '' : row.tonsCoTro}
                           onWheel={(e) => e.currentTarget.blur()}
                           onChange={(e) =>
-                            handleTonsChange(row.id, 'coTro', e.target.value, dayFileTons)
+                            handleTonsChange(row.id, 'coTro', e.target.value)
                           }
                           placeholder="0"
                           className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
-                            isOverLimit || (row.errorMsg && row.tonsCoTro > dayFileTons)
-                              ? 'border-red-500 bg-red-50 text-red-900 focus:border-red-600 focus:ring-1 focus:ring-red-400'
+                            diffTons !== 0 && rowMode === 'coTro'
+                              ? diffTons > 0
+                                ? 'border-blue-400 bg-blue-50/60 text-blue-900 focus:border-blue-500'
+                                : 'border-amber-400 bg-amber-50/60 text-amber-900 focus:border-amber-500'
                               : 'border-amber-300 bg-amber-50/40 text-amber-900 focus:border-amber-500 focus:bg-white'
                           }`}
                         />
@@ -1381,12 +1513,14 @@ export default function RicePayrollView() {
                           value={row.tonsKhongTro === 0 ? '' : row.tonsKhongTro}
                           onWheel={(e) => e.currentTarget.blur()}
                           onChange={(e) =>
-                            handleTonsChange(row.id, 'khongTro', e.target.value, dayFileTons)
+                            handleTonsChange(row.id, 'khongTro', e.target.value)
                           }
                           placeholder="0"
                           className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
-                            isOverLimit || (row.errorMsg && row.tonsKhongTro > dayFileTons)
-                              ? 'border-red-500 bg-red-50 text-red-900 focus:border-red-600 focus:ring-1 focus:ring-red-400'
+                            diffTons !== 0 && rowMode === 'khongTro'
+                              ? diffTons > 0
+                                ? 'border-blue-400 bg-blue-50/60 text-blue-900 focus:border-blue-500'
+                                : 'border-amber-400 bg-amber-50/60 text-amber-900 focus:border-amber-500'
                               : 'border-indigo-300 bg-indigo-50/40 text-indigo-900 focus:border-indigo-500 focus:bg-white'
                           }`}
                         />
@@ -1428,7 +1562,7 @@ export default function RicePayrollView() {
 
                     {/* Trạng thái */}
                     <td className="py-2 px-3 text-center">
-                      <StatusBadge status={isOverLimit ? 'mismatch' : row.status} />
+                      <StatusBadge status={row.status} />
                       {row.errorMsg && (
                         <p className="mt-1 text-[10px] text-red-600 font-bold text-left max-w-40 bg-red-50 p-1 rounded border border-red-200">
                           ⚠️ {row.errorMsg}
@@ -1525,11 +1659,16 @@ export default function RicePayrollView() {
         <div className="lg:hidden divide-y divide-slate-100">
           {rows.map((row) => {
             const dayBatches = monthBatches.filter((b) => b.dischargeDate === row.date);
+            const originalFileTons = dayBatches.reduce(
+              (s, b) => s + (b.roundedTons || roundRiceTons(b.dryWeightKg)),
+              0
+            );
             const dayFileTons = dayBatches.reduce(
               (s, b) => s + (batchOverrides[b.id]?.tons ?? getDefaultTons(b)),
               0
             );
-            const isOverLimit = dayFileTons > 0 && row.tonsCoTro + row.tonsKhongTro > dayFileTons;
+            const rowTotalTons = row.tonsCoTro + row.tonsKhongTro;
+            const diffTons = originalFileTons > 0 && rowTotalTons > 0 ? rowTotalTons - originalFileTons : 0;
             const previewCoTro = row.tonsCoTro * row.priceCoTro;
             const previewKhongTro = row.tonsKhongTro * row.priceKhongTro;
             const previewTotal = previewCoTro + previewKhongTro;
@@ -1545,7 +1684,7 @@ export default function RicePayrollView() {
                 : 'coTro';
 
             return (
-              <div key={row.id} className={`p-4 space-y-3 ${isOverLimit ? 'bg-red-50/30' : ''}`}>
+              <div key={row.id} className={`p-4 space-y-3 ${diffTons !== 0 ? 'bg-blue-50/20' : ''}`}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1 flex items-center gap-1.5">
                     <input
@@ -1604,7 +1743,7 @@ export default function RicePayrollView() {
                       )}
                     </select>
                   </div>
-                  <StatusBadge status={isOverLimit ? 'mismatch' : row.status} />
+                  <StatusBadge status={row.status} />
                 </div>
 
                 {/* 3 Trường Hợp: Có trở | Không trở | Cả hai */}
@@ -1645,26 +1784,48 @@ export default function RicePayrollView() {
                 </div>
 
                 {dayBatches.length > 0 && (
-                  <div className="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-xl border border-slate-200">
-                    <span className={`font-bold ${isOverLimit ? 'text-red-600' : 'text-emerald-700'}`}>
-                      🌾 {dayBatches.length} mẻ &bull; <strong>{dayFileTons}t</strong>
-                    </span>
-                    {(row.tonsCoTro > 0 || row.tonsKhongTro > 0) && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateRow(row.id, {
-                            tonsCoTro: 0,
-                            tonsKhongTro: 0,
-                            status: 'idle',
-                            errorMsg: '',
-                          })
-                        }
-                        className="text-slate-500 hover:text-slate-700 font-bold px-2 py-0.5 text-[11px] cursor-pointer"
-                      >
-                        ✕ Xóa số
-                      </button>
-                    )}
+                  <div className="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-xl border border-slate-200 gap-1 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-emerald-700">
+                        🌾 {dayBatches.length} mẻ &bull; Gốc <strong>{originalFileTons}t</strong>
+                      </span>
+                      {diffTons !== 0 && (
+                        <span
+                          className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                            diffTons > 0 ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {diffTons > 0 ? `+${diffTons}t` : `${diffTons}t`} vi vu
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {diffTons !== 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleResetDayTons(row.date)}
+                          className="text-blue-600 hover:text-blue-800 font-bold px-1.5 py-0.5 text-[11px] cursor-pointer"
+                        >
+                          ↺ Về gốc
+                        </button>
+                      )}
+                      {(row.tonsCoTro > 0 || row.tonsKhongTro > 0) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateRow(row.id, {
+                              tonsCoTro: 0,
+                              tonsKhongTro: 0,
+                              status: 'idle',
+                              errorMsg: '',
+                            })
+                          }
+                          className="text-slate-500 hover:text-slate-700 font-bold px-1.5 py-0.5 text-[11px] cursor-pointer"
+                        >
+                          ✕ Xóa
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -1690,12 +1851,12 @@ export default function RicePayrollView() {
                             value={row.tonsCoTro === 0 ? '' : row.tonsCoTro}
                             onWheel={(e) => e.currentTarget.blur()}
                             onChange={(e) =>
-                              handleTonsChange(row.id, 'coTro', e.target.value, dayFileTons)
+                              handleTonsChange(row.id, 'coTro', e.target.value)
                             }
                             placeholder="0"
                             className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold text-amber-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                              isOverLimit || (row.errorMsg && row.tonsCoTro > dayFileTons)
-                                ? 'border-red-500 bg-red-50 text-red-900'
+                              diffTons !== 0 && rowMode === 'coTro'
+                                ? 'border-blue-400 bg-blue-50/60'
                                 : 'border-amber-300'
                             }`}
                           />
@@ -1742,12 +1903,12 @@ export default function RicePayrollView() {
                             value={row.tonsKhongTro === 0 ? '' : row.tonsKhongTro}
                             onWheel={(e) => e.currentTarget.blur()}
                             onChange={(e) =>
-                              handleTonsChange(row.id, 'khongTro', e.target.value, dayFileTons)
+                              handleTonsChange(row.id, 'khongTro', e.target.value)
                             }
                             placeholder="0"
                             className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold text-indigo-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                              isOverLimit || (row.errorMsg && row.tonsKhongTro > dayFileTons)
-                                ? 'border-red-500 bg-red-50 text-red-900'
+                              diffTons !== 0 && rowMode === 'khongTro'
+                                ? 'border-blue-400 bg-blue-50/60'
                                 : 'border-indigo-300'
                             }`}
                           />
@@ -1948,6 +2109,8 @@ export default function RicePayrollView() {
                         batchOverrides[b.id]?.tons !== undefined
                           ? batchOverrides[b.id].tons!
                           : getDefaultTons(b);
+                      const baseTons = b.roundedTons || roundRiceTons(b.dryWeightKg);
+                      const batchDiff = tons - baseTons;
                       const unitPrice = isCoTro ? masterPriceCoTro : masterPriceKhongTro;
                       const amount = tons * unitPrice;
                       return (
@@ -1969,8 +2132,36 @@ export default function RicePayrollView() {
                           <td className="py-2 px-2.5 text-right font-medium text-slate-800">
                             {b.dryWeightKg.toLocaleString()}
                           </td>
-                          <td className="py-2 px-2 text-center font-extrabold text-blue-900 bg-blue-50/50">
-                            {tons}
+                          <td className="py-1.5 px-1.5 text-center bg-blue-50/30">
+                            <div className="inline-flex flex-col items-center gap-0.5">
+                              <input
+                                type="number"
+                                min={0}
+                                value={tons}
+                                onWheel={(e) => e.currentTarget.blur()}
+                                onChange={(e) => handleBatchTonsChange(b, Number(e.target.value))}
+                                className={`w-14 rounded-lg border text-center font-extrabold text-xs py-1 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                  batchDiff !== 0
+                                    ? batchDiff > 0
+                                      ? 'border-blue-500 bg-blue-100/80 text-blue-900 ring-1 ring-blue-300'
+                                      : 'border-amber-500 bg-amber-100/80 text-amber-900 ring-1 ring-amber-300'
+                                    : 'border-slate-300 bg-white text-slate-800 focus:border-blue-500 focus:bg-white'
+                                }`}
+                                title={`Cân sấy: ${b.dryWeightKg.toLocaleString()}kg (dư ${b.dryWeightKg % 1000}kg). Gốc file: ${baseTons}t. Bấm để chỉnh trực tiếp nếu muốn.`}
+                              />
+                              {batchDiff !== 0 && (
+                                <span
+                                  className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                                    batchDiff > 0
+                                      ? 'text-blue-700 bg-blue-100'
+                                      : 'text-amber-700 bg-amber-100'
+                                  }`}
+                                  title={`Gốc file: ${baseTons}t -> Đã chỉnh: ${tons}t`}
+                                >
+                                  {batchDiff > 0 ? `+${batchDiff}t` : `${batchDiff}t`}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-2 px-2.5 text-center font-bold text-emerald-800 bg-emerald-50/50">
                             {b.dischargeDate}
