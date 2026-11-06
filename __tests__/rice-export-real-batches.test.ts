@@ -98,6 +98,57 @@ describe('Rice Payroll: Lọc đúng Cơ Sở I và trích xuất đúng 52 mẻ
     expect(ws['S3'].f).toBe('SUBTOTAL(109,S5:S56)');
     expect(ws['T3'].f).toBe('Q3+S3');
     expect(ws['T3'].v).toBe(ws['Q3'].v + ws['S3'].v);
+
+    // Kiểm tra đầy đủ 3 sheets (tabs) theo chuẩn file mẫu DOI_THANH-XUAT_CS1_T10_2026
+    expect(wb.SheetNames).toEqual([
+      'BK',
+      'ỨL ĐỘI THANH T10.2026',
+      'CL ĐỘI THANH-CS1-T10.2026',
+    ]);
+
+    // Sheet 2: Ứng lương
+    const wsUL = wb.Sheets['ỨL ĐỘI THANH T10.2026'];
+    expect(wsUL).toBeDefined();
+    expect(wsUL['A1'].v).toContain('DANH SÁCH ỨNG LƯƠNG');
+    expect(wsUL['B3'].v).toBe('TRẦN VĂN THANH');
+    expect(wsUL['C17'].f).toBe('SUM(C3:C16)');
+    expect(wsUL['C17'].v).toBe(32000000);
+
+    // Sheet 3: Chi lương & Bảng kê quyết toán thanh toán
+    const wsCL = wb.Sheets['CL ĐỘI THANH-CS1-T10.2026'];
+    expect(wsCL).toBeDefined();
+    expect(wsCL['A1'].v).toContain('DANH SÁCH CHI LƯƠNG');
+
+    // Bảng quyết toán ở Hàng 24-31 (khớp 100% hình ảnh người dùng yêu cầu)
+    expect(wsCL['B24'].v).toContain('BẢNG KÊ');
+    expect(wsCL['B26'].v).toBe('TỔNG XUẤT CÓ TRỞ');
+    expect(wsCL['C26'].v).toBe(1586);
+    expect(wsCL['D26'].v).toBe(20000);
+    expect(wsCL['E26'].f).toBe('C26*D26');
+    expect(wsCL['E26'].v).toBe(31720000);
+
+    expect(wsCL['B27'].v).toBe('TỔNG XUẤT KHÔNG TRỞ');
+    expect(wsCL['C27'].v).toBe(1703);
+    expect(wsCL['D27'].v).toBe(16000);
+    expect(wsCL['E27'].f).toBe('C27*D27');
+    expect(wsCL['E27'].v).toBe(27248000);
+
+    expect(wsCL['B28'].v).toContain('NƯỚC ĐÁ');
+    expect(wsCL['C28'].v).toBe(23); // Đúng 23 ngày làm việc thực tế
+    expect(wsCL['D28'].v).toBe(10000);
+    expect(wsCL['E28'].f).toBe('C28*D28');
+    expect(wsCL['E28'].v).toBe(230000);
+
+    expect(wsCL['B29'].v).toBe('TỔNG CỘNG :');
+    expect(wsCL['E29'].f).toBe('SUM(E26:E28)');
+    expect(wsCL['E29'].v).toBe(59198000);
+
+    expect(wsCL['B30'].v).toBe('TRỪ TẠM ỨNG :');
+    expect(wsCL['E30'].v).toBe(32000000);
+
+    expect(wsCL['B31'].v).toBe('CÒN LẠI :');
+    expect(wsCL['E31'].f).toBe('E29-E30');
+    expect(wsCL['E31'].v).toBe(27198000);
   });
 });
 

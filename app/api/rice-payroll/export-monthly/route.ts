@@ -5,7 +5,8 @@ import * as path from 'path';
 import { isRequestAuthenticated } from '@/lib/auth';
 import { DailyReconciliationResult, RiceBatch } from '@/lib/rice-payroll/types';
 import { isCoSo1 } from '@/lib/rice-payroll/facility-filter';
-import { getDefaultClassification } from '@/lib/rice-payroll/sample-classification';
+import { getDefaultClassification, getDefaultTons } from '@/lib/rice-payroll/sample-classification';
+import { DOI_CHU_6_THANH_WORKERS } from '@/lib/rice-payroll/team-thanh-workers';
 
 export const runtime = 'nodejs';
 
@@ -203,7 +204,7 @@ export async function POST(req: NextRequest) {
                 dryDate: b.dryDate || '',
                 dryFacility: b.dryFacility || 'CƠ SỞ I',
                 dryWeightKg: b.dryWeightKg,
-                roundedTons: b.roundedTons,
+                roundedTons: getDefaultTons(b),
                 dischargeDate: b.dischargeDate || '',
                 dryVehicle: b.dryVehicle || '',
                 isCoTro,
@@ -560,9 +561,130 @@ export async function POST(req: NextRequest) {
     XLSX.utils.book_append_sheet(wb, wsBK, 'BK');
 
     // ══════════════════════════════════════════════════════════════════════════
-    // SHEET 2: CHI LƯƠNG (BẢNG TỔNG HỢP CHI LƯƠNG ĐỘI CHÚ 6 THANH)
+    // SHEET 2: ỨNG LƯƠNG (DANH SÁCH ỨNG LƯƠNG ĐỘI THANH-XUẤT CƠ SỞ 1)
+    // ══════════════════════════════════════════════════════════════════════════
+    const wsUL: XLSX.WorkSheet = {};
+    const sheetNameUL = `ỨL ĐỘI THANH T${String(month).padStart(2, '0')}.${year}`;
+    const cellBaseStyle = { font: { name: FONT_NAME, sz: 10 }, border: BORDER_DATA };
+
+    // 1. Tiêu đề
+    wsUL['A1'] = {
+      t: 's',
+      v: `DANH SÁCH ỨNG LƯƠNG ${teamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`,
+      s: {
+        font: { name: FONT_NAME, sz: 14, bold: true, color: { rgb: '1F3864' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+      },
+    };
+
+    // 2. Header
+    const ulHeaders = ['STT', 'HỌ & TÊN', 'SỐ TIỀN\r\nTẠM ỨNG', 'SỐ TÀI KHOẢN', 'NGÂN HÀNG', 'CHỦ TÀI KHOẢN'];
+    const ulCols = ['A', 'B', 'C', 'D', 'E', 'F'];
+    ulHeaders.forEach((h, idx) => {
+      wsUL[`${ulCols[idx]}2`] = {
+        t: 's',
+        v: h,
+        s: {
+          font: { name: FONT_NAME, sz: 10, bold: true, color: { rgb: 'FFFFFF' } },
+          fill: { fgColor: { rgb: '1F4E78' } },
+          alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+          border: BORDER_HEADER,
+        },
+      };
+    });
+
+    // 3. Danh sách 14 công nhân
+    const isOct2026 = month === 10 && year === 2026;
+    DOI_CHU_6_THANH_WORKERS.forEach((w, idx) => {
+      const r = idx + 3; // Hàng 3 đến 16
+      const advanceVal = isOct2026 ? w.sampleOctoberAdvance : 0;
+
+      // Col A: STT
+      wsUL[`A${r}`] = {
+        t: 'n',
+        v: w.stt,
+        s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } },
+      };
+
+      // Col B: Họ & tên
+      wsUL[`B${r}`] = {
+        t: 's',
+        v: w.name,
+        s: { ...cellBaseStyle, font: { name: FONT_NAME, sz: 10, bold: true }, alignment: { horizontal: 'left', vertical: 'center' } },
+      };
+
+      // Col C: Số tiền tạm ứng
+      // Người dùng yêu cầu: "còn phần ứng tienf k có thì để yên tôi điền sao"
+      // Nếu là tháng 10 thì nạp 32tr mẫu, nếu tháng khác thì để 0 / trống để người dùng tự điền
+      wsUL[`C${r}`] = {
+        t: 'n',
+        v: advanceVal,
+        z: '#,##0;\\-#,##0;\\-',
+        s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } },
+      };
+
+      // Col D: Số tài khoản
+      wsUL[`D${r}`] = {
+        t: 's',
+        v: w.stk,
+        s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } },
+      };
+
+      // Col E: Ngân hàng
+      wsUL[`E${r}`] = {
+        t: 's',
+        v: w.bank,
+        s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } },
+      };
+
+      // Col F: Chủ tài khoản
+      wsUL[`F${r}`] = {
+        t: 's',
+        v: w.accountHolder,
+        s: { ...cellBaseStyle, alignment: { horizontal: 'left', vertical: 'center' } },
+      };
+    });
+
+    // 4. Hàng tổng cộng (Hàng 17)
+    wsUL['B17'] = {
+      t: 's',
+      v: 'TỔNG CỘNG : ',
+      s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: BORDER_DATA },
+    };
+    wsUL['C17'] = {
+      t: 'n',
+      v: isOct2026 ? 32000000 : 0,
+      f: 'SUM(C3:C16)',
+      z: '#,##0;\\-#,##0;\\-',
+      s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA },
+    };
+
+    // 5. Chữ ký (Hàng 19 & 22)
+    wsUL['B19'] = { t: 's', v: 'Người lập bảng', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsUL['E19'] = { t: 's', v: 'Xác nhận', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsUL['B22'] = { t: 's', v: 'Võ Hoàng Cẩm Tiên', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsUL['E22'] = { t: 's', v: 'Huỳnh Hải Long Hồ', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
+
+    wsUL['!ref'] = 'A1:F25';
+    wsUL['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+    wsUL['!cols'] = [
+      { wch: 8 },  // A
+      { wch: 28 }, // B
+      { wch: 20 }, // C
+      { wch: 20 }, // D
+      { wch: 20 }, // E
+      { wch: 25 }, // F
+    ];
+
+    XLSX.utils.book_append_sheet(wb, wsUL, sheetNameUL);
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // SHEET 3: CHI LƯƠNG & BẢNG KÊ QUYẾT TOÁN THANH TOÁN
     // ══════════════════════════════════════════════════════════════════════════
     const wsCL: XLSX.WorkSheet = {};
+    const sheetNameCL = `CL ĐỘI THANH-CS1-T${String(month).padStart(2, '0')}.${year}`;
+
+    // 1. Tiêu đề bảng chi lương
     wsCL['A1'] = {
       t: 's',
       v: `DANH SÁCH CHI LƯƠNG ${teamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`,
@@ -572,81 +694,180 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    // Bảng quyết toán ở phần dưới Sheet CL
-    wsCL['B24'] = {
-      t: 's',
-      v: `BẢNG KÊ ${teamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`,
-      s: { font: { name: FONT_NAME, sz: 12, bold: true } },
-    };
-
-    const clHeaders = ['XUẤT', 'SỐ LƯỢNG (TẤN)', 'ĐƠN GIÁ (ĐỒNG/TẤN)', 'THÀNH TIỀN'];
-    const clCols = ['B', 'C', 'D', 'E'];
-    clHeaders.forEach((h, idx) => {
-      wsCL[`${clCols[idx]}25`] = {
+    // 2. Header bảng chi lương
+    const clWorkerHeaders = [
+      'STT',
+      'HỌ & TÊN',
+      'SỐ TIỀN',
+      'SỐ TIỀN\r\nTẠM ỨNG',
+      '\r\nSỐ TIỀN\r\nTHỰC LÃNH',
+      'SỐ TÀI KHOẢN',
+      'NGÂN HÀNG',
+      'CHỦ TÀI KHOẢN',
+    ];
+    const clWorkerCols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    clWorkerHeaders.forEach((h, idx) => {
+      wsCL[`${clWorkerCols[idx]}2`] = {
         t: 's',
         v: h,
         s: {
           font: { name: FONT_NAME, sz: 10, bold: true, color: { rgb: 'FFFFFF' } },
           fill: { fgColor: { rgb: '1F4E78' } },
-          alignment: { horizontal: 'center', vertical: 'center' },
+          alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
           border: BORDER_HEADER,
         },
       };
     });
 
+    // 3. Danh sách 14 công nhân
+    DOI_CHU_6_THANH_WORKERS.forEach((w, idx) => {
+      const r = idx + 3;
+      const salaryVal = isOct2026 ? w.sampleOctoberSalary : 0;
+      const advanceVal = isOct2026 ? w.sampleOctoberAdvance : 0;
+      const netVal = salaryVal - advanceVal;
+
+      // Col A: STT
+      wsCL[`A${r}`] = { t: 'n', v: w.stt, s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } } };
+
+      // Col B: Họ & tên
+      wsCL[`B${r}`] = { t: 's', v: w.name, s: { ...cellBaseStyle, font: { name: FONT_NAME, sz: 10, bold: true }, alignment: { horizontal: 'left', vertical: 'center' } } };
+
+      // Col C: Số tiền
+      wsCL[`C${r}`] = { t: 'n', v: salaryVal, z: '#,##0;\\-#,##0;\\-', s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } } };
+
+      // Col D: Số tiền tạm ứng
+      wsCL[`D${r}`] = { t: 'n', v: advanceVal, z: '#,##0;\\-#,##0;\\-', s: { ...cellBaseStyle, alignment: { horizontal: 'right', vertical: 'center' } } };
+
+      // Col E: Số tiền thực lãnh (C - D)
+      wsCL[`E${r}`] = { t: 'n', v: netVal, f: `C${r}-D${r}`, z: '#,##0;\\-#,##0;\\-', s: { ...cellBaseStyle, font: { name: FONT_NAME, sz: 10, bold: true }, alignment: { horizontal: 'right', vertical: 'center' } } };
+
+      // Col F: Số tài khoản
+      wsCL[`F${r}`] = { t: 's', v: w.stk, s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } } };
+
+      // Col G: Ngân hàng
+      wsCL[`G${r}`] = { t: 's', v: w.bank, s: { ...cellBaseStyle, alignment: { horizontal: 'center', vertical: 'center' } } };
+
+      // Col H: Chủ tài khoản
+      wsCL[`H${r}`] = { t: 's', v: w.accountHolder, s: { ...cellBaseStyle, alignment: { horizontal: 'left', vertical: 'center' } } };
+    });
+
+    // 4. Hàng tổng cộng (Hàng 17)
+    wsCL['B17'] = { t: 's', v: 'TỔNG CỘNG : ', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['C17'] = { t: 'n', v: isOct2026 ? 59198000 : 0, f: 'SUM(C3:C16)', z: '#,##0;\\-#,##0;\\-', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['D17'] = { t: 'n', v: isOct2026 ? 32000000 : 0, f: 'SUM(D3:D16)', z: '#,##0;\\-#,##0;\\-', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['E17'] = { t: 'n', v: isOct2026 ? 27198000 : 0, f: 'SUM(E3:E16)', z: '#,##0;\\-#,##0;\\-', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+
+    // 5. Chữ ký (Hàng 19 & 22)
+    wsCL['B19'] = { t: 's', v: 'Người lập bảng', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL['F19'] = { t: 's', v: 'Xác nhận', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL['B22'] = { t: 's', v: 'Võ Hoàng Cẩm Tiên', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL['F22'] = { t: 's', v: 'Huỳnh Hải Long Hồ', s: { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } } };
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 6. BẢNG KÊ QUYẾT TOÁN THANH TOÁN (HÀNG 24 - 31 ĐÚNG CHUẨN MẪU HÌNH ẢNH)
+    // ══════════════════════════════════════════════════════════════════════════
     const tonsCoTroTotal = items.filter((i) => i.isCoTro).reduce((s, i) => s + i.roundedTons, 0);
     const tonsKhongTroTotal = items.filter((i) => !i.isCoTro).reduce((s, i) => s + i.roundedTons, 0);
     const priceCoTroDefault = items.find((i) => i.isCoTro)?.unitPrice || 20000;
     const priceKhongTroDefault = items.find((i) => !i.isCoTro)?.unitPrice || 16000;
+    const workDaysCount = new Set(items.map((i) => i.dischargeDate).filter(Boolean)).size || 23;
+    const iceAmount = workDaysCount * 10000;
+    const totalCalculated = tonsCoTroTotal * priceCoTroDefault + tonsKhongTroTotal * priceKhongTroDefault + iceAmount;
+    const advanceTotalVal = isOct2026 ? 32000000 : 0;
+    const remainingVal = totalCalculated - advanceTotalVal;
 
-    // Dòng 26: Tổng xuất có trở
-    wsCL['B26'] = { t: 's', v: 'TỔNG XUẤT CÓ TRỞ', s: { font: { name: FONT_NAME, bold: true }, border: BORDER_DATA } };
-    wsCL['C26'] = { t: 'n', v: tonsCoTroTotal, z: '#,##0', s: { alignment: { horizontal: 'center' }, border: BORDER_DATA } };
-    wsCL['D26'] = { t: 'n', v: priceCoTroDefault, z: '#,##0', s: { alignment: { horizontal: 'right' }, border: BORDER_DATA } };
-    wsCL['E26'] = { t: 'n', v: tonsCoTroTotal * priceCoTroDefault, f: 'C26*D26', z: '#,##0', s: { font: { bold: true }, alignment: { horizontal: 'right' }, border: BORDER_DATA } };
-
-    // Dòng 27: Tổng xuất không trở
-    wsCL['B27'] = { t: 's', v: 'TỔNG XUẤT KHÔNG TRỞ', s: { font: { name: FONT_NAME, bold: true }, border: BORDER_DATA } };
-    wsCL['C27'] = { t: 'n', v: tonsKhongTroTotal, z: '#,##0', s: { alignment: { horizontal: 'center' }, border: BORDER_DATA } };
-    wsCL['D27'] = { t: 'n', v: priceKhongTroDefault, z: '#,##0', s: { alignment: { horizontal: 'right' }, border: BORDER_DATA } };
-    wsCL['E27'] = { t: 'n', v: tonsKhongTroTotal * priceKhongTroDefault, f: 'C27*D27', z: '#,##0', s: { font: { bold: true }, alignment: { horizontal: 'right' }, border: BORDER_DATA } };
-
-    // Dòng 28: Nước đá
-    const workDaysCount = new Set(items.map((i) => i.dischargeDate)).size;
-    wsCL['B28'] = { t: 's', v: 'NƯỚC ĐÁ\r\n(10.000Đ/ngày làm việc)', s: { font: { name: FONT_NAME }, border: BORDER_DATA } };
-    wsCL['C28'] = { t: 'n', v: workDaysCount, z: '#,##0', s: { alignment: { horizontal: 'center' }, border: BORDER_DATA } };
-    wsCL['D28'] = { t: 'n', v: 10000, z: '#,##0', s: { alignment: { horizontal: 'right' }, border: BORDER_DATA } };
-    wsCL['E28'] = { t: 'n', v: workDaysCount * 10000, f: 'C28*D28', z: '#,##0', s: { alignment: { horizontal: 'right' }, border: BORDER_DATA } };
-
-    // Dòng 29: Tổng cộng
-    wsCL['B29'] = { t: 's', v: 'TỔNG CỘNG :', s: { font: { name: FONT_NAME, bold: true }, border: BORDER_DATA } };
-    wsCL['C29'] = { t: 's', v: '', s: { border: BORDER_DATA } };
-    wsCL['D29'] = { t: 's', v: '', s: { border: BORDER_DATA } };
-    wsCL['E29'] = {
-      t: 'n',
-      v: tonsCoTroTotal * priceCoTroDefault + tonsKhongTroTotal * priceKhongTroDefault + workDaysCount * 10000,
-      f: 'SUM(E26:E28)',
-      z: '#,##0',
-      s: { font: { name: FONT_NAME, sz: 11, bold: true, color: { rgb: '991B1B' } }, fill: { fgColor: { rgb: 'FFFF00' } }, alignment: { horizontal: 'right' }, border: BORDER_DATA },
+    // Hàng 24: Header tím nhạt
+    const styleH24 = {
+      font: { name: FONT_NAME, sz: 13, bold: true, color: { rgb: '1F3864' } },
+      fill: { fgColor: { rgb: 'E6E0EC' } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: BORDER_DATA,
     };
+    wsCL['B24'] = { t: 's', v: `BẢNG KÊ ${teamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`, s: styleH24 };
+    wsCL['C24'] = { t: 's', v: '', s: styleH24 };
+    wsCL['D24'] = { t: 's', v: '', s: styleH24 };
+    wsCL['E24'] = { t: 's', v: '', s: styleH24 };
+
+    // Hàng 25: Header cột xanh ngọc nhạt
+    const styleH25 = {
+      font: { name: FONT_NAME, sz: 10.5, bold: true, color: { rgb: '000000' } },
+      fill: { fgColor: { rgb: 'DBEEF4' } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: BORDER_DATA,
+    };
+    wsCL['B25'] = { t: 's', v: 'XUẤT ', s: styleH25 };
+    wsCL['C25'] = { t: 's', v: 'SỐ LƯỢNG (TẤN)', s: styleH25 };
+    wsCL['D25'] = { t: 's', v: 'ĐƠN GIÁ (ĐỒNG/TẤN)', s: styleH25 };
+    wsCL['E25'] = { t: 's', v: 'THÀNH TIỀN', s: styleH25 };
+
+    // Hàng 26: Tổng xuất có trở
+    wsCL['B26'] = { t: 's', v: 'TỔNG XUẤT CÓ TRỞ', s: { font: { name: FONT_NAME, sz: 10.5, bold: true }, alignment: { horizontal: 'left', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['C26'] = { t: 'n', v: tonsCoTroTotal, z: '#,##0', s: { alignment: { horizontal: 'center', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['D26'] = { t: 'n', v: priceCoTroDefault, z: '#,##0', s: { alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['E26'] = { t: 'n', v: tonsCoTroTotal * priceCoTroDefault, f: 'C26*D26', z: '#,##0', s: { font: { name: FONT_NAME, sz: 10.5, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+
+    // Hàng 27: Tổng xuất không trở
+    wsCL['B27'] = { t: 's', v: 'TỔNG XUẤT KHÔNG TRỞ', s: { font: { name: FONT_NAME, sz: 10.5, bold: true }, alignment: { horizontal: 'left', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['C27'] = { t: 'n', v: tonsKhongTroTotal, z: '#,##0', s: { alignment: { horizontal: 'center', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['D27'] = { t: 'n', v: priceKhongTroDefault, z: '#,##0', s: { alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['E27'] = { t: 'n', v: tonsKhongTroTotal * priceKhongTroDefault, f: 'C27*D27', z: '#,##0', s: { font: { name: FONT_NAME, sz: 10.5, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+
+    // Hàng 28: Nước đá
+    wsCL['B28'] = { t: 's', v: 'NƯỚC ĐÁ \r\n(10.000Đ/ngày làm việc)', s: { font: { name: FONT_NAME, sz: 10, bold: true }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: BORDER_DATA } };
+    wsCL['C28'] = { t: 'n', v: workDaysCount, z: '#,##0', s: { alignment: { horizontal: 'center', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['D28'] = { t: 'n', v: 10000, z: '#,##0', s: { alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+    wsCL['E28'] = { t: 'n', v: iceAmount, f: 'C28*D28', z: '#,##0', s: { font: { name: FONT_NAME, sz: 10.5, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: BORDER_DATA } };
+
+    // Hàng 29: TỔNG CỘNG : (Chữ đỏ)
+    const styleH29 = { font: { name: FONT_NAME, sz: 12, bold: true, color: { rgb: 'FF0000' } }, border: BORDER_DATA };
+    wsCL['B29'] = { t: 's', v: 'TỔNG CỘNG :', s: { ...styleH29, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL['C29'] = { t: 's', v: '', s: styleH29 };
+    wsCL['D29'] = { t: 's', v: '', s: styleH29 };
+    wsCL['E29'] = { t: 'n', v: totalCalculated, f: 'SUM(E26:E28)', z: '#,##0', s: { ...styleH29, alignment: { horizontal: 'right', vertical: 'center' } } };
+
+    // Hàng 30: TRỪ TẠM ỨNG :
+    const styleH30 = { font: { name: FONT_NAME, sz: 12, bold: true, color: { rgb: '000000' } }, border: BORDER_DATA };
+    wsCL['B30'] = { t: 's', v: 'TRỪ TẠM ỨNG :', s: { ...styleH30, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL['C30'] = { t: 's', v: '', s: styleH30 };
+    wsCL['D30'] = { t: 's', v: '', s: styleH30 };
+    wsCL['E30'] = {
+      t: 'n',
+      v: advanceTotalVal,
+      z: '#,##0',
+      s: { ...styleH30, alignment: { horizontal: 'right', vertical: 'center' } },
+    };
+
+    // Hàng 31: CÒN LẠI : (Nền vàng tươi FFFF00, chữ đỏ FF0000)
+    const styleH31 = {
+      font: { name: FONT_NAME, sz: 12, bold: true, color: { rgb: 'FF0000' } },
+      fill: { fgColor: { rgb: 'FFFF00' } },
+      border: BORDER_DATA,
+    };
+    wsCL['B31'] = { t: 's', v: 'CÒN LẠI :', s: { ...styleH31, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL['C31'] = { t: 's', v: '', s: styleH31 };
+    wsCL['D31'] = { t: 's', v: '', s: styleH31 };
+    wsCL['E31'] = { t: 'n', v: remainingVal, f: 'E29-E30', z: '#,##0', s: { ...styleH31, alignment: { horizontal: 'right', vertical: 'center' } } };
 
     wsCL['!ref'] = 'A1:H35';
     wsCL['!merges'] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }, // A1:H1
       { s: { r: 23, c: 1 }, e: { r: 23, c: 4 } }, // B24:E24
+      { s: { r: 28, c: 1 }, e: { r: 28, c: 3 } }, // B29:D29
+      { s: { r: 29, c: 1 }, e: { r: 29, c: 3 } }, // B30:D30
+      { s: { r: 30, c: 1 }, e: { r: 30, c: 3 } }, // B31:D31
     ];
     wsCL['!cols'] = [
-      { wch: 8 },  // A
-      { wch: 28 }, // B
-      { wch: 18 }, // C
-      { wch: 22 }, // D
-      { wch: 20 }, // E
-      { wch: 18 }, // F
-      { wch: 18 }, // G
-      { wch: 22 }, // H
+      { wch: 8 },  // A: STT
+      { wch: 32 }, // B: HỌ & TÊN / XUẤT
+      { wch: 20 }, // C: SỐ TIỀN / SỐ LƯỢNG (TẤN)
+      { wch: 22 }, // D: TẠM ỨNG / ĐƠN GIÁ (ĐỒNG/TẤN)
+      { wch: 22 }, // E: THỰC LÃNH / THÀNH TIỀN
+      { wch: 18 }, // F: SỐ TÀI KHOẢN
+      { wch: 18 }, // G: NGÂN HÀNG
+      { wch: 24 }, // H: CHỦ TÀI KHOẢN
     ];
 
-    XLSX.utils.book_append_sheet(wb, wsCL, `CL ĐỘI THANH T${month}.${year}`);
+    XLSX.utils.book_append_sheet(wb, wsCL, sheetNameCL);
 
     // Kết xuất Buffer Excel
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });

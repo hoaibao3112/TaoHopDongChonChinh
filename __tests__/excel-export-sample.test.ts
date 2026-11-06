@@ -78,7 +78,8 @@ describe('Export Monthly Excel - Kiểm tra định dạng đầu ra chuẩn the
 
     const wb = XLSX.read(blob, { type: 'buffer', cellStyles: true, cellFormula: true });
     expect(wb.SheetNames).toContain('BK');
-    expect(wb.SheetNames).toContain('CL ĐỘI THANH T10.2026');
+    expect(wb.SheetNames).toContain('ỨL ĐỘI THANH T10.2026');
+    expect(wb.SheetNames).toContain('CL ĐỘI THANH-CS1-T10.2026');
 
     const wsBK = wb.Sheets['BK'];
     // 1. Kiểm tra Tiêu đề Hàng 1
