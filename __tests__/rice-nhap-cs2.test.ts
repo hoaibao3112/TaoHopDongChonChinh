@@ -84,6 +84,7 @@ describe('Rice Nhập Sấy CS2: Đội Dương - Cơ Sở II', () => {
         thanhTienNhap: 23 * 23000, // 529.000
         chumLoUnitPrice: 11000,
         thanhTienChumLo: 23 * 11000, // 253.000
+        tongThanhTien: 23 * 23000 + 23 * 11000, // 782.000
       },
       {
         id: 'batch-2',
@@ -99,6 +100,7 @@ describe('Rice Nhập Sấy CS2: Đội Dương - Cơ Sở II', () => {
         thanhTienNhap: 59 * 20000, // 1.180.000
         chumLoUnitPrice: 11000,
         thanhTienChumLo: 59 * 11000, // 649.000
+        tongThanhTien: 59 * 20000 + 59 * 11000, // 1.829.000
       },
     ];
 
@@ -152,8 +154,17 @@ describe('Rice Nhập Sấy CS2: Đội Dương - Cơ Sở II', () => {
     expect(ws1['H2'].v).toBe(23 + 59);       // 82 tấn
     expect(ws1['J2'].v).toBe(529000 + 1180000); // 1.709.000
     expect(ws1['L2'].v).toBe(253000 + 649000);  // 902.000
+    // Cột M2: Tổng cộng thành tiền (Nhập sấy + Chụm lò)
+    expect(ws1['M2'].v).toBe(1709000 + 902000); // 2.611.000
+
     expect(ws1['A3'].v).toContain('ĐỢI NHẬP');
     expect(ws1['K3'].v).toContain('CHỤM LÒ');
+    expect(ws1['M3'].v).toContain('TỔNG CỘNG'); // Cột M3 Header
+
+    // Dữ liệu từng mẻ ở cột M
+    expect(ws1['M4'].v).toBe(529000 + 253000);   // Mẻ 1 = 782.000
+    expect(ws1['M5'].v).toBe(1180000 + 649000);  // Mẻ 2 = 1.829.000
+    expect(ws1['M6'].v).toBe(2611000);           // Tổng hàng cuối = 2.611.000
 
     // ─── 2. SHEET Nhập Trấu ─────────────────────────────────────────────────
     const ws2 = wb.Sheets['Nhập Trấu'];

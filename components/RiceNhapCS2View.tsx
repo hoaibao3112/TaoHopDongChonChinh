@@ -146,6 +146,7 @@ export default function RiceNhapCS2View() {
         const pricePerTon = getPriceForRiceType(b.riceType, ricePrices);
         const thanhTienNhap = tons * pricePerTon;
         const thanhTienChumLo = tons * chumLoPrice;
+        const tongThanhTien = thanhTienNhap + thanhTienChumLo;
         return {
           id: b.id ?? `nhap-${idx}`,
           doiNhap: 'DƯƠNG',
@@ -160,17 +161,23 @@ export default function RiceNhapCS2View() {
           thanhTienNhap,
           chumLoUnitPrice: chumLoPrice,
           thanhTienChumLo,
+          tongThanhTien,
         };
       });
   }, [monthBatches, ricePrices, chumLoPrice]);
 
   // ─── Tổng kết ───────────────────────────────────────────────────────────
-  const summary = useMemo((): NhapSummary => ({
-    totalKg:            nhapBatches.reduce((s, b) => s + b.dryWeightKg, 0),
-    totalTons:          nhapBatches.reduce((s, b) => s + b.roundedTons, 0),
-    totalThanhTienNhap: nhapBatches.reduce((s, b) => s + b.thanhTienNhap, 0),
-    totalThanhTienChumLo: nhapBatches.reduce((s, b) => s + b.thanhTienChumLo, 0),
-  }), [nhapBatches]);
+  const summary = useMemo((): NhapSummary => {
+    const totalThanhTienNhap = nhapBatches.reduce((s, b) => s + b.thanhTienNhap, 0);
+    const totalThanhTienChumLo = nhapBatches.reduce((s, b) => s + b.thanhTienChumLo, 0);
+    return {
+      totalKg:            nhapBatches.reduce((s, b) => s + b.dryWeightKg, 0),
+      totalTons:          nhapBatches.reduce((s, b) => s + b.roundedTons, 0),
+      totalThanhTienNhap,
+      totalThanhTienChumLo,
+      grandTotal:         totalThanhTienNhap + totalThanhTienChumLo,
+    };
+  }, [nhapBatches]);
 
   // ─── Phát hiện loại lúa chưa có giá ────────────────────────────────────
   const unknownRiceTypes = useMemo(() => {
@@ -334,6 +341,10 @@ export default function RiceNhapCS2View() {
                 <div className="text-xs text-amber-100 font-medium">Chụm lò</div>
                 <div className="text-lg font-black text-white">{formatMoney(summary.totalThanhTienChumLo)}đ</div>
               </div>
+              <div className="rounded-xl bg-white/25 px-3.5 py-2 text-center backdrop-blur-sm ring-2 ring-white/40">
+                <div className="text-xs text-yellow-100 font-bold uppercase tracking-wider">Tổng cộng</div>
+                <div className="text-lg font-black text-yellow-200">{formatMoney(summary.grandTotal)}đ</div>
+              </div>
             </div>
           )}
         </div>
@@ -475,6 +486,7 @@ export default function RiceNhapCS2View() {
                       <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">THÀNH TIỀN NHẬP</th>
                       <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">ĐƠN GIÁ CHỤM LÒ</th>
                       <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">THÀNH TIỀN CHỤM LÒ</th>
+                      <th className="px-3 py-2.5 text-right font-black whitespace-nowrap bg-orange-700/60 text-yellow-200">TỔNG CỘNG (VNĐ)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -512,6 +524,9 @@ export default function RiceNhapCS2View() {
                         </td>
                         <td className="px-2 py-2 text-right text-slate-600">{formatMoney(batch.chumLoUnitPrice)}đ</td>
                         <td className="px-2 py-2 text-right font-semibold text-orange-700">{formatMoney(batch.thanhTienChumLo)}đ</td>
+                        <td className="px-3 py-2 text-right font-black text-red-700 bg-amber-100/40">
+                          {formatMoney(batch.tongThanhTien ?? (batch.thanhTienNhap + batch.thanhTienChumLo))}đ
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -524,6 +539,9 @@ export default function RiceNhapCS2View() {
                       <td className="px-2 py-3 text-right text-emerald-800">{formatMoney(summary.totalThanhTienNhap)}đ</td>
                       <td className="px-2 py-3 text-right text-amber-900">—</td>
                       <td className="px-2 py-3 text-right text-orange-800">{formatMoney(summary.totalThanhTienChumLo)}đ</td>
+                      <td className="px-3 py-3 text-right text-red-800 bg-amber-300/40 font-black">
+                        {formatMoney(summary.grandTotal)}đ
+                      </td>
                     </tr>
                   </tfoot>
                 </table>

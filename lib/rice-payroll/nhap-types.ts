@@ -33,6 +33,7 @@ export interface NhapBatch {
   thanhTienNhap: number;    // Thành tiền nhập sấy = roundedTons × pricePerTon
   chumLoUnitPrice: number;  // Đơn giá chụm lò (mặc định 11,000đ/tấn)
   thanhTienChumLo: number;  // Thành tiền chụm lò = roundedTons × chumLoUnitPrice
+  tongThanhTien?: number;   // TỔNG CỘNG THÀNH TIỀN = thanhTienNhap + thanhTienChumLo
 }
 
 /** Dữ liệu một chuyến nhập trấu */
@@ -64,4 +65,5 @@ export interface NhapSummary {
   totalTons: number;
   totalThanhTienNhap: number;
   totalThanhTienChumLo: number;
+  grandTotal: number; // TỔNG CỘNG THÀNH TIỀN = totalThanhTienNhap + totalThanhTienChumLo
 }

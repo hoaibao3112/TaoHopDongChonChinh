@@ -123,6 +123,7 @@ export async function POST(req: NextRequest) {
     const totalTons          = sortedBatches.reduce((s, b) => s + b.roundedTons, 0);
     const totalThanhTienNhap   = sortedBatches.reduce((s, b) => s + b.thanhTienNhap, 0);
     const totalThanhTienChumLo = sortedBatches.reduce((s, b) => s + b.thanhTienChumLo, 0);
+    const totalTongThanhTien   = totalThanhTienNhap + totalThanhTienChumLo;
 
     // Tính số ngày làm việc
     const uniqueDates = Array.from(new Set(sortedBatches.map((b) => b.dryDate).filter(Boolean)));
@@ -183,10 +184,11 @@ export async function POST(req: NextRequest) {
       { wch: 16 },  // J: THÀNH TIỀN NHẬP
       { wch: 16 },  // K: ĐƠN GIÁ CHỤM LÒ
       { wch: 16 },  // L: THÀNH TIỀN CHỤM LÒ
+      { wch: 18 },  // M: TỔNG CỘNG THÀNH TIỀN
     ];
     ws1['!rows'] = [{ hpt: 36 }, { hpt: 48 }, { hpt: 60 }];
 
-    // Row 1: Title merge A1:L1
+    // Row 1: Title merge A1:M1
     const titleText1 = `BẢNG KÊ NHẬP SẤY CƠ SỞ II XNK CHƠN CHÍNH ĐỘI DƯƠNG T${mm}/${yyyy}`;
     setCell(ws1, 'A1', 's', titleText1, {
       font: { name: FONT_NAME, bold: true, sz: 14, color: { rgb: '1F3864' } },
@@ -194,7 +196,7 @@ export async function POST(req: NextRequest) {
       fill: { fgColor: { rgb: 'BDD7EE' }, patternType: 'solid' },
       border: BORDER_THIN,
     });
-    for (const c of ['B','C','D','E','F','G','H','I','J','K','L']) {
+    for (const c of ['B','C','D','E','F','G','H','I','J','K','L','M']) {
       setCell(ws1, `${c}1`, 's', '', { fill: { fgColor: { rgb: 'BDD7EE' }, patternType: 'solid' }, border: BORDER_THIN });
     }
 
@@ -208,6 +210,7 @@ export async function POST(req: NextRequest) {
     setCell(ws1, 'J2', 'n', totalThanhTienNhap,   { ...totStyle1, numFmt: FMT_MONEY });
     setCell(ws1, 'K2', 's', '', totStyle1);
     setCell(ws1, 'L2', 'n', totalThanhTienChumLo, { ...totStyle1, numFmt: FMT_MONEY });
+    setCell(ws1, 'M2', 'n', totalTongThanhTien,   { ...totStyle1, numFmt: FMT_MONEY });
 
     // Row 3: Headers
     const headers1: [string, string][] = [
@@ -223,6 +226,7 @@ export async function POST(req: NextRequest) {
       ['J3', 'THÀNH TIỀN\nNHẬP SẤY (VNĐ)'],
       ['K3', `ĐƠN GIÁ CHỤM LÒ\n(${chumLoUnitPrice.toLocaleString('vi-VN')}Đ/TẤN)\nÁp dụng cho tất cả các loại lúa`],
       ['L3', 'THÀNH TIỀN\nCHỤM LÒ'],
+      ['M3', 'TỔNG CỘNG\nTHÀNH TIỀN (VNĐ)'],
     ];
     for (const [addr, text] of headers1) {
       setCell(ws1, addr, 's', text, styleHeader());
@@ -231,6 +235,7 @@ export async function POST(req: NextRequest) {
     // Rows 4+: Data
     sortedBatches.forEach((batch, idx) => {
       const row = idx + 4;
+      const tongTien = batch.thanhTienNhap + batch.thanhTienChumLo;
       ws1['!rows']!.push({ hpt: 20 });
       setCell(ws1, `A${row}`, 's', batch.doiNhap,         styleData('center'));
       setCell(ws1, `B${row}`, 's', batch.customerName,    styleData('left'));
@@ -244,6 +249,7 @@ export async function POST(req: NextRequest) {
       setCell(ws1, `J${row}`, 'n', batch.thanhTienNhap,   { ...styleMoney(), numFmt: FMT_MONEY });
       setCell(ws1, `K${row}`, 'n', batch.chumLoUnitPrice, { ...styleMoney(), numFmt: FMT_MONEY });
       setCell(ws1, `L${row}`, 'n', batch.thanhTienChumLo, { ...styleMoney(), numFmt: FMT_MONEY });
+      setCell(ws1, `M${row}`, 'n', tongTien,              { ...styleMoney(true), numFmt: FMT_MONEY });
     });
 
     // Row Tổng cuối bảng
@@ -263,13 +269,14 @@ export async function POST(req: NextRequest) {
     setCell(ws1, `J${sumRow1}`, 'n', totalThanhTienNhap,   { ...sumStyle1, numFmt: FMT_MONEY });
     setCell(ws1, `K${sumRow1}`, 's', '', sumStyle1);
     setCell(ws1, `L${sumRow1}`, 'n', totalThanhTienChumLo, { ...sumStyle1, numFmt: FMT_MONEY });
+    setCell(ws1, `M${sumRow1}`, 'n', totalTongThanhTien,   { ...sumStyle1, numFmt: FMT_MONEY });
 
     ws1['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } },
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
       { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
       { s: { r: sumRow1 - 1, c: 0 }, e: { r: sumRow1 - 1, c: 5 } },
     ];
-    ws1['!ref'] = `A1:${XLSX.utils.encode_cell({ r: sumRow1 - 1, c: 11 })}`;
+    ws1['!ref'] = `A1:${XLSX.utils.encode_cell({ r: sumRow1 - 1, c: 12 })}`;
     XLSX.utils.book_append_sheet(wb, ws1, 'Nhap lua CS2');
 
     // =========================================================================
