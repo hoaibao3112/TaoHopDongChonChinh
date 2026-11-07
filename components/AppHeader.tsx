@@ -20,6 +20,7 @@ export default function AppHeader() {
 
   const isContract = pathname === '/' || pathname.startsWith('/contracts');
   const isPayroll = pathname.startsWith('/tinh-luong');
+  const isNhapSay = pathname.startsWith('/nhap-say');
 
   // Quyền truy cập các tab
   const canAccessContracts = role === 'contracts' || role === 'admin' || role === null;
@@ -66,20 +67,34 @@ export default function AppHeader() {
             )}
 
             {canAccessPayroll && (
-              <Link
-                href="/tinh-luong"
-                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                  isPayroll
-                    ? 'bg-white text-amber-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                <span>🌾</span>
-                <span>Tính Lương Nông Sản</span>
-                <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 font-bold">
-                  Mới
-                </span>
-              </Link>
+              <>
+                <Link
+                  href="/tinh-luong"
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                    isPayroll
+                      ? 'bg-white text-amber-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  }`}
+                >
+                  <span>🌾</span>
+                  <span>Xuất Lúa (CS1 & CS2)</span>
+                </Link>
+
+                <Link
+                  href="/nhap-say"
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                    isNhapSay
+                      ? 'bg-white text-orange-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  }`}
+                >
+                  <span>🔥</span>
+                  <span>Nhập Sấy CS2</span>
+                  <span className="rounded-full bg-orange-100 text-orange-800 text-[10px] px-1.5 py-0.2 font-bold">
+                    Mới
+                  </span>
+                </Link>
+              </>
             )}
           </nav>
         </div>
