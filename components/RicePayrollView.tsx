@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { RiceBatch, DailyReconciliationResult } from '@/lib/rice-payroll/types';
-import { isCoSo1 } from '@/lib/rice-payroll/facility-filter';
+import { isCoSo1, isCoSo2, isFacilityMatch } from '@/lib/rice-payroll/facility-filter';
 import { getDefaultClassification, getDefaultTons } from '@/lib/rice-payroll/sample-classification';
 import { roundRiceTons } from '@/lib/rice-payroll/rounding';
 import { allocateSmartRiceTons } from '@/lib/rice-payroll/smart-round-allocation';
@@ -140,8 +140,13 @@ export default function RicePayrollView() {
   const [savedLogs, setSavedLogs] = useState<DailyReconciliationResult[]>([]);
   const [isExporting, setIsExporting] = useState(false);
 
-  // Cơ sở mặc định
-  const selectedFacility = 'Cơ sở 1';
+  // ── Lựa chọn Cơ sở / Đội ──
+  const [selectedFacilityKey, setSelectedFacilityKey] = useState<'CS1' | 'CS2'>('CS1');
+  const selectedFacility = selectedFacilityKey === 'CS2' ? 'Cơ sở II' : 'Cơ sở 1';
+  const selectedTeamName =
+    selectedFacilityKey === 'CS2'
+      ? 'ĐỘI DƯƠNG - XUẤT CƠ SỞ II'
+      : 'ĐỘI CHÚ 6 THANH - XUẤT CS1';
 
   // ─── TỰ ĐỘNG NẠP DỮ LIỆU NỀN KHI MỞ TRANG ──────────────────────────────────
   const loadData = useCallback(async (useSample = true, file?: File) => {
@@ -197,11 +202,11 @@ export default function RicePayrollView() {
   }, [loadData]);
 
   
-  // ─── Danh sách tất cả các ngày xuống lúa thực tế tại Cơ sở I ─────────────────
-  const cs1DischargeDates = useMemo(() => {
+  // ─── Danh sách tất cả các ngày xuống lúa thực tế theo Cơ sở được chọn (CS1 hoặc CS2) ──
+  const facilityDischargeDates = useMemo(() => {
     const set = new Set<string>();
     allBatches.forEach((b) => {
-      if (isCoSo1(b.dryFacility) && b.dischargeDate) {
+      if (isFacilityMatch(b.dryFacility, selectedFacilityKey) && b.dischargeDate) {
         set.add(b.dischargeDate);
       }
     });
@@ -210,40 +215,49 @@ export default function RicePayrollView() {
       const [d2, m2, y2] = b.split('/').map(Number);
       return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
     });
-  }, [allBatches]);
+  }, [allBatches, selectedFacilityKey]);
 
-  // ─── Danh sách các tháng có lúa xuống tại Cơ sở I ─────────────────────────────
+  // Alias để tương thích
+  const cs1DischargeDates = facilityDischargeDates;
+
+  // ─── Danh sách các tháng có lúa xuống theo Cơ sở được chọn ───────────────────
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
-    cs1DischargeDates.forEach((d) => {
+    facilityDischargeDates.forEach((d) => {
       const parts = d.split('/');
       if (parts.length === 3) set.add(`${parts[1]}/${parts[2]}`);
     });
     return Array.from(set).sort().reverse(); // Mới nhất lên đầu
-  }, [cs1DischargeDates]);
+  }, [facilityDischargeDates]);
 
   // ─── Danh sách ngày thuộc tháng đang chọn (SẮP XẾP TĂNG DẦN: TỪ NGÀY 01 ĐẾN 30/31) ──
   const datesInSelectedMonth = useMemo(() => {
     if (!selectedMonthKey) return [];
-    return cs1DischargeDates.filter((d) => d.endsWith(`/${selectedMonthKey}`));
-  }, [cs1DischargeDates, selectedMonthKey]);
+    return facilityDischargeDates.filter((d) => d.endsWith(`/${selectedMonthKey}`));
+  }, [facilityDischargeDates, selectedMonthKey]);
 
-  // ─── Danh sách tất cả các mẻ lúa thực tế tại Cơ sở I thuộc tháng đang chọn ─────
+  // ─── Danh sách tất cả các mẻ lúa thực tế theo Cơ sở & Tháng đang chọn ─────────
   const monthBatches = useMemo(() => {
     if (!selectedMonthKey) return [];
     return allBatches.filter(
-      (b) => isCoSo1(b.dryFacility) && (b.dischargeDate || '').endsWith(`/${selectedMonthKey}`)
+      (b) =>
+        isFacilityMatch(b.dryFacility, selectedFacilityKey) &&
+        (b.dischargeDate || '').endsWith(`/${selectedMonthKey}`)
     );
-  }, [allBatches, selectedMonthKey]);
+  }, [allBatches, selectedFacilityKey, selectedMonthKey]);
 
   // ─── TỰ ĐỘNG NẠP CÁC NGÀY XUẤT LÚA THỰC TẾ TRONG THÁNG TỪ FILE MASTER ──────────
   const populateMonthDays = useCallback(
-    (monthKey: string, batches: RiceBatch[]) => {
+    (monthKey: string, batches: RiceBatch[], targetFacility = selectedFacilityKey) => {
       const isOct2026 = monthKey === '10/2026';
       const validDates = Array.from(
         new Set(
           batches
-            .filter((b) => isCoSo1(b.dryFacility) && (b.dischargeDate || '').endsWith(`/${monthKey}`))
+            .filter(
+              (b) =>
+                isFacilityMatch(b.dryFacility, targetFacility) &&
+                (b.dischargeDate || '').endsWith(`/${monthKey}`)
+            )
             .map((b) => b.dischargeDate)
         )
       ).sort((a, b) => {
@@ -252,11 +266,14 @@ export default function RicePayrollView() {
         return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
       });
 
-      if (validDates.length === 0) return;
+      if (validDates.length === 0) {
+        setRows([]);
+        return;
+      }
 
       const newRows: DayRow[] = validDates.map((d) => {
         const dayBatches = batches.filter(
-          (b) => isCoSo1(b.dryFacility) && b.dischargeDate === d
+          (b) => isFacilityMatch(b.dryFacility, targetFacility) && b.dischargeDate === d
         );
         let tonsCo = 0;
         let tonsKhong = 0;
@@ -288,8 +305,16 @@ export default function RicePayrollView() {
       setDetailRow(null);
       setSavedLogs([]);
     },
-    [masterPriceCoTro, masterPriceKhongTro]
+    [selectedFacilityKey, masterPriceCoTro, masterPriceKhongTro]
   );
+
+  // Chuyển đổi Cơ sở (CS1 <-> CS2)
+  const handleSwitchFacility = (facilityKey: 'CS1' | 'CS2') => {
+    if (facilityKey === selectedFacilityKey) return;
+    setSelectedFacilityKey(facilityKey);
+    setBatchOverrides({});
+    populateMonthDays(selectedMonthKey, allBatches, facilityKey);
+  };
 
   // Khi nạp dữ liệu xong lần đầu hoặc khi có dữ liệu, tự động nạp các ngày công của tháng
   const hasInitializedRef = React.useRef(false);
@@ -724,17 +749,17 @@ export default function RicePayrollView() {
     if (detailRow?.id === id) setDetailRow(null);
   };
 
-  // ─── LỌC MẺ LÚA CHO ĐỘI CHÚ 6 THANH ─────────────────────────────────────────
+  // ─── LỌC MẺ LÚA CHO ĐỘI XUẤT LÚA (CƠ SỞ I HOẶC CƠ SỞ II) ─────────────────────
   // Quy tắc nghiệp vụ bắt buộc:
-  // 1. Chỉ lọc tại CƠ SỞ I (Cơ sở 1)
+  // 1. Lọc đúng CƠ SỞ đang chọn (Cơ sở I cho Chú 6 Thanh hoặc Cơ sở II cho Đội Dương)
   // 2. Bắt buộc so khớp theo đúng cột "NGÀY XUỐNG LÚA KHÔ (NHẬN XUẤT TRẢ)" (b.dischargeDate)
   // 3. Số tấn được làm tròn từ cột "CÂN NHẬP SẤY (KG)" (>= 333 kg làm tròn lên)
   const getDayBatches = (date: string) =>
     allBatches.filter((b) => {
-      // 1. Phải là Cơ sở I
-      if (!isCoSo1(b.dryFacility)) return false;
+      // 1. Phải khớp Cơ sở đang chọn
+      if (!isFacilityMatch(b.dryFacility, selectedFacilityKey)) return false;
 
-      // 2. Chú 6 Thanh là Đội Xuất Lúa: Bắt buộc so khớp theo đúng cột "NGÀY XUỐNG LÚA KHÔ (NHẬN XUẤT TRẢ)"
+      // 2. Đội Xuất Lúa: Bắt buộc so khớp theo đúng cột "NGÀY XUỐNG LÚA KHÔ (NHẬN XUẤT TRẢ)"
       // Tuyệt đối không lấy ngày nhập sấy hay ngày cân tươi
       return b.dischargeDate === date;
     });
@@ -869,7 +894,7 @@ export default function RicePayrollView() {
 
       const [m, y] = selectedMonthKey.split('/').map(Number);
 
-      // Chuẩn bị danh sách mẻ lúa thực tế từ File Lúa Master (Cơ sở I)
+      // Chuẩn bị danh sách mẻ lúa thực tế từ File Lúa Master (Cơ sở I hoặc Cơ sở II)
       const itemsToExport = monthBatches.map((b) => {
         const isCoTro =
           batchOverrides[b.id]?.isCoTro !== undefined
@@ -890,7 +915,7 @@ export default function RicePayrollView() {
           freshWeightKg: b.freshWeightKg || null,
           freshBoVehicle: b.freshBoVehicle || '',
           dryDate: b.dryDate || '',
-          dryFacility: b.dryFacility || 'CƠ SỞ I',
+          dryFacility: b.dryFacility || (selectedFacilityKey === 'CS2' ? 'CƠ SỞ II' : 'CƠ SỞ I'),
           dryWeightKg: b.dryWeightKg,
           roundedTons,
           dischargeDate: b.dischargeDate || '',
@@ -900,13 +925,24 @@ export default function RicePayrollView() {
         };
       });
 
+      const effectiveTeamName =
+        selectedFacilityKey === 'CS2'
+          ? 'ĐỘI DƯƠNG - XUẤT CƠ SỞ II'
+          : 'ĐỘI CHÚ 6 THANH - XUẤT CS1';
+
+      const downloadFileName =
+        selectedFacilityKey === 'CS2'
+          ? `TONG_HOP_DOI_DUONG_CS2_XUAT_T${String(m || 10).padStart(2, '0')}_${y || 2026}_HOAN_CHINH.xlsx`
+          : `DOI_THANH-XUAT_CS1_T${String(m || 10).padStart(2, '0')}_${y || 2026}_HOAN_CHINH.xlsx`;
+
       const res = await fetch('/api/rice-payroll/export-monthly', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           month: m || 10,
           year: y || 2026,
-          teamName: 'ĐỘI CHÚ 6 THANH - XUẤT CS1',
+          facility: selectedFacilityKey,
+          teamName: effectiveTeamName,
           items: itemsToExport,
           dailyLogs: effectiveLogs,
         }),
@@ -916,7 +952,7 @@ export default function RicePayrollView() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `DOI_THANH-XUAT_CS1_T${String(m || 10).padStart(2, '0')}_${y || 2026}_HOAN_CHINH.xlsx`;
+      a.download = downloadFileName;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -975,16 +1011,41 @@ export default function RicePayrollView() {
               📅
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   Kỳ Tính Lương
                 </span>
-                <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700">
-                  Đội Chú 6 Thanh &bull; Cơ sở 1
-                </span>
+
+                {/* Switcher chọn Đội & Cơ sở */}
+                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchFacility('CS1')}
+                    className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                      selectedFacilityKey === 'CS1'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-blue-700 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <span>🌾</span>
+                    <span>Đội Chú 6 Thanh &bull; Cơ sở I</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchFacility('CS2')}
+                    className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                      selectedFacilityKey === 'CS2'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-amber-800 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <span>🏭</span>
+                    <span>Đội Dương &bull; Cơ sở II</span>
+                  </button>
+                </div>
               </div>
-              
-              <div className="mt-1 flex items-center gap-2">
+
+              <div className="mt-2 flex items-center gap-2">
                 <label htmlFor="month-select" className="text-xs font-medium text-slate-700">
                   Chọn tháng:
                 </label>
@@ -992,11 +1053,15 @@ export default function RicePayrollView() {
                   id="month-select"
                   value={selectedMonthKey}
                   onChange={(e) => handleSelectMonth(e.target.value)}
-                  className="rounded-xl border-2 border-blue-500 bg-blue-50/50 px-3 py-1.5 text-sm font-extrabold text-blue-900 focus:outline-none focus:bg-white shadow-2xs"
+                  className={`rounded-xl border-2 px-3 py-1.5 text-sm font-extrabold focus:outline-none focus:bg-white shadow-2xs ${
+                    selectedFacilityKey === 'CS2'
+                      ? 'border-amber-500 bg-amber-50/50 text-amber-900'
+                      : 'border-blue-500 bg-blue-50/50 text-blue-900'
+                  }`}
                 >
                   {availableMonths.map((m) => (
                     <option key={m} value={m}>
-                      Tháng {m} ({allDates.filter((d) => d.endsWith(`/${m}`)).length} ngày lúa)
+                      Tháng {m} ({facilityDischargeDates.filter((d) => d.endsWith(`/${m}`)).length} ngày xuất)
                     </option>
                   ))}
                 </select>
@@ -1125,22 +1190,26 @@ export default function RicePayrollView() {
               onClick={() => setActiveTab('notebook')}
               className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'notebook'
-                  ? 'bg-white text-blue-900 shadow-xs'
+                  ? selectedFacilityKey === 'CS2'
+                    ? 'bg-white text-amber-900 shadow-xs'
+                    : 'bg-white text-blue-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              📝 Sổ Tay Chú 6 ({rows.length} ngày)
+              📝 Bảng Lương Ngày &bull; {selectedFacilityKey === 'CS2' ? 'Đội Dương' : 'Chú 6'} ({rows.length} ngày)
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('batches')}
               className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'batches'
-                  ? 'bg-white text-blue-900 shadow-xs'
+                  ? selectedFacilityKey === 'CS2'
+                    ? 'bg-white text-amber-900 shadow-xs'
+                    : 'bg-white text-blue-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              🌾 Chi Tiết Mẻ Lúa Từ File ({monthBatches.length} mẻ • Cơ sở I)
+              🌾 Chi Tiết Mẻ Lúa Từ File ({monthBatches.length} mẻ &bull; {selectedFacilityKey === 'CS2' ? 'Cơ sở II' : 'Cơ sở I'})
             </button>
           </div>
 
@@ -1148,7 +1217,7 @@ export default function RicePayrollView() {
             {activeTab === 'notebook' ? (
               <span>Gõ số tấn Có trở / Không trở theo ngày rồi bấm Ghép Mẻ</span>
             ) : (
-              <span>Xem 52 mẻ lúa thực tế và bấm nút chuyển Có trở / Không trở</span>
+              <span>Xem {monthBatches.length} mẻ lúa thực tế và bấm nút chuyển Có trở / Không trở</span>
             )}
           </div>
         </div>

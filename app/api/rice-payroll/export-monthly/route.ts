@@ -4,9 +4,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { isRequestAuthenticated } from '@/lib/auth';
 import { DailyReconciliationResult, RiceBatch } from '@/lib/rice-payroll/types';
-import { isCoSo1 } from '@/lib/rice-payroll/facility-filter';
+import { isCoSo1, isCoSo2 } from '@/lib/rice-payroll/facility-filter';
 import { getDefaultClassification, getDefaultTons } from '@/lib/rice-payroll/sample-classification';
 import { DOI_CHU_6_THANH_WORKERS } from '@/lib/rice-payroll/team-thanh-workers';
+import { DOI_DUONG_WORKERS } from '@/lib/rice-payroll/team-duong-workers';
 
 export const runtime = 'nodejs';
 
@@ -51,25 +52,46 @@ export async function POST(req: NextRequest) {
     const {
       month = 10,
       year = 2026,
-      teamName = 'ĐỘI THANH - XUẤT CƠ SỞ I',
+      teamName,
+      facility = 'CS1',
       dailyLogs = [],
     }: {
       month: number;
       year: number;
-      teamName: string;
+      teamName?: string;
+      facility?: 'CS1' | 'CS2';
       dailyLogs: DailyReconciliationResult[];
     } = body;
+
+    // Tự động nhận diện Cơ sở II (Đội Dương) hoặc Cơ sở I (Đội Chú 6 Thanh)
+    const isCS2 =
+      facility === 'CS2' ||
+      (teamName &&
+        (teamName.toUpperCase().includes('DƯƠNG') ||
+          teamName.toUpperCase().includes('CƠ SỞ 2') ||
+          teamName.toUpperCase().includes('CƠ SỞ II') ||
+          teamName.toUpperCase().includes('CS2')));
+
+    const effectiveFacility = isCS2 ? 'CS2' : 'CS1';
+    const effectiveTeamName =
+      teamName || (isCS2 ? 'ĐỘI DƯƠNG - XUẤT CƠ SỞ II' : 'ĐỘI THANH - XUẤT CƠ SỞ I');
+    const workers = isCS2 ? DOI_DUONG_WORKERS : DOI_CHU_6_THANH_WORKERS;
 
     const wb = XLSX.utils.book_new();
 
     // ══════════════════════════════════════════════════════════════════════════
-    // SHEET 1: BK (BẢNG KÊ CHI TIẾT TỪNG MẺ LÚA XUẤT CƠ SỞ I)
+    // SHEET 1: BK hoặc XUẤT LÚA (BẢNG KÊ CHI TIẾT TỪNG MẺ LÚA XUẤT)
     // ══════════════════════════════════════════════════════════════════════════
     const wsBK: XLSX.WorkSheet = {};
+    const sheetNameBK = isCS2 ? 'XUẤT LÚA' : 'BK';
 
-    // 1. Title (Hàng 1) — merge D1:T1 như mẫu
-    const titleText = `BẢNG KÊ ${teamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year} `;
-    wsBK['D1'] = {
+    // 1. Title (Hàng 1) — Cơ sở II: A1:T1; Cơ sở I: D1:T1
+    const titleText = isCS2
+      ? `BẢNG KÊ XUẤT LÚA  CƠ SỞ II XNK CHƠN CHÍNH ĐỘI DƯƠNG T${String(month).padStart(2, '0')}/${year}`
+      : `BẢNG KÊ ${effectiveTeamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year} `;
+
+    const titleCellKey = isCS2 ? 'A1' : 'D1';
+    wsBK[titleCellKey] = {
       t: 's',
       v: titleText,
       s: {
@@ -199,9 +221,10 @@ export async function POST(req: NextRequest) {
             const parsedJson = JSON.parse(fileContent);
             const monthSuffix = `/${String(month).padStart(2, '0')}/${year}`;
 
-            // Lọc ra các mẻ lúa đúng CƠ SỞ I và đúng THÁNG yêu cầu
+            // Lọc ra các mẻ lúa đúng CƠ SỞ (I hoặc II) và đúng THÁNG yêu cầu
+            const facilityFilter = isCS2 ? isCoSo2 : isCoSo1;
             const matchedBatches: RiceBatch[] = (parsedJson.batches || []).filter((b: RiceBatch) => {
-              if (!isCoSo1(b.dryFacility)) return false;
+              if (!facilityFilter(b.dryFacility)) return false;
               return (b.dischargeDate || '').endsWith(monthSuffix);
             });
 
@@ -216,7 +239,7 @@ export async function POST(req: NextRequest) {
                 freshWeightKg: b.freshWeightKg || null,
                 freshBoVehicle: b.freshBoVehicle || '',
                 dryDate: b.dryDate || '',
-                dryFacility: b.dryFacility || 'CƠ SỞ I',
+                dryFacility: b.dryFacility || (isCS2 ? 'CƠ SỞ II' : 'CƠ SỞ I'),
                 dryWeightKg: b.dryWeightKg,
                 roundedTons: getDefaultTons(b),
                 dischargeDate: b.dischargeDate || '',
@@ -438,12 +461,20 @@ export async function POST(req: NextRequest) {
       wsBK[`${colLetter}3`] = { t: 's', v: '', s: styleTotalBase };
     }
 
-    // D3:E3 (merged) = TỔNG CỘNG
-    wsBK['D3'] = {
-      t: 's',
-      v: 'TỔNG CỘNG',
-      s: { ...styleTotalBase, alignment: { horizontal: 'center', vertical: 'center' } },
-    };
+    // D3:E3 (merged) = TỔNG CỘNG (Với CS2 là A3:E3 theo mẫu)
+    if (isCS2) {
+      wsBK['A3'] = {
+        t: 's',
+        v: 'TỔNG CỘNG',
+        s: { ...styleTotalBase, alignment: { horizontal: 'center', vertical: 'center' } },
+      };
+    } else {
+      wsBK['D3'] = {
+        t: 's',
+        v: 'TỔNG CỘNG',
+        s: { ...styleTotalBase, alignment: { horizontal: 'center', vertical: 'center' } },
+      };
+    }
 
     // F3: Tổng KG tươi (nền vàng tươi)
     const sumFreshKgVal = items.reduce((s, it) => s + (it.freshWeightKg || 0), 0);
@@ -553,8 +584,12 @@ export async function POST(req: NextRequest) {
     wsBK['!ref'] = `A1:T${sigNameRow + 1}`;
 
     wsBK['!merges'] = [
-      { s: { r: 0, c: 3 }, e: { r: 0, c: 19 } }, // D1:T1 — tiêu đề
-      { s: { r: 2, c: 3 }, e: { r: 2, c: 4 } },  // D3:E3 — TỔNG CỘNG
+      isCS2
+        ? { s: { r: 0, c: 0 }, e: { r: 0, c: 19 } } // A1:T1 — tiêu đề CS2
+        : { s: { r: 0, c: 3 }, e: { r: 0, c: 19 } }, // D1:T1 — tiêu đề CS1
+      isCS2
+        ? { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } }  // A3:E3 — TỔNG CỘNG CS2
+        : { s: { r: 2, c: 3 }, e: { r: 2, c: 4 } },  // D3:E3 — TỔNG CỘNG CS1
     ];
 
     // Auto-filter từ hàng 4 (A4:T{lastRow}) giống file mẫu
@@ -594,14 +629,16 @@ export async function POST(req: NextRequest) {
     }
     wsBK['!rows'] = rowHeights;
 
-    // Đưa sheet BK làm sheet đầu tiên
-    XLSX.utils.book_append_sheet(wb, wsBK, 'BK');
+    // Đưa sheet BK/XUẤT LÚA làm sheet đầu tiên
+    XLSX.utils.book_append_sheet(wb, wsBK, sheetNameBK);
 
     // ══════════════════════════════════════════════════════════════════════════
-    // SHEET 2: ỨNG LƯƠNG (DANH SÁCH ỨNG LƯƠNG ĐỘI THANH-XUẤT CƠ SỞ 1)
+    // SHEET 2: ỨNG LƯƠNG
     // ══════════════════════════════════════════════════════════════════════════
     const wsUL: XLSX.WorkSheet = {};
-    const sheetNameUL = `ỨL ĐỘI THANH T${String(month).padStart(2, '0')}.${year}`;
+    const sheetNameUL = isCS2
+      ? `ỨL ĐỘI DƯƠNG-CS2-T${String(month).padStart(2, '0')}.${String(year).slice(2)}`
+      : `ỨL ĐỘI THANH T${String(month).padStart(2, '0')}.${year}`;
 
     // Dùng border đen mỏng (giống file mẫu Sheet 2 & 3)
     const cellBaseStyle = {
@@ -612,7 +649,9 @@ export async function POST(req: NextRequest) {
     // 1. Tiêu đề — nền trắng, chữ xanh đậm, căn giữa
     wsUL['A1'] = {
       t: 's',
-      v: `DANH SÁCH ỨNG LƯƠNG ${teamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`,
+      v: isCS2
+        ? `DANH SÁCH ỨNG LƯƠNG ĐỘI DƯƠNG CƠ SỞ II THÁNG ${String(month).padStart(2, '0')}/${year}`
+        : `DANH SÁCH ỨNG LƯƠNG ${effectiveTeamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`,
       s: {
         font: { name: FONT_NAME, sz: 14, bold: true, color: { rgb: '1F3864' } },
         alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
@@ -636,17 +675,15 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // 3. Danh sách 14 công nhân — xen kẽ nền trắng (theo mẫu không có màu nền xen kẽ)
+    // 3. Danh sách công nhân (14 người CS1 hoặc 20 người CS2)
     const isOct2026 = month === 10 && year === 2026;
-    DOI_CHU_6_THANH_WORKERS.forEach((w, idx) => {
-      const r = idx + 3; // Hàng 3–16
+    workers.forEach((w, idx) => {
+      const r = idx + 3; // Hàng 3 đến workers.length + 2
       const advanceVal = isOct2026 ? w.sampleOctoberAdvance : 0;
 
       // Hàng lẻ (STT 1,3,5...) có nền trắng, không tô màu (theo mẫu gốc)
       const isOddRow = w.stt % 2 === 1;
-      const rowFill = isOddRow
-        ? { fill: { fgColor: { rgb: 'FFFFFF' } } }
-        : {};
+      const rowFill = isOddRow ? { fill: { fgColor: { rgb: 'FFFFFF' } } } : {};
 
       // Col A: STT — in đậm, căn giữa
       wsUL[`A${r}`] = {
@@ -718,38 +755,42 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // 4. Hàng tổng cộng (Hàng 17) — nền vàng nhạt FFF2CC, in đậm
+    // 4. Hàng tổng cộng của Sheet 2
+    const ulLastWorkerRow = workers.length + 2;
+    const ulSumRow = ulLastWorkerRow + 1; // Hàng 17 (CS1) hoặc Hàng 23 (CS2)
     const styleSumRow = {
       font: { name: FONT_NAME, sz: 12, bold: true, color: { rgb: '1F3864' } },
       fill: { fgColor: { rgb: 'FFF2CC' } },
       border: BORDER_THIN_BLACK,
     };
-    wsUL['A17'] = { t: 's', v: '', s: styleSumRow };
-    wsUL['B17'] = {
+    wsUL[`A${ulSumRow}`] = { t: 's', v: '', s: styleSumRow };
+    wsUL[`B${ulSumRow}`] = {
       t: 's',
       v: 'TỔNG CỘNG : ',
       s: { ...styleSumRow, alignment: { horizontal: 'left', vertical: 'center' } },
     };
-    wsUL['C17'] = {
+    const defaultAdvanceTotal = isOct2026 ? (isCS2 ? 29000000 : 32000000) : 0;
+    wsUL[`C${ulSumRow}`] = {
       t: 'n',
-      v: isOct2026 ? 32000000 : 0,
-      f: 'SUM(C3:C16)',
+      v: defaultAdvanceTotal,
+      f: `SUM(C3:C${ulLastWorkerRow})`,
       z: FMT_MONEY,
       s: { ...styleSumRow, alignment: { horizontal: 'right', vertical: 'center' } },
     };
-    wsUL['D17'] = { t: 's', v: '', s: styleSumRow };
-    wsUL['E17'] = { t: 's', v: '', s: styleSumRow };
-    wsUL['F17'] = { t: 's', v: '', s: styleSumRow };
+    wsUL[`D${ulSumRow}`] = { t: 's', v: '', s: styleSumRow };
+    wsUL[`E${ulSumRow}`] = { t: 's', v: '', s: styleSumRow };
+    wsUL[`F${ulSumRow}`] = { t: 's', v: '', s: styleSumRow };
 
-    // 5. Hàng trống kẹt (Row 18)
-    // 6. Chữ ký (Hàng 19 & 22)
+    // 5. Chữ ký Sheet 2
+    const ulSig1 = ulSumRow + 2; // Hàng 19 (CS1) hoặc Hàng 25 (CS2)
+    const ulSig2 = ulSig1 + 3;   // Hàng 22 (CS1) hoặc Hàng 28 (CS2)
     const styleSign = { font: { name: FONT_NAME, sz: 11, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } };
-    wsUL['B19'] = { t: 's', v: 'Người lập bảng', s: styleSign };
-    wsUL['E19'] = { t: 's', v: 'Xác nhận',       s: styleSign };
-    wsUL['B22'] = { t: 's', v: 'Võ Hoàng Cẩm Tiên', s: styleSign };
-    wsUL['E22'] = { t: 's', v: 'Huỳnh Hải Long Hồ', s: styleSign };
+    wsUL[`B${ulSig1}`] = { t: 's', v: 'Người lập bảng', s: styleSign };
+    wsUL[`E${ulSig1}`] = { t: 's', v: 'Xác nhận',       s: styleSign };
+    wsUL[`B${ulSig2}`] = { t: 's', v: 'Võ Hoàng Cẩm Tiên', s: styleSign };
+    wsUL[`E${ulSig2}`] = { t: 's', v: 'Huỳnh Hải Long Hồ', s: styleSign };
 
-    wsUL['!ref'] = 'A1:F25';
+    wsUL['!ref'] = `A1:F${ulSig2 + 3}`;
     wsUL['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }]; // A1:F1
 
     wsUL['!cols'] = [
@@ -765,8 +806,8 @@ export async function POST(req: NextRequest) {
     const ulRowHeights: XLSX.RowInfo[] = [];
     ulRowHeights[0] = { hpt: 51.75 }; // Row 1 tiêu đề
     ulRowHeights[1] = { hpt: 66.75 }; // Row 2 header (wrap 2 dòng)
-    for (let r = 2; r <= 16; r++) {
-      ulRowHeights[r] = { hpt: 30 };   // Dữ liệu 14 công nhân + tổng
+    for (let r = 2; r <= ulSumRow; r++) {
+      ulRowHeights[r] = { hpt: 30 };   // Dữ liệu công nhân + tổng
     }
     wsUL['!rows'] = ulRowHeights;
 
@@ -776,7 +817,9 @@ export async function POST(req: NextRequest) {
     // SHEET 3: CHI LƯƠNG & BẢNG KÊ QUYẾT TOÁN THANH TOÁN
     // ══════════════════════════════════════════════════════════════════════════
     const wsCL: XLSX.WorkSheet = {};
-    const sheetNameCL = `CL ĐỘI THANH-CS1-T${String(month).padStart(2, '0')}.${year}`;
+    const sheetNameCL = isCS2
+      ? `CL ĐỘI DƯƠNG-CS2-${String(month).padStart(2, '0')}.${String(year).slice(2)}`
+      : `CL ĐỘI THANH-CS1-T${String(month).padStart(2, '0')}.${year}`;
 
     // Dùng border đen mỏng như file mẫu Sheet 3
     const clCellStyle = {
@@ -787,7 +830,9 @@ export async function POST(req: NextRequest) {
     // 1. Tiêu đề bảng chi lương — merge A1:H1
     wsCL['A1'] = {
       t: 's',
-      v: `DANH SÁCH CHI LƯƠNG ${teamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`,
+      v: isCS2
+        ? `DANH SÁCH CHI LƯƠNG ĐỘI DƯƠNG XUẤT CƠ SỞ II THÁNG ${String(month).padStart(2, '0')}/${year}`
+        : `DANH SÁCH CHI LƯƠNG ${effectiveTeamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`,
       s: {
         font: { name: FONT_NAME, sz: 14, bold: true, color: { rgb: '1F3864' } },
         alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
@@ -820,8 +865,8 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // 3. Danh sách 14 công nhân
-    DOI_CHU_6_THANH_WORKERS.forEach((w, idx) => {
+    // 3. Danh sách công nhân
+    workers.forEach((w, idx) => {
       const r = idx + 3;
       const salaryVal = isOct2026 ? w.sampleOctoberSalary : 0;
       const advanceVal = isOct2026 ? w.sampleOctoberAdvance : 0;
@@ -900,90 +945,110 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // 4. Hàng tổng cộng (Hàng 17) — nền vàng nhạt FFF2CC, in đậm
+    // 4. Hàng tổng cộng của Sheet 3
+    const clLastWorkerRow = workers.length + 2;
+    const clSumRow = clLastWorkerRow + 1; // Hàng 17 (CS1) hoặc Hàng 23 (CS2)
     const clSumStyle = {
       font: { name: FONT_NAME, sz: 12, bold: true, color: { rgb: '1F3864' } },
       fill: { fgColor: { rgb: 'FFF2CC' } },
       border: BORDER_THIN_BLACK,
     };
     ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].forEach((col) => {
-      wsCL[`${col}17`] = { t: 's', v: '', s: clSumStyle };
+      wsCL[`${col}${clSumRow}`] = { t: 's', v: '', s: clSumStyle };
     });
-    wsCL['B17'] = {
+    wsCL[`B${clSumRow}`] = {
       t: 's',
       v: 'TỔNG CỘNG : ',
       s: { ...clSumStyle, alignment: { horizontal: 'left', vertical: 'center' } },
     };
-    wsCL['C17'] = {
+
+    const sumSampleSalary = workers.reduce((s, w) => s + (isOct2026 ? w.sampleOctoberSalary : 0), 0);
+    const sumSampleAdvance = workers.reduce((s, w) => s + (isOct2026 ? w.sampleOctoberAdvance : 0), 0);
+
+    wsCL[`C${clSumRow}`] = {
       t: 'n',
-      v: isOct2026 ? 59198000 : 0,
-      f: 'SUM(C3:C16)',
+      v: sumSampleSalary,
+      f: `SUM(C3:C${clLastWorkerRow})`,
       z: FMT_MONEY,
       s: { ...clSumStyle, alignment: { horizontal: 'right', vertical: 'center' } },
     };
-    wsCL['D17'] = {
+    wsCL[`D${clSumRow}`] = {
       t: 'n',
-      v: isOct2026 ? 32000000 : 0,
-      f: 'SUM(D3:D16)',
+      v: sumSampleAdvance,
+      f: `SUM(D3:D${clLastWorkerRow})`,
       z: FMT_MONEY,
       s: { ...clSumStyle, alignment: { horizontal: 'right', vertical: 'center' } },
     };
-    wsCL['E17'] = {
+    wsCL[`E${clSumRow}`] = {
       t: 'n',
-      v: isOct2026 ? 27198000 : 0,
-      f: 'SUM(E3:E16)',
+      v: sumSampleSalary - sumSampleAdvance,
+      f: `SUM(E3:E${clLastWorkerRow})`,
       z: FMT_MONEY,
       s: { ...clSumStyle, alignment: { horizontal: 'right', vertical: 'center' } },
     };
 
-    // 5. Chữ ký (Hàng 19 & 22)
+    // 5. Chữ ký Sheet 3
+    const clSig1 = clSumRow + 2; // Hàng 19 (CS1) hoặc Hàng 25 (CS2)
+    const clSig2 = clSig1 + 3;   // Hàng 22 (CS1) hoặc Hàng 28 (CS2)
     const clSignStyle = {
       font: { name: FONT_NAME, sz: 11, bold: true },
       alignment: { horizontal: 'center', vertical: 'center' },
     };
-    wsCL['B19'] = { t: 's', v: 'Người lập bảng', s: clSignStyle };
-    wsCL['F19'] = { t: 's', v: 'Xác nhận',       s: clSignStyle };
-    wsCL['B22'] = { t: 's', v: 'Võ Hoàng Cẩm Tiên', s: clSignStyle };
-    wsCL['F22'] = { t: 's', v: 'Huỳnh Hải Long Hồ', s: clSignStyle };
+    wsCL[`B${clSig1}`] = { t: 's', v: 'Người lập bảng', s: clSignStyle };
+    wsCL[`F${clSig1}`] = { t: 's', v: 'Xác nhận',       s: clSignStyle };
+    wsCL[`B${clSig2}`] = { t: 's', v: 'Võ Hoàng Cẩm Tiên', s: clSignStyle };
+    wsCL[`F${clSig2}`] = { t: 's', v: 'Huỳnh Hải Long Hồ', s: clSignStyle };
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 6. BẢNG KÊ QUYẾT TOÁN THANH TOÁN (HÀNG 24 - 31 ĐÚNG CHUẨN MẪU HÌNH ẢNH)
+    // 6. BẢNG KÊ QUYẾT TOÁN THANH TOÁN (HÀNG 24-31 CS1, HÀNG 30-37 CS2)
     // ══════════════════════════════════════════════════════════════════════════
     const tonsCoTroTotal = items.filter((i) => i.isCoTro).reduce((s, i) => s + i.roundedTons, 0);
     const tonsKhongTroTotal = items.filter((i) => !i.isCoTro).reduce((s, i) => s + i.roundedTons, 0);
     const priceCoTroDefault = items.find((i) => i.isCoTro)?.unitPrice || 20000;
     const priceKhongTroDefault = items.find((i) => !i.isCoTro)?.unitPrice || 16000;
-    const workDaysCount = new Set(items.map((i) => i.dischargeDate).filter(Boolean)).size || 23;
+    const workDaysCount = new Set(items.map((i) => i.dischargeDate).filter(Boolean)).size || (isCS2 ? 15 : 23);
     const iceAmount = workDaysCount * 10000;
     const totalCalculated = tonsCoTroTotal * priceCoTroDefault + tonsKhongTroTotal * priceKhongTroDefault + iceAmount;
-    const advanceTotalVal = isOct2026 ? 32000000 : 0;
+    const advanceTotalVal = isOct2026 ? (isCS2 ? 29000000 : 32000000) : 0;
     const remainingVal = totalCalculated - advanceTotalVal;
 
-    // Hàng 24: Header tím nhạt — merge B24:E24
+    const rHeader = clSig2 + 2;     // Row 24 (CS1) hoặc Row 30 (CS2)
+    const rColHeader = rHeader + 1; // Row 25 hoặc Row 31
+    const rCoTro = rColHeader + 1;  // Row 26 hoặc Row 32
+    const rKhongTro = rCoTro + 1;   // Row 27 hoặc Row 33
+    const rNuocDa = rKhongTro + 1;  // Row 28 hoặc Row 34
+    const rTong = rNuocDa + 1;      // Row 29 hoặc Row 35
+    const rTruUng = rTong + 1;      // Row 30 hoặc Row 36
+    const rConLai = rTruUng + 1;    // Row 31 hoặc Row 37
+
+    // Header bảng kê quyết toán tím nhạt E6E0EC — merge B:E
     const styleH24 = {
       font: { name: FONT_NAME, sz: 13, bold: true, color: { rgb: '1F3864' } },
       fill: { fgColor: { rgb: 'E6E0EC' } },
       alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
       border: BORDER_THIN_BLACK,
     };
-    wsCL['B24'] = { t: 's', v: `BẢNG KÊ ${teamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`, s: styleH24 };
-    wsCL['C24'] = { t: 's', v: '', s: styleH24 };
-    wsCL['D24'] = { t: 's', v: '', s: styleH24 };
-    wsCL['E24'] = { t: 's', v: '', s: styleH24 };
+    const settleTitle = isCS2
+      ? `BẢNG KÊ ĐỘI DƯƠNG-XUẤT CƠ SỞ 2 THÁNG ${String(month).padStart(2, '0')}/${year}`
+      : `BẢNG KÊ ${effectiveTeamName.toUpperCase()} THÁNG ${String(month).padStart(2, '0')}/${year}`;
+    wsCL[`B${rHeader}`] = { t: 's', v: settleTitle, s: styleH24 };
+    wsCL[`C${rHeader}`] = { t: 's', v: '', s: styleH24 };
+    wsCL[`D${rHeader}`] = { t: 's', v: '', s: styleH24 };
+    wsCL[`E${rHeader}`] = { t: 's', v: '', s: styleH24 };
 
-    // Hàng 25: Header cột xanh ngọc nhạt DBEEF4
+    // Header cột xanh ngọc nhạt DBEEF4
     const styleH25 = {
       font: { name: FONT_NAME, sz: 11, bold: true, color: { rgb: '000000' } },
       fill: { fgColor: { rgb: 'DBEEF4' } },
       alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
       border: BORDER_THIN_BLACK,
     };
-    wsCL['B25'] = { t: 's', v: 'XUẤT',              s: styleH25 };
-    wsCL['C25'] = { t: 's', v: 'SỐ LƯỢNG (TẤN)',    s: styleH25 };
-    wsCL['D25'] = { t: 's', v: 'ĐƠN GIÁ\r\n(ĐỒNG/TẤN)', s: styleH25 };
-    wsCL['E25'] = { t: 's', v: 'THÀNH TIỀN',        s: styleH25 };
+    wsCL[`B${rColHeader}`] = { t: 's', v: 'XUẤT',              s: styleH25 };
+    wsCL[`C${rColHeader}`] = { t: 's', v: 'SỐ LƯỢNG (TẤN)',    s: styleH25 };
+    wsCL[`D${rColHeader}`] = { t: 's', v: 'ĐƠN GIÁ\r\n(ĐỒNG/TẤN)', s: styleH25 };
+    wsCL[`E${rColHeader}`] = { t: 's', v: 'THÀNH TIỀN',        s: styleH25 };
 
-    // Style chung cho các hàng dữ liệu (26-28)
+    // Style chung cho các hàng dữ liệu
     const styleDataLbl = {
       font: { name: FONT_NAME, sz: 11, bold: true },
       border: BORDER_THIN_BLACK,
@@ -994,64 +1059,64 @@ export async function POST(req: NextRequest) {
       border: BORDER_THIN_BLACK,
     };
 
-    // Hàng 26: Tổng xuất có trở
-    wsCL['B26'] = { t: 's', v: 'TỔNG XUẤT CÓ TRỞ',   s: { ...styleDataLbl, alignment: { horizontal: 'left', vertical: 'center' } } };
-    wsCL['C26'] = { t: 'n', v: tonsCoTroTotal,         z: FMT_NUMBER, s: { ...styleDataNum, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsCL['D26'] = { t: 'n', v: priceCoTroDefault,      z: FMT_MONEY,  s: { ...styleDataNum, alignment: { horizontal: 'right', vertical: 'center' } } };
-    wsCL['E26'] = { t: 'n', v: tonsCoTroTotal * priceCoTroDefault,   f: 'C26*D26', z: FMT_MONEY, s: { ...styleDataLbl, alignment: { horizontal: 'right', vertical: 'center' } } };
+    // Tổng xuất có trở
+    wsCL[`B${rCoTro}`] = { t: 's', v: 'TỔNG XUẤT CÓ TRỞ',   s: { ...styleDataLbl, alignment: { horizontal: 'left', vertical: 'center' } } };
+    wsCL[`C${rCoTro}`] = { t: 'n', v: tonsCoTroTotal,         z: FMT_NUMBER, s: { ...styleDataNum, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL[`D${rCoTro}`] = { t: 'n', v: priceCoTroDefault,      z: FMT_MONEY,  s: { ...styleDataNum, alignment: { horizontal: 'right', vertical: 'center' } } };
+    wsCL[`E${rCoTro}`] = { t: 'n', v: tonsCoTroTotal * priceCoTroDefault,   f: `C${rCoTro}*D${rCoTro}`, z: FMT_MONEY, s: { ...styleDataLbl, alignment: { horizontal: 'right', vertical: 'center' } } };
 
-    // Hàng 27: Tổng xuất không trở
-    wsCL['B27'] = { t: 's', v: 'TỔNG XUẤT KHÔNG TRỞ', s: { ...styleDataLbl, alignment: { horizontal: 'left', vertical: 'center' } } };
-    wsCL['C27'] = { t: 'n', v: tonsKhongTroTotal,      z: FMT_NUMBER, s: { ...styleDataNum, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsCL['D27'] = { t: 'n', v: priceKhongTroDefault,   z: FMT_MONEY,  s: { ...styleDataNum, alignment: { horizontal: 'right', vertical: 'center' } } };
-    wsCL['E27'] = { t: 'n', v: tonsKhongTroTotal * priceKhongTroDefault, f: 'C27*D27', z: FMT_MONEY, s: { ...styleDataLbl, alignment: { horizontal: 'right', vertical: 'center' } } };
+    // Tổng xuất không trở
+    wsCL[`B${rKhongTro}`] = { t: 's', v: 'TỔNG XUẤT KHÔNG TRỞ', s: { ...styleDataLbl, alignment: { horizontal: 'left', vertical: 'center' } } };
+    wsCL[`C${rKhongTro}`] = { t: 'n', v: tonsKhongTroTotal,      z: FMT_NUMBER, s: { ...styleDataNum, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL[`D${rKhongTro}`] = { t: 'n', v: priceKhongTroDefault,   z: FMT_MONEY,  s: { ...styleDataNum, alignment: { horizontal: 'right', vertical: 'center' } } };
+    wsCL[`E${rKhongTro}`] = { t: 'n', v: tonsKhongTroTotal * priceKhongTroDefault, f: `C${rKhongTro}*D${rKhongTro}`, z: FMT_MONEY, s: { ...styleDataLbl, alignment: { horizontal: 'right', vertical: 'center' } } };
 
-    // Hàng 28: Nước đá (10.000Đ/ngày làm việc)
-    wsCL['B28'] = { t: 's', v: 'NƯỚC ĐÁ\r\n(10.000Đ/ngày làm việc)', s: { ...styleDataLbl, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } } };
-    wsCL['C28'] = { t: 'n', v: workDaysCount, z: FMT_NUMBER, s: { ...styleDataNum, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsCL['D28'] = { t: 'n', v: 10000,         z: FMT_MONEY,  s: { ...styleDataNum, alignment: { horizontal: 'right', vertical: 'center' } } };
-    wsCL['E28'] = { t: 'n', v: iceAmount,     f: 'C28*D28',  z: FMT_MONEY, s: { ...styleDataLbl, alignment: { horizontal: 'right', vertical: 'center' } } };
+    // Nước đá
+    wsCL[`B${rNuocDa}`] = { t: 's', v: 'NƯỚC ĐÁ\r\n(10.000Đ/ngày làm việc)', s: { ...styleDataLbl, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } } };
+    wsCL[`C${rNuocDa}`] = { t: 'n', v: workDaysCount, z: FMT_NUMBER, s: { ...styleDataNum, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL[`D${rNuocDa}`] = { t: 'n', v: 10000,         z: FMT_MONEY,  s: { ...styleDataNum, alignment: { horizontal: 'right', vertical: 'center' } } };
+    wsCL[`E${rNuocDa}`] = { t: 'n', v: iceAmount,     f: `C${rNuocDa}*D${rNuocDa}`,  z: FMT_MONEY, s: { ...styleDataLbl, alignment: { horizontal: 'right', vertical: 'center' } } };
 
-    // Hàng 29: TỔNG CỘNG : — chữ đỏ đậm, nền trắng
+    // TỔNG CỘNG : — chữ đỏ đậm, nền trắng
     const styleH29 = {
       font: { name: FONT_NAME, sz: 13, bold: true, color: { rgb: 'FF0000' } },
       fill: { fgColor: { rgb: 'FFFFFF' } },
       border: BORDER_THIN_BLACK,
     };
-    wsCL['B29'] = { t: 's', v: 'TỔNG CỘNG :',  s: { ...styleH29, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsCL['C29'] = { t: 's', v: '',              s: styleH29 };
-    wsCL['D29'] = { t: 's', v: '',              s: styleH29 };
-    wsCL['E29'] = { t: 'n', v: totalCalculated, f: 'SUM(E26:E28)', z: FMT_MONEY, s: { ...styleH29, alignment: { horizontal: 'right', vertical: 'center' } } };
+    wsCL[`B${rTong}`] = { t: 's', v: 'TỔNG CỘNG :',  s: { ...styleH29, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL[`C${rTong}`] = { t: 's', v: '',              s: styleH29 };
+    wsCL[`D${rTong}`] = { t: 's', v: '',              s: styleH29 };
+    wsCL[`E${rTong}`] = { t: 'n', v: totalCalculated, f: `SUM(E${rCoTro}:E${rNuocDa})`, z: FMT_MONEY, s: { ...styleH29, alignment: { horizontal: 'right', vertical: 'center' } } };
 
-    // Hàng 30: TRỪ TẠM ỨNG : — chữ đen đậm
+    // TRỪ TẠM ỨNG : — chữ đen đậm
     const styleH30 = {
       font: { name: FONT_NAME, sz: 13, bold: true, color: { rgb: '000000' } },
       fill: { fgColor: { rgb: 'FFFFFF' } },
       border: BORDER_THIN_BLACK,
     };
-    wsCL['B30'] = { t: 's', v: 'TRỪ TẠM ỨNG :', s: { ...styleH30, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsCL['C30'] = { t: 's', v: '',               s: styleH30 };
-    wsCL['D30'] = { t: 's', v: '',               s: styleH30 };
-    wsCL['E30'] = { t: 'n', v: advanceTotalVal,  z: FMT_MONEY, s: { ...styleH30, alignment: { horizontal: 'right', vertical: 'center' } } };
+    wsCL[`B${rTruUng}`] = { t: 's', v: 'TRỪ TẠM ỨNG :', s: { ...styleH30, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL[`C${rTruUng}`] = { t: 's', v: '',               s: styleH30 };
+    wsCL[`D${rTruUng}`] = { t: 's', v: '',               s: styleH30 };
+    wsCL[`E${rTruUng}`] = { t: 'n', v: advanceTotalVal,  z: FMT_MONEY, s: { ...styleH30, alignment: { horizontal: 'right', vertical: 'center' } } };
 
-    // Hàng 31: CÒN LẠI : — nền vàng tươi FFFF00, chữ đỏ đậm
+    // CÒN LẠI : — nền vàng tươi FFFF00, chữ đỏ đậm
     const styleH31 = {
       font: { name: FONT_NAME, sz: 13, bold: true, color: { rgb: 'FF0000' } },
       fill: { fgColor: { rgb: 'FFFF00' } },
       border: BORDER_THIN_BLACK,
     };
-    wsCL['B31'] = { t: 's', v: 'CÒN LẠI :', s: { ...styleH31, alignment: { horizontal: 'center', vertical: 'center' } } };
-    wsCL['C31'] = { t: 's', v: '',           s: styleH31 };
-    wsCL['D31'] = { t: 's', v: '',           s: styleH31 };
-    wsCL['E31'] = { t: 'n', v: remainingVal, f: 'E29-E30', z: FMT_MONEY, s: { ...styleH31, alignment: { horizontal: 'right', vertical: 'center' } } };
+    wsCL[`B${rConLai}`] = { t: 's', v: 'CÒN LẠI :', s: { ...styleH31, alignment: { horizontal: 'center', vertical: 'center' } } };
+    wsCL[`C${rConLai}`] = { t: 's', v: '',           s: styleH31 };
+    wsCL[`D${rConLai}`] = { t: 's', v: '',           s: styleH31 };
+    wsCL[`E${rConLai}`] = { t: 'n', v: remainingVal, f: `E${rTong}-E${rTruUng}`, z: FMT_MONEY, s: { ...styleH31, alignment: { horizontal: 'right', vertical: 'center' } } };
 
-    wsCL['!ref'] = 'A1:H35';
+    wsCL['!ref'] = `A1:H${rConLai + 4}`;
     wsCL['!merges'] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }, // A1:H1 — tiêu đề
-      { s: { r: 23, c: 1 }, e: { r: 23, c: 4 } }, // B24:E24 — header bảng quyết toán
-      { s: { r: 28, c: 2 }, e: { r: 28, c: 3 } }, // C29:D29 — merge C-D ở TỔNG CỘNG
-      { s: { r: 29, c: 2 }, e: { r: 29, c: 3 } }, // C30:D30
-      { s: { r: 30, c: 2 }, e: { r: 30, c: 3 } }, // C31:D31
+      { s: { r: rHeader - 1, c: 1 }, e: { r: rHeader - 1, c: 4 } }, // B:E header bảng quyết toán
+      { s: { r: rTong - 1, c: 2 }, e: { r: rTong - 1, c: 3 } }, // C:D ở TỔNG CỘNG
+      { s: { r: rTruUng - 1, c: 2 }, e: { r: rTruUng - 1, c: 3 } }, // C:D ở TRỪ TẠM ỨNG
+      { s: { r: rConLai - 1, c: 2 }, e: { r: rConLai - 1, c: 3 } }, // C:D ở CÒN LẠI
     ];
     wsCL['!cols'] = [
       { wch: 9  },  // A: STT
@@ -1064,29 +1129,31 @@ export async function POST(req: NextRequest) {
       { wch: 33 },  // H: CHỦ TÀI KHOẢN
     ];
 
-    // Row heights Sheet 3 — theo file mẫu (hpt 30 cho tất cả dữ liệu)
+    // Row heights Sheet 3 — theo file mẫu
     const clRowHeights: XLSX.RowInfo[] = [];
     clRowHeights[0] = { hpt: 51.75 }; // Row 1 tiêu đề
     clRowHeights[1] = { hpt: 66.75 }; // Row 2 header
-    for (let r = 2; r <= 16; r++) {
-      clRowHeights[r] = { hpt: 30 };   // 14 công nhân + hàng tổng
+    for (let r = 2; r <= clSumRow; r++) {
+      clRowHeights[r] = { hpt: 30 };   // Dữ liệu công nhân + hàng tổng
     }
-    clRowHeights[22] = { hpt: 19.5 };  // Row 23 spacer nhỏ
-    clRowHeights[23] = { hpt: 41.45 }; // Row 24 tiêu đề bảng quyết toán
-    clRowHeights[24] = { hpt: 38.45 }; // Row 25 header cột
-    clRowHeights[25] = { hpt: 30 };    // Row 26
-    clRowHeights[26] = { hpt: 30 };    // Row 27
-    clRowHeights[27] = { hpt: 36.6 };  // Row 28 Nước đá (wrap 2 dòng)
-    clRowHeights[28] = { hpt: 30 };    // Row 29 TỔNG CỘNG
-    clRowHeights[29] = { hpt: 30 };    // Row 30 TRỪ TẠM ỨNG
-    clRowHeights[30] = { hpt: 30 };    // Row 31 CÒN LẠI
+    clRowHeights[rHeader - 2] = { hpt: 19.5 };  // spacer nhỏ
+    clRowHeights[rHeader - 1] = { hpt: 41.45 }; // tiêu đề bảng quyết toán
+    clRowHeights[rColHeader - 1] = { hpt: 38.45 }; // header cột
+    clRowHeights[rCoTro - 1] = { hpt: 30 };
+    clRowHeights[rKhongTro - 1] = { hpt: 30 };
+    clRowHeights[rNuocDa - 1] = { hpt: 36.6 };  // Nước đá
+    clRowHeights[rTong - 1] = { hpt: 30 };
+    clRowHeights[rTruUng - 1] = { hpt: 30 };
+    clRowHeights[rConLai - 1] = { hpt: 30 };
     wsCL['!rows'] = clRowHeights;
 
     XLSX.utils.book_append_sheet(wb, wsCL, sheetNameCL);
 
     // Kết xuất Buffer Excel
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-    const safeFileName = `DOI_THANH-XUAT_CS1_T${String(month).padStart(2, '0')}_${year}_HOAN_CHINH.xlsx`;
+    const safeFileName = isCS2
+      ? `TONG_HOP_DOI_DUONG_CS2_XUAT_T${String(month).padStart(2, '0')}_${year}_HOAN_CHINH.xlsx`
+      : `DOI_THANH-XUAT_CS1_T${String(month).padStart(2, '0')}_${year}_HOAN_CHINH.xlsx`;
 
     return new NextResponse(buffer, {
       status: 200,

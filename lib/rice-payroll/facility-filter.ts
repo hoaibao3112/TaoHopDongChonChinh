@@ -26,3 +26,26 @@ export function isCoSo1(facility?: string | null): boolean {
   );
 }
 
+/**
+ * Bộ lọc địa điểm sấy cho Đội Dương (Cơ sở II)
+ */
+export function isCoSo2(facility?: string | null): boolean {
+  if (!facility) return false;
+  const f = facility.toUpperCase().trim();
+  return (
+    f.includes('CƠ SỞ II') ||
+    f.includes('CƠ SỞ 2') ||
+    f.includes('CSII') ||
+    f.includes('CS II') ||
+    f.includes('CS2') ||
+    f.includes('CS 2')
+  );
+}
+
+/**
+ * Bộ lọc theo cơ sở được chọn (CS1 hoặc CS2)
+ */
+export function isFacilityMatch(facility?: string | null, facilityKey: 'CS1' | 'CS2' = 'CS1'): boolean {
+  return facilityKey === 'CS2' ? isCoSo2(facility) : isCoSo1(facility);
+}
+

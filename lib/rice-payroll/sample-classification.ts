@@ -1,5 +1,6 @@
 import octoberDetails from './sample-october-details.json';
 import { RiceBatch } from './types';
+import { isCoSo2 } from './facility-filter';
 
 interface SampleDetail {
   tons: number;
@@ -7,9 +8,47 @@ interface SampleDetail {
 }
 
 /**
- * Lấy thông tin đối chiếu thực tế từ file mẫu Tháng 10/2026
+ * 22 mẻ xuất lúa thực tế của Đội Dương - Cơ sở II Tháng 10/2026
+ * Trích xuất từ TONG_HOP_DOI_DƯƠNG_CS2_NHẬP_T10_2026_DA_CHINH_IN.xlsx
+ */
+const cs2OctoberDetails: Record<string, SampleDetail> = {
+  'GHE NHƠN-GHE NGOÀI__138084': { tons: 138, isCoTro: false },
+  'GHE SANG- GHE NGOÀI__143958': { tons: 144, isCoTro: false },
+  '63C 06291__22710': { tons: 23, isCoTro: true },
+  'SALAN ĐÔ__58788': { tons: 59, isCoTro: true },
+  'SALAN NHÂN 43__77017': { tons: 77, isCoTro: true },
+  'SALAN ĐỒNG__80689': { tons: 81, isCoTro: true },
+  'GHE NHÂN__77016': { tons: 77, isCoTro: true },
+  'TÀU LỢI__71246': { tons: 71, isCoTro: true },
+  'GHE NHÂN__76015': { tons: 76, isCoTro: true },
+  '67H 05678__20154': { tons: 20, isCoTro: false },
+  '47H 15637__32855': { tons: 33, isCoTro: false },
+  'TÀU TỚI__47877': { tons: 48, isCoTro: true },
+  'TÀU LỢI__70264': { tons: 70, isCoTro: true },
+  'TÀU LỢI__69734': { tons: 70, isCoTro: true },
+  'PHƯƠNG GẤM__49636': { tons: 50, isCoTro: true },
+  'NGUYÊN NGUYÊN 20__156677': { tons: 157, isCoTro: true },
+  'GHE NAM__121826': { tons: 122, isCoTro: true },
+  'GHE LỘC-AG 23576__129062': { tons: 129, isCoTro: true },
+  '71H 04994__30937': { tons: 31, isCoTro: false },
+  '63H 03931__27185': { tons: 27, isCoTro: false },
+  'SALAN TRIỆU__95686': { tons: 96, isCoTro: true },
+  'GHE HÓA__117540': { tons: 117, isCoTro: true },
+};
+
+/**
+ * Lấy thông tin đối chiếu thực tế từ file mẫu Tháng 10/2026 (Cơ sở I và Cơ sở II)
  */
 export function getSampleDetail(b: RiceBatch): SampleDetail | null {
+  // 1. Kiểm tra Cơ sở II (Đội Dương)
+  if (isCoSo2(b.dryFacility)) {
+    const keyCS2 = `${(b.vehicleName || '').trim()}__${Math.round(b.dryWeightKg || 0)}`;
+    if (keyCS2 in cs2OctoberDetails) {
+      return cs2OctoberDetails[keyCS2];
+    }
+  }
+
+  // 2. Kiểm tra Cơ sở I (Đội Chú 6 Thanh)
   const key1 = `${(b.customerName || '').trim()}__${(b.vehicleName || '').trim()}__${Math.round(b.dryWeightKg || 0)}`;
   if (key1 in octoberDetails) {
     return (octoberDetails as Record<string, SampleDetail>)[key1];
