@@ -166,6 +166,12 @@ describe('Rice Nhập Sấy CS2: Đội Dương - Cơ Sở II', () => {
     expect(ws1['M5'].v).toBe(1180000 + 649000);  // Mẻ 2 = 1.829.000
     expect(ws1['M6'].v).toBe(2611000);           // Tổng hàng cuối = 2.611.000
 
+    // Chữ ký xác nhận sheet 1
+    expect(ws1['C9'].v).toBe('Người lập bảng');
+    expect(ws1['K9'].v).toBe('Xác nhận');
+    expect(ws1['C15'].v).toBe('Võ Hoàng Cẩm Tiên');
+    expect(ws1['K15'].v).toBe('Huỳnh Hải Long Hồ');
+
     // ─── 2. SHEET Nhập Trấu ─────────────────────────────────────────────────
     const ws2 = wb.Sheets['Nhập Trấu'];
     expect(ws2['A1'].v).toContain('NHẬP TRẤU ĐỘI DƯƠNG CS2');

@@ -271,12 +271,35 @@ export async function POST(req: NextRequest) {
     setCell(ws1, `L${sumRow1}`, 'n', totalThanhTienChumLo, { ...sumStyle1, numFmt: FMT_MONEY });
     setCell(ws1, `M${sumRow1}`, 'n', totalTongThanhTien,   { ...sumStyle1, numFmt: FMT_MONEY });
 
+    // ── Chữ ký xác nhận Sheet 1 (Nhap lua CS2) ──────────────────────────────
+    const sig1Row1 = sumRow1 + 3; // Hàng "Người lập bảng" / "Xác nhận"
+    const sig1Row2 = sig1Row1 + 6; // Hàng tên người ký
+    const signHeaderStyle: XLSX.CellStyle = {
+      font: { name: FONT_NAME, bold: true, sz: 11 },
+      alignment: { horizontal: 'center', vertical: 'center' },
+    };
+    const signNameStyle: XLSX.CellStyle = {
+      font: { name: FONT_NAME, bold: true, sz: 11 },
+      alignment: { horizontal: 'center', vertical: 'center' },
+    };
+
+    setCell(ws1, `C${sig1Row1}`, 's', 'Người lập bảng', signHeaderStyle);
+    setCell(ws1, `K${sig1Row1}`, 's', 'Xác nhận', signHeaderStyle);
+
+    setCell(ws1, `C${sig1Row2}`, 's', 'Võ Hoàng Cẩm Tiên', signNameStyle);
+    setCell(ws1, `K${sig1Row2}`, 's', 'Huỳnh Hải Long Hồ', signNameStyle);
+
     ws1['!merges'] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
       { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
       { s: { r: sumRow1 - 1, c: 0 }, e: { r: sumRow1 - 1, c: 5 } },
+      // Chữ ký Người lập bảng (C:F) & Xác nhận (K:M)
+      { s: { r: sig1Row1 - 1, c: 2 }, e: { r: sig1Row1 - 1, c: 5 } },
+      { s: { r: sig1Row1 - 1, c: 10 }, e: { r: sig1Row1 - 1, c: 12 } },
+      { s: { r: sig1Row2 - 1, c: 2 }, e: { r: sig1Row2 - 1, c: 5 } },
+      { s: { r: sig1Row2 - 1, c: 10 }, e: { r: sig1Row2 - 1, c: 12 } },
     ];
-    ws1['!ref'] = `A1:${XLSX.utils.encode_cell({ r: sumRow1 - 1, c: 12 })}`;
+    ws1['!ref'] = `A1:${XLSX.utils.encode_cell({ r: sig1Row2 - 1, c: 12 })}`;
     XLSX.utils.book_append_sheet(wb, ws1, 'Nhap lua CS2');
 
     // =========================================================================
