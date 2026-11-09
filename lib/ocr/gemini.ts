@@ -13,7 +13,7 @@ export class GeminiOcrProvider implements OcrProvider {
       throw new Error('GEMINI_API_KEY chưa được cấu hình trong biến môi trường');
     }
     this.ai = new GoogleGenAI({ apiKey: key });
-    this.modelName = modelName || process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+    this.modelName = modelName || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
   }
 
   async extractSlipData(imageBuffer: Buffer, mimeType: string = 'image/jpeg'): Promise<WeighingSlipOcr> {
@@ -38,7 +38,8 @@ QUY TẮC QUAN TRỌNG:
 - Giá tiền / đơn giá / thành tiền in 0Đ bỏ qua.
 `;
 
-    const candidateModels = Array.from(new Set([this.modelName, 'gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']));
+    // Ưu tiên model nhanh và ổn định nhất gemini-3.1-flash-lite, tiếp theo là gemini-3.5-flash và gemini-3.8-flash
+    const candidateModels = Array.from(new Set([this.modelName, 'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash']));
     let lastError: unknown = null;
 
     for (const modelToTry of candidateModels) {
@@ -85,7 +86,7 @@ QUY TẮC QUAN TRỌNG:
         try {
           parsedJson = JSON.parse(text);
         } catch {
-          throw new Error(`Gemini trả về JSON không hợp lệ: ${text}`);
+          throw new Error(`Gemini (${modelToTry}) trả về JSON không hợp lệ: ${text}`);
         }
 
         const validated = WeighingSlipOcrSchema.parse(parsedJson);
@@ -93,12 +94,19 @@ QUY TẮC QUAN TRỌNG:
       } catch (err: unknown) {
         lastError = err;
         const errMsg = err instanceof Error ? err.message : String(err);
-        // Nếu lỗi 404 hoặc model not available, thử model tiếp theo trong danh sách candidateModels
-        if (errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('no longer available')) {
-          console.warn(`Model ${modelToTry} không khả dụng, đang thử model dự phòng tiếp theo...`);
+        // Fallback khi gặp lỗi 404, 503 (quá tải), 429 hoặc model ngừng hỗ trợ
+        if (
+          errMsg.includes('404') ||
+          errMsg.includes('503') ||
+          errMsg.includes('429') ||
+          errMsg.includes('not found') ||
+          errMsg.includes('UNAVAILABLE') ||
+          errMsg.includes('no longer available') ||
+          errMsg.includes('high demand')
+        ) {
+          console.warn(`Model ${modelToTry} gặp sự cố (${errMsg.slice(0, 80)}...), chuyển sang model dự phòng tiếp theo...`);
           continue;
         }
-        // Các lỗi khác (e.g. invalid response) throw ngay
         throw err;
       }
     }

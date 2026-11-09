@@ -80,10 +80,15 @@ export default function HuskPayrollView() {
       });
 
       setScanProgress(80);
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Máy chủ phản hồi mã lỗi ${res.status}. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại với ít ảnh hơn.`);
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || 'Quá trình quét phiếu gặp sự cố.');
+        throw new Error(data.error || `Quá trình quét phiếu gặp sự cố (mã lỗi ${res.status}).`);
       }
 
       setScannedSlips(data.slips || []);

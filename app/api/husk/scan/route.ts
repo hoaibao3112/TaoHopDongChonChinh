@@ -10,6 +10,7 @@ import { ScannedSlipItem, ExistingExcelRow } from '@/lib/husk/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Tăng timeout cho Vercel Serverless Function lên 60s
 
 export async function POST(req: NextRequest) {
   if (!isRequestAuthenticated(req)) {
@@ -38,16 +39,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Giới hạn tối đa 30 ảnh phiếu cân cho mỗi lượt quét' }, { status: 400 });
     }
 
-    // 1. Nếu có file Excel mẫu gửi kèm -> Đọc dữ liệu đã có để phát hiện trùng
+    // 1. Nếu có file Excel mẫu gửi kèm -> Đọc dữ liệu đã có để phát hiện trùng (bọc try-catch an toàn)
     let existingRows: ExistingExcelRow[] = [];
-    if (excelFile) {
-      const excelBytes = await excelFile.arrayBuffer();
-      const analysis = await readExistingPayrollExcel(Buffer.from(excelBytes), sheetName);
-      existingRows = analysis.existingRows;
+    if (excelFile && excelFile.size > 0) {
+      try {
+        const excelBytes = await excelFile.arrayBuffer();
+        const analysis = await readExistingPayrollExcel(Buffer.from(excelBytes), sheetName);
+        existingRows = analysis.existingRows;
+      } catch (excelErr: unknown) {
+        console.warn('Cảnh báo: Không thể phân tích file Excel hiện có, tiếp tục quét OCR không đối chiếu trùng:', excelErr);
+      }
     }
 
     // 2. Khởi tạo OCR Provider (Gemini)
-    const ocrProvider = new GeminiOcrProvider();
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'Chưa cấu hình GEMINI_API_KEY trên môi trường server. Vui lòng kiểm tra Vercel Environment Variables hoặc file .env.' },
+        { status: 500 }
+      );
+    }
+    const ocrProvider = new GeminiOcrProvider(apiKey);
 
     // 3. Xử lý từng ảnh phiếu cân
     const scannedItems: ScannedSlipItem[] = [];
@@ -74,7 +86,7 @@ export async function POST(req: NextRequest) {
           ocrResult = await ocrProvider.extractSlipData(preprocessed.processedBuffer, preprocessed.mimeType);
         } catch {
           // Retry lần 1
-          await new Promise((res) => setTimeout(res, 1200));
+          await new Promise((res) => setTimeout(res, 800));
           ocrResult = await ocrProvider.extractSlipData(preprocessed.processedBuffer, preprocessed.mimeType);
         }
 
@@ -162,4 +174,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Quá trình quét phiếu thất bại: ${errorMsg}` }, { status: 500 });
   }
 }
-
