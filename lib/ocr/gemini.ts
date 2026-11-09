@@ -13,7 +13,7 @@ export class GeminiOcrProvider implements OcrProvider {
       throw new Error('GEMINI_API_KEY chưa được cấu hình trong biến môi trường');
     }
     this.ai = new GoogleGenAI({ apiKey: key });
-    this.modelName = modelName || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    this.modelName = modelName || process.env.GEMINI_MODEL || 'gemini-3.8-flash';
   }
 
   async extractSlipData(imageBuffer: Buffer, mimeType: string = 'image/jpeg'): Promise<WeighingSlipOcr> {
@@ -38,54 +38,71 @@ QUY TẮC QUAN TRỌNG:
 - Giá tiền / đơn giá / thành tiền in 0Đ bỏ qua.
 `;
 
-    // Gọi Gemini API với structured output
-    const response = await this.ai.models.generateContent({
-      model: this.modelName,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
+    const candidateModels = Array.from(new Set([this.modelName, 'gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']));
+    let lastError: unknown = null;
+
+    for (const modelToTry of candidateModels) {
+      try {
+        const response = await this.ai.models.generateContent({
+          model: modelToTry,
+          contents: [
             {
-              inlineData: {
-                data: imageBuffer.toString('base64'),
-                mimeType,
-              },
+              role: 'user',
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    data: imageBuffer.toString('base64'),
+                    mimeType,
+                  },
+                },
+              ],
             },
           ],
-        },
-      ],
-      config: {
-        temperature: 0,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            so_phieu: { type: Type.STRING },
-            khach_hang: { type: Type.STRING },
-            loai_hang: { type: Type.STRING },
-            so_xe: { type: Type.STRING },
-            xuat_nhap: { type: Type.STRING },
-            ngay_can: { type: Type.STRING },
-            tl_xe_hang_kg: { type: Type.INTEGER },
-            tl_xe_kg: { type: Type.INTEGER },
-            tl_hang_kg: { type: Type.INTEGER },
-            ghi_chu_viet_tay: { type: Type.STRING },
+          config: {
+            temperature: 0,
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                so_phieu: { type: Type.STRING },
+                khach_hang: { type: Type.STRING },
+                loai_hang: { type: Type.STRING },
+                so_xe: { type: Type.STRING },
+                xuat_nhap: { type: Type.STRING },
+                ngay_can: { type: Type.STRING },
+                tl_xe_hang_kg: { type: Type.INTEGER },
+                tl_xe_kg: { type: Type.INTEGER },
+                tl_hang_kg: { type: Type.INTEGER },
+                ghi_chu_viet_tay: { type: Type.STRING },
+              },
+            },
           },
-        },
-      },
-    });
+        });
 
-    const text = response.text?.trim() || '{}';
-    let parsedJson: unknown;
-    try {
-      parsedJson = JSON.parse(text);
-    } catch {
-      throw new Error(`Gemini trả về JSON không hợp lệ: ${text}`);
+        const text = response.text?.trim() || '{}';
+        let parsedJson: unknown;
+        try {
+          parsedJson = JSON.parse(text);
+        } catch {
+          throw new Error(`Gemini trả về JSON không hợp lệ: ${text}`);
+        }
+
+        const validated = WeighingSlipOcrSchema.parse(parsedJson);
+        return validated;
+      } catch (err: unknown) {
+        lastError = err;
+        const errMsg = err instanceof Error ? err.message : String(err);
+        // Nếu lỗi 404 hoặc model not available, thử model tiếp theo trong danh sách candidateModels
+        if (errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('no longer available')) {
+          console.warn(`Model ${modelToTry} không khả dụng, đang thử model dự phòng tiếp theo...`);
+          continue;
+        }
+        // Các lỗi khác (e.g. invalid response) throw ngay
+        throw err;
+      }
     }
 
-    const validated = WeighingSlipOcrSchema.parse(parsedJson);
-    return validated;
+    throw lastError || new Error('Không thể kết nối đến bất kỳ model Gemini nào');
   }
 }
-
