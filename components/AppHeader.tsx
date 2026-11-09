@@ -21,6 +21,7 @@ export default function AppHeader() {
   const isContract = pathname === '/' || pathname.startsWith('/contracts');
   const isPayroll = pathname.startsWith('/tinh-luong');
   const isNhapSay = pathname.startsWith('/nhap-say');
+  const isXuatTrau = pathname.startsWith('/xuat-trau');
 
   // Quyền truy cập các tab
   const canAccessContracts = role === 'contracts' || role === 'admin' || role === null;
@@ -90,7 +91,19 @@ export default function AppHeader() {
                 >
                   <span>🔥</span>
                   <span>Nhập Sấy CS2</span>
-                  <span className="rounded-full bg-orange-100 text-orange-800 text-[10px] px-1.5 py-0.2 font-bold">
+                </Link>
+
+                <Link
+                  href="/xuat-trau"
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                    isXuatTrau
+                      ? 'bg-white text-amber-900 shadow-xs ring-1 ring-amber-300'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  }`}
+                >
+                  <span>🚛</span>
+                  <span>Quét Phiếu Trấu</span>
+                  <span className="rounded-full bg-amber-200 text-amber-900 text-[10px] px-1.5 py-0.2 font-bold">
                     Mới
                   </span>
                 </Link>
