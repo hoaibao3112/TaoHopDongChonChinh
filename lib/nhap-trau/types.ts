@@ -25,6 +25,7 @@ export interface ContractInfo {
   sumRange: string // vd 'E450:E471'
   dataRowStart: number
   dataRowEnd: number
+  lastUsedRow?: number // Dòng cuối cùng thực sự có dữ liệu bên trong vùng HĐ
   currentReceivedKg?: number
   remainingKg?: number
 }
@@ -32,6 +33,7 @@ export interface ContractInfo {
 export interface CustomerSheetMeta {
   sheetName: string
   customerName: string
+  mainCustomerName?: string // Tên dùng khi ghi vào cột H của Sổ tổng Xuat Trấu Cty
   state: 'visible' | 'hidden'
   headerRow: number
   dataStartRow: number

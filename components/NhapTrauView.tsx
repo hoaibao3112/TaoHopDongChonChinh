@@ -82,9 +82,15 @@ export default function NhapTrauView() {
       setRawFileBuffer(arrayBuffer);
       setMetadata(meta);
 
-      // Nếu đã có tab khách hàng đầu tiên, set làm mặc định cho dòng 1
+      // Nếu đã có tab khách hàng đầu tiên, set làm mặc định cho dòng 1 (ưu tiên HĐ cuối cùng đang chạy)
       if (meta.customerSheets.length > 0 && entries.length > 0) {
-        const firstSheet = meta.customerSheets[0];
+        const firstSheet =
+          meta.customerSheets.find((s) => s.state === 'visible' && s.contracts.length > 0) ||
+          meta.customerSheets[0];
+        const latestContract =
+          firstSheet.contracts.length > 0
+            ? firstSheet.contracts[firstSheet.contracts.length - 1]
+            : undefined;
         setEntries((prev) =>
           prev.map((row, idx) =>
             idx === 0
@@ -92,7 +98,7 @@ export default function NhapTrauView() {
                   ...row,
                   customer: firstSheet.customerName,
                   targetSheetName: firstSheet.sheetName,
-                  contractRow: firstSheet.contracts?.[0]?.row,
+                  contractRow: latestContract?.row,
                 }
               : row
           )
@@ -869,6 +875,97 @@ export default function NhapTrauView() {
               </div>
             </div>
           </div>
+
+          {/* Preview Destination Table */}
+          {metadata && entries.length > 0 && (
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700">
+                  📍 Xem trước vị trí sẽ điền đồng thời vào Sổ tổng &amp; Tab con của khách hàng:
+                </span>
+                <span className="text-[11px] font-semibold text-emerald-700">
+                  Sổ tổng bắt đầu từ dòng {metadata.mainSheetLastRow + 1} (Ngay trước hộp báo cáo)
+                </span>
+              </div>
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50/60 text-[11px] font-bold text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th className="py-2 px-3">#</th>
+                    <th className="py-2 px-3">Ngày</th>
+                    <th className="py-2 px-3">Phương Tiện &amp; Loại</th>
+                    <th className="py-2 px-3 text-right">Số Lượng (kg)</th>
+                    <th className="py-2 px-3">Ghi vào Sổ Tổng</th>
+                    <th className="py-2 px-3">Ghi vào Tab Con Khách Hàng</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {entries.map((entry, idx) => {
+                    const sheetMeta = metadata.customerSheets.find(
+                      (s) => s.sheetName === entry.targetSheetName
+                    );
+                    const contractMeta = sheetMeta?.contracts.find(
+                      (c) => c.row === entry.contractRow
+                    );
+                    // Tính xem có mấy phiếu trước đó cùng vào 1 HĐ để preview chính xác số dòng
+                    const prevSameContractCount = entries
+                      .slice(0, idx)
+                      .filter(
+                        (e) =>
+                          e.targetSheetName === entry.targetSheetName &&
+                          e.contractRow === entry.contractRow
+                      ).length;
+                    const baseRowInTab = contractMeta
+                      ? contractMeta.lastUsedRow !== undefined &&
+                        contractMeta.lastUsedRow >= contractMeta.dataRowStart
+                        ? contractMeta.lastUsedRow + 1
+                        : contractMeta.dataRowStart
+                      : null;
+                    const targetTabRow =
+                      baseRowInTab !== null ? baseRowInTab + prevSameContractCount : null;
+
+                    return (
+                      <tr key={entry.id} className="hover:bg-slate-50/70">
+                        <td className="py-2 px-3 font-bold text-slate-400">{idx + 1}</td>
+                        <td className="py-2 px-3 font-medium">{entry.date}</td>
+                        <td className="py-2 px-3">
+                          <span className="font-bold text-slate-900">{entry.vehicleName}</span>{' '}
+                          <span className="text-[11px] text-slate-500">({entry.type})</span>
+                        </td>
+                        <td className="py-2 px-3 text-right font-black text-slate-900">
+                          {entry.weightKg.toLocaleString()} kg
+                        </td>
+                        <td className="py-2 px-3">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-800 border border-blue-200">
+                            Dòng {metadata.mainSheetLastRow + 1 + idx}
+                          </span>{' '}
+                          <span className="text-[11px] text-slate-500">
+                            ({sheetMeta?.mainCustomerName || entry.customer})
+                          </span>
+                        </td>
+                        <td className="py-2 px-3">
+                          {entry.targetSheetName ? (
+                            <div>
+                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200">
+                                {entry.targetSheetName}
+                                {targetTabRow ? ` • Dòng ${targetTabRow}` : ''}
+                              </span>
+                              {contractMeta && (
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  {contractMeta.label}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-rose-600 text-[11px] font-bold">Chưa chọn Tab</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Export Action Card */}
           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-6 text-center space-y-4">

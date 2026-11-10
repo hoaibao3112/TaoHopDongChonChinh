@@ -12,6 +12,83 @@ import {
 import { extractRangesFromFormula } from './formulaUpdater'
 
 /**
+ * Kiểm tra một ô có phải chứa ngày tháng hợp lệ không (tránh nhận nhầm text hộp báo cáo).
+ */
+export function isDateLikeCell(val: ExcelJS.CellValue): boolean {
+  if (val instanceof Date) return true
+  if (typeof val === 'string') {
+    const clean = val.trim()
+    return /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(clean) || /^\d{4}-\d{2}-\d{2}/.test(clean)
+  }
+  return false
+}
+
+/**
+ * Tìm dòng cuối cùng thực sự có dữ liệu chuyến xe/ghe trong Sổ tổng "Xuat Trấu Cty".
+ * Bỏ qua hoàn toàn các dòng trống và hộp báo cáo tổng kết nằm phía dưới.
+ */
+export function findActualMainLastRow(mainSheet: ExcelJS.Worksheet): number {
+  for (let r = mainSheet.rowCount; r >= 4; r--) {
+    const row = mainSheet.getRow(r)
+    const dateVal = row.getCell('A').value
+    if (isDateLikeCell(dateVal)) {
+      return r
+    }
+  }
+  return 3
+}
+
+/**
+ * Tìm vị trí dòng bắt đầu của hộp báo cáo tổng kết (nếu có) phía sau lastDataRow.
+ */
+export function findSummaryBoxStartRow(mainSheet: ExcelJS.Worksheet, afterRow: number): number | null {
+  for (let r = afterRow + 1; r <= mainSheet.rowCount; r++) {
+    const row = mainSheet.getRow(r)
+    for (let c = 1; c <= 10; c++) {
+      const val = row.getCell(c).value
+      if (typeof val === 'string' && /báo cáo xuất trấu|tổng lượng/i.test(val)) {
+        return r
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Tìm dòng cuối cùng đã được ghi dữ liệu thực tế bên trong dải [dataRowStart .. dataRowEnd] của 1 hợp đồng.
+ */
+export function findLastUsedRowInRange(
+  ws: ExcelJS.Worksheet,
+  dataRowStart: number,
+  dataRowEnd: number,
+  colDate: string,
+  colVehicle: string,
+  colSoLuong: string
+): number {
+  for (let r = dataRowEnd; r >= dataRowStart; r--) {
+    const row = ws.getRow(r)
+    const dateVal = row.getCell(colDate).value
+    const vehVal = row.getCell(colVehicle).value
+
+    let qtyVal: ExcelJS.CellValue = null
+    if (colSoLuong === 'EF') {
+      qtyVal = row.getCell('E').value || row.getCell('F').value
+    } else {
+      qtyVal = row.getCell(colSoLuong).value
+    }
+
+    const hasQty = typeof qtyVal === 'number' && qtyVal !== 0
+    const hasDate = isDateLikeCell(dateVal)
+    const hasVeh = typeof vehVal === 'string' && vehVal.trim().length > 0
+
+    if (hasDate || hasVeh || hasQty) {
+      return r
+    }
+  }
+  return dataRowStart - 1
+}
+
+/**
  * Đọc file Excel từ ArrayBuffer hoặc File và phân tích toàn bộ cấu trúc phục vụ app.
  */
 export async function readWorkbook(
@@ -30,7 +107,10 @@ export async function readWorkbook(
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.load(buffer)
 
-  const metadata = extractWorkbookMetadata(workbook, input instanceof File ? input.name : 'workbook.xlsx')
+  const metadata = extractWorkbookMetadata(
+    workbook,
+    input instanceof File ? input.name : 'workbook.xlsx'
+  )
 
   return { workbook, metadata }
 }
@@ -50,17 +130,7 @@ export function extractWorkbookMetadata(
   // 1. Quét sổ tổng "Xuat Trấu Cty"
   const mainSheet = workbook.getWorksheet(SHEET_NAMES.MAIN)
   if (mainSheet) {
-    // Tìm dòng dữ liệu cuối cùng có giá trị
-    for (let r = mainSheet.rowCount; r >= 4; r--) {
-      const row = mainSheet.getRow(r)
-      const dateVal = row.getCell('A').value
-      const vehVal = row.getCell('C').value
-      if (dateVal !== null && dateVal !== undefined && dateVal !== '') {
-        mainLastRow = Math.max(mainLastRow, r)
-      } else if (vehVal !== null && vehVal !== undefined && vehVal !== '') {
-        mainLastRow = Math.max(mainLastRow, r)
-      }
-    }
+    mainLastRow = findActualMainLastRow(mainSheet)
 
     // Thu thập 300 dòng gần nhất để đối chiếu trùng
     const scanStart = Math.max(4, mainLastRow - 300)
@@ -107,7 +177,6 @@ export function extractWorkbookMetadata(
   if (vehSheet) {
     vehSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
       if (rowNumber >= 4) {
-        // Xe: C=Khách, E=Số phương tiện
         const custNameXe = row.getCell('C').value ? String(row.getCell('C').value).trim() : ''
         const xeListStr = row.getCell('E').value ? String(row.getCell('E').value).trim() : ''
         if (custNameXe && xeListStr) {
@@ -118,7 +187,6 @@ export function extractWorkbookMetadata(
           })
         }
 
-        // Ghe: J=Khách, K=Tên ghe/tài xế
         const custNameGhe = row.getCell('J').value ? String(row.getCell('J').value).trim() : ''
         const gheListStr = row.getCell('K').value ? String(row.getCell('K').value).trim() : ''
         if (custNameGhe && gheListStr) {
@@ -137,20 +205,30 @@ export function extractWorkbookMetadata(
 
   workbook.eachSheet((ws) => {
     const sheetName = ws.name
-    // Bỏ qua các sheet được bảo vệ
     if (PROTECTED_SHEETS.includes(sheetName)) return
 
     const isVisible = ws.state === 'visible'
+    // Ẩn các tab không visible khỏi danh sách chọn mặc định nếu muốn, nhưng vẫn đọc metadata
     const preConfig = PRECONFIGURED_CUSTOMER_SHEETS[sheetName] || {}
+    const colDate = preConfig.colDate || 'B'
+    const colVehicle = preConfig.colVehicle || 'C'
     const contracts: ContractInfo[] = []
     const warnings: string[] = []
 
-    // Quét các dòng 2 đến 15 để phát hiện bảng hợp đồng & công thức SUM
-    const maxHeaderScan = Math.min(ws.rowCount, 25)
+    // Quét các dòng 2 đến 30 để phát hiện bảng hợp đồng & công thức SUM
+    const maxHeaderScan = Math.min(ws.rowCount, 30)
     for (let r = 2; r <= maxHeaderScan; r++) {
       const row = ws.getRow(r)
 
-      // Tìm cell chứa công thức SUM
+      const labelCellVal = row.getCell('B').value || row.getCell('C').value || row.getCell('A').value
+      const labelStr = labelCellVal ? String(labelCellVal).trim() : `Hợp đồng dòng ${r}`
+
+      // Bỏ qua hàng "Tổng Hợp Đồng"
+      if (/^Tổng\s+Hợp\s+Đồng/i.test(labelStr)) {
+        continue
+      }
+
+      // Tìm cell chứa công thức SUM trên hàng này (ưu tiên cột E, F, J, L)
       for (let colIdx = 1; colIdx <= 16; colIdx++) {
         const cell = row.getCell(colIdx)
         let formulaStr = ''
@@ -167,9 +245,12 @@ export function extractWorkbookMetadata(
             const colLetter = cell.address ? cell.address.replace(/[0-9]/g, '') : String.fromCharCode(64 + colIdx)
             const sumCellAddr = `${colLetter}${r}`
 
-            // Tìm label hợp đồng: thường ở cột B hoặc C cùng dòng
-            const labelCellVal = row.getCell('B').value || row.getCell('C').value || row.getCell('A').value
-            const labelStr = labelCellVal ? String(labelCellVal).trim() : `Hợp đồng dòng ${r}`
+            // Phát hiện trường hợp SUM kép (ví dụ SUM(E23:E41)+SUM(F23:F41))
+            const isDualEF =
+              ranges.length >= 2 &&
+              ranges.some((rg) => rg.parsed.colStart === 'E') &&
+              ranges.some((rg) => rg.parsed.colStart === 'F')
+            const colSoLuong = isDualEF ? 'EF' : primaryRange.colStart
 
             // Tìm số lượng HĐ (slKg): cột D hoặc E
             let slKg = 0
@@ -189,39 +270,52 @@ export function extractWorkbookMetadata(
               currentReceived = cell.value
             }
 
+            const lastUsedRow = findLastUsedRowInRange(
+              ws,
+              primaryRange.rowStart,
+              primaryRange.rowEnd,
+              colDate,
+              colVehicle,
+              colSoLuong
+            )
+
             contracts.push({
               row: r,
               label: labelStr,
               slKg,
-              colSoLuong: primaryRange.colStart,
+              colSoLuong,
               sumCell: sumCellAddr,
               sumRange: ranges[0].original,
               dataRowStart: primaryRange.rowStart,
               dataRowEnd: primaryRange.rowEnd,
+              lastUsedRow,
               currentReceivedKg: currentReceived,
               remainingKg: slKg > 0 ? Math.max(0, slKg - currentReceived) : undefined,
             })
+
+            // Mỗi dòng HĐ thường chỉ lấy SUM chính đầu tiên
+            break
           }
         }
       }
     }
 
-    // Kiểm tra các đặc điểm riêng của sheet
     if (sheetName.includes('CẨM')) {
-      warnings.push('Hợp đồng có thể sử dụng SUM gộp cả 2 cột Xe và Ghe.')
+      warnings.push('Hợp đồng có sử dụng SUM gộp cả 2 cột Xe và Ghe.')
     }
     if (sheetName.includes('TRANG BẾN TRE')) {
-      warnings.push('Bố cục sheet phức tạp với nhiều hợp đồng có cột khác nhau.')
+      warnings.push('Vui lòng chọn đúng hợp đồng hiện tại của Trang Bến Tre.')
     }
 
     customerSheetsMeta.push({
       sheetName,
-      customerName: sheetName.replace(/\(.*?\)/g, '').trim(),
+      customerName: preConfig.mainCustomerName || sheetName.replace(/\(.*?\)/g, '').trim(),
+      mainCustomerName: preConfig.mainCustomerName,
       state: isVisible ? 'visible' : 'hidden',
       headerRow: preConfig.headerRow || 7,
       dataStartRow: preConfig.dataStartRow || 8,
-      colDate: preConfig.colDate || 'B',
-      colVehicle: preConfig.colVehicle || 'C',
+      colDate,
+      colVehicle,
       colNote: preConfig.colNote || 'D',
       colXe: preConfig.colXe || 'E',
       colGhe: preConfig.colGhe || 'F',
@@ -230,7 +324,12 @@ export function extractWorkbookMetadata(
     })
   })
 
-  // Format vehicles map
+  // Sắp xếp đưa các tab đang visible và có hợp đồng lên đầu cho dễ chọn
+  customerSheetsMeta.sort((a, b) => {
+    if (a.state !== b.state) return a.state === 'visible' ? -1 : 1
+    return b.contracts.length - a.contracts.length
+  })
+
   const vehiclesList = Object.entries(vehicleMap).map(([cust, vehSet]) => ({
     customerName: cust,
     vehicles: Array.from(vehSet),

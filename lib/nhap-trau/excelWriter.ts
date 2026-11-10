@@ -16,6 +16,11 @@ import {
   updateAutoFilterRange,
 } from './formulaUpdater'
 import { validateBatchEntries, normalizeDate } from './validator'
+import {
+  findActualMainLastRow,
+  findSummaryBoxStartRow,
+  findLastUsedRowInRange,
+} from './excelReader'
 
 /**
  * Hàm phân tích ngày sang đối tượng Date chuẩn.
@@ -110,38 +115,41 @@ export async function writeShipments(
     throw new Error(`Không tìm thấy sổ tổng "${SHEET_NAMES.MAIN}" trong file Excel.`)
   }
 
-  // Xác định dòng cuối cùng hiện có của sổ tổng
-  let mainCurrentRow = 3
-  for (let r = mainSheet.rowCount; r >= 4; r--) {
-    const row = mainSheet.getRow(r)
-    const dateVal = row.getCell('A').value
-    const vehVal = row.getCell('C').value
-    if (dateVal !== null && dateVal !== undefined && dateVal !== '') {
-      mainCurrentRow = Math.max(mainCurrentRow, r)
-      break
-    } else if (vehVal !== null && vehVal !== undefined && vehVal !== '') {
-      mainCurrentRow = Math.max(mainCurrentRow, r)
-      break
-    }
-  }
-
-  // 3. Ghi vào sheet "Xuat Trấu Cty"
+  // Xác định dòng cuối cùng thực sự có dữ liệu (cột A là Ngày) — BỎ QUA hộp bảng thống kê ở dưới
+  let mainCurrentRow = findActualMainLastRow(mainSheet)
   const templateRowNumber = mainCurrentRow >= 4 ? mainCurrentRow : 4
   const templateRow = mainSheet.getRow(templateRowNumber)
 
+  // Kiểm tra xem phía dưới dòng dữ liệu thực có hộp bảng thống kê không (ví dụ ở dòng 3682)
+  const summaryBoxStartRow = findSummaryBoxStartRow(mainSheet, mainCurrentRow)
+  if (summaryBoxStartRow !== null && mainCurrentRow + entries.length >= summaryBoxStartRow) {
+    // Đẩy hộp bảng thống kê xuống đủ chỗ để chèn ngay phía trên nó
+    const rowsNeeded = mainCurrentRow + entries.length - summaryBoxStartRow + 2
+    mainSheet.spliceRows(summaryBoxStartRow, 0, ...new Array(rowsNeeded).fill([]))
+  }
+
+  // 3. Ghi vào sheet "Xuat Trấu Cty" (TRƯỚC hộp bảng thống kê)
   for (const entry of entries) {
     mainCurrentRow++
     const targetRow = mainSheet.getRow(mainCurrentRow)
+
+    // Đảm bảo dòng mới được hiển thị (unhide) vì các dòng trống chờ sẵn trong file gốc có thể đang hidden=true
+    targetRow.hidden = false
 
     const dateObj = parseDateValue(entry.date)
     const isXe = entry.type === 'Xe'
     const kgXe = isXe ? entry.weightKg : 0
     const kgGhe = !isXe ? entry.weightKg : 0
 
+    // Lấy tên khách chuẩn cho Sổ tổng
+    const preSheetCfg = PRECONFIGURED_CUSTOMER_SHEETS[entry.targetSheetName]
+    const cleanCustomerName =
+      preSheetCfg?.mainCustomerName ||
+      entry.customer?.trim() ||
+      entry.targetSheetName.trim()
+
     // Gán giá trị
     targetRow.getCell('A').value = dateObj
-    targetRow.getCell('A').numFmt = 'dd/mm/yyyy'
-
     targetRow.getCell('B').value = entry.team
     targetRow.getCell('C').value = entry.vehicleName
     targetRow.getCell('D').value = kgXe
@@ -153,20 +161,21 @@ export async function writeShipments(
     // Công thức G: Tiền Công = (D*11)+(E*7)
     targetRow.getCell('G').value = { formula: `(D${mainCurrentRow}*11)+(E${mainCurrentRow}*7)` }
 
-    targetRow.getCell('H').value = entry.customer
+    targetRow.getCell('H').value = cleanCustomerName
     targetRow.getCell('I').value = entry.note || ''
 
-    // Copy style từ template row
+    // Copy style từ dòng dữ liệu thực mẫu (dòng 2641), tránh copy viền đỏ từ hộp thống kê
     for (let c = 1; c <= 9; c++) {
       const src = templateRow.getCell(c)
       const dst = targetRow.getCell(c)
       copyCellStyle(src, dst)
     }
 
+    targetRow.getCell('A').numFmt = 'dd/mm/yyyy'
     targetRow.commit()
   }
 
-  // Cập nhật SUBTOTAL trên dòng 2 của sổ tổng
+  // Cập nhật SUBTOTAL trên dòng 2 của sổ tổng nếu vượt vùng cũ
   const subtotalCols = ['D', 'E', 'F', 'G']
   for (const col of subtotalCols) {
     const cell = mainSheet.getCell(`${col}2`)
@@ -185,7 +194,7 @@ export async function writeShipments(
     }
   }
 
-  // Cập nhật AutoFilter của sổ tổng nếu có
+  // Cập nhật AutoFilter của sổ tổng nếu vượt vùng cũ
   if (mainSheet.autoFilter) {
     const updatedFilter = updateAutoFilterRange(mainSheet.autoFilter as string, mainCurrentRow)
     if (updatedFilter) {
@@ -193,8 +202,7 @@ export async function writeShipments(
     }
   }
 
-  // 4. Ghi vào các sheet khách hàng
-  // Nhóm entries theo sheet đích
+  // 4. Ghi vào các tab con của từng khách hàng
   const sheetGroups: { [sheetName: string]: ShipmentEntry[] } = {}
   for (const entry of entries) {
     if (!sheetGroups[entry.targetSheetName]) {
@@ -214,7 +222,6 @@ export async function writeShipments(
     const preConfig = PRECONFIGURED_CUSTOMER_SHEETS[sheetName] || {}
     const colDate = preConfig.colDate || 'B'
     const colVehicle = preConfig.colVehicle || 'C'
-    const colNote = preConfig.colNote || 'D'
     const defaultColXe = preConfig.colXe || 'E'
     const defaultColGhe = preConfig.colGhe || 'F'
 
@@ -226,7 +233,7 @@ export async function writeShipments(
       contractGroups[cRow].push(entry)
     }
 
-    // Lấy danh sách hợp đồng hiện có trong sheet (deep clone để tránh mutate metadata gốc)
+    // Deep clone danh sách hợp đồng hiện có trong sheet
     const sheetMeta = metadata?.customerSheets.find((s) => s.sheetName === sheetName)
     const contractsList: ContractInfo[] = sheetMeta ? sheetMeta.contracts.map((c) => ({ ...c })) : []
 
@@ -241,94 +248,131 @@ export async function writeShipments(
         )
       }
 
-      // Vị trí chèn dòng mới: chèn ngay sau dataRowEnd hiện tại của HĐ
-      const insertAt = contract.dataRowEnd + 1
-      const countToInsert = cEntries.length
+      // Tìm dòng cuối thực tế ĐÃ CÓ DỮ LIỆU bên trong vùng [dataRowStart .. dataRowEnd] của HĐ này
+      let lastUsedInRange = findLastUsedRowInRange(
+        custSheet,
+        contract.dataRowStart,
+        contract.dataRowEnd,
+        colDate,
+        colVehicle,
+        contract.colSoLuong
+      )
 
-      // Lấy template row từ dòng cuối của HĐ
-      const templateCustRow = custSheet.getRow(contract.dataRowEnd)
+      let nextWriteRow =
+        lastUsedInRange >= contract.dataRowStart ? lastUsedInRange + 1 : contract.dataRowStart
 
-      // Chèn các dòng trống bằng spliceRows
-      custSheet.spliceRows(insertAt, 0, ...new Array(countToInsert).fill([]))
+      const templateRowIdx =
+        lastUsedInRange >= contract.dataRowStart ? lastUsedInRange : contract.dataRowStart
+      const templateCustRow = custSheet.getRow(templateRowIdx)
 
-      // Ghi dữ liệu vào từng dòng vừa chèn
-      cEntries.forEach((entry, idx) => {
-        const rowNum = insertAt + idx
-        const r = custSheet.getRow(rowNum)
-
-        const dateObj = parseDateValue(entry.date)
-        r.getCell(colDate).value = dateObj
-        r.getCell(colDate).numFmt = 'dd/mm/yyyy'
-
-        r.getCell(colVehicle).value = entry.vehicleName
-        if (colNote) {
-          r.getCell(colNote).value = entry.note || ''
-        }
-
-        // Cột số lượng
+      for (const entry of cEntries) {
         const colKg =
-          contract.colSoLuong && contract.colSoLuong !== 'EF'
-            ? contract.colSoLuong
-            : entry.type === 'Xe'
-            ? defaultColXe
-            : defaultColGhe
+          contract.colSoLuong === 'EF'
+            ? entry.type === 'Xe'
+              ? defaultColXe
+              : defaultColGhe
+            : contract.colSoLuong || (entry.type === 'Xe' ? defaultColXe : defaultColGhe)
 
-        r.getCell(colKg).value = entry.weightKg
+        const prevRow = custSheet.getRow(nextWriteRow - 1)
+        const prevRowA = prevRow.getCell('A').value
+        const prevRowD = prevRow.getCell('D').value
 
-        // Copy style từ template row
-        for (let colIdx = 1; colIdx <= 15; colIdx++) {
-          const src = templateCustRow.getCell(colIdx)
-          const dst = r.getCell(colIdx)
-          copyCellStyle(src, dst)
-        }
+        // Nếu vẫn còn dòng trống nằm trong vùng SUM của hợp đồng -> Ghi TRỰC TIẾP vào dòng trống đó
+        if (nextWriteRow <= contract.dataRowEnd) {
+          const targetRow = custSheet.getRow(nextWriteRow)
+          targetRow.hidden = false
 
-        r.commit()
-      })
+          // Ngày & Phương tiện & Số lượng
+          targetRow.getCell(colDate).value = parseDateValue(entry.date)
+          targetRow.getCell(colDate).numFmt = 'dd/mm/yyyy'
+          targetRow.getCell(colVehicle).value = entry.vehicleName
+          targetRow.getCell(colKg).value = entry.weightKg
 
-      totalCustomerInserted += countToInsert
-
-      // 5. CẬP NHẬT CÔNG THỨC SUM CỦA CHÍNH HỢP ĐỒNG ĐÓ
-      const sumCell = custSheet.getCell(contract.sumCell)
-      let oldSumFormula = ''
-      if (sumCell.formula) {
-        oldSumFormula = sumCell.formula
-      } else if (typeof sumCell.value === 'object' && sumCell.value !== null && 'formula' in sumCell.value) {
-        oldSumFormula = (sumCell.value as { formula: string }).formula
-      }
-
-      if (oldSumFormula) {
-        const newSumFormula = expandSumFormulaRange(oldSumFormula, contract.dataRowEnd, countToInsert)
-        sumCell.value = { formula: newSumFormula }
-      }
-
-      // Cập nhật lại dataRowEnd của contract này trong metadata runtime
-      contract.dataRowEnd += countToInsert
-
-      // 6. DỜI (SHIFT) CÔNG THỨC SUM CỦA CÁC HỢP ĐỒNG NẰM PHÍA DƯỚI VỊ TRÍ CHÈN
-      for (const otherContract of contractsList) {
-        if (otherContract.row !== contract.row && otherContract.dataRowStart >= insertAt) {
-          const otherSumCell = custSheet.getCell(otherContract.sumCell)
-          let formula = ''
-          if (otherSumCell.formula) {
-            formula = otherSumCell.formula
-          } else if (typeof otherSumCell.value === 'object' && otherSumCell.value !== null && 'formula' in otherSumCell.value) {
-            formula = (otherSumCell.value as { formula: string }).formula
+          // Nếu dòng trên có STT (cột A là số nguyên, và colDate != 'A'), điền tiếp STT + 1
+          if (colDate !== 'A' && typeof prevRowA === 'number') {
+            targetRow.getCell('A').value = prevRowA + 1
           }
 
-          if (formula) {
-            const shifted = shiftFormulaRows(formula, insertAt, countToInsert)
-            otherSumCell.value = { formula: shifted }
+          // Nếu dòng trên có chữ "Trấu" ở cột D (Tên Hàng), giữ nguyên ghi "Trấu"
+          if (typeof prevRowD === 'string' && /trấu/i.test(prevRowD)) {
+            targetRow.getCell('D').value = prevRowD
           }
 
-          // Cập nhật metadata runtime
-          otherContract.dataRowStart += countToInsert
-          otherContract.dataRowEnd += countToInsert
+          // Copy style cho các ô vừa ghi (giữ nguyên các ô công thức cột H tồn HĐ đã kéo sẵn!)
+          copyCellStyle(templateCustRow.getCell(colDate), targetRow.getCell(colDate))
+          copyCellStyle(templateCustRow.getCell(colVehicle), targetRow.getCell(colVehicle))
+          copyCellStyle(templateCustRow.getCell(colKg), targetRow.getCell(colKg))
+          targetRow.getCell(colDate).numFmt = 'dd/mm/yyyy'
+          targetRow.commit()
+        } else {
+          // Đã hết chỗ trống trong vùng SUM -> Phải spliceRows để chèn dòng mới & mở rộng SUM
+          const insertAt = contract.dataRowEnd + 1
+          custSheet.spliceRows(insertAt, 0, [])
+
+          const targetRow = custSheet.getRow(insertAt)
+          targetRow.hidden = false
+          targetRow.getCell(colDate).value = parseDateValue(entry.date)
+          targetRow.getCell(colDate).numFmt = 'dd/mm/yyyy'
+          targetRow.getCell(colVehicle).value = entry.vehicleName
+          targetRow.getCell(colKg).value = entry.weightKg
+
+          if (colDate !== 'A' && typeof prevRowA === 'number') {
+            targetRow.getCell('A').value = prevRowA + 1
+          }
+          if (typeof prevRowD === 'string' && /trấu/i.test(prevRowD)) {
+            targetRow.getCell('D').value = prevRowD
+          }
+
+          for (let colIdx = 1; colIdx <= 15; colIdx++) {
+            copyCellStyle(templateCustRow.getCell(colIdx), targetRow.getCell(colIdx))
+          }
+          targetRow.getCell(colDate).numFmt = 'dd/mm/yyyy'
+          targetRow.commit()
+
+          // Mở rộng công thức SUM của chính hợp đồng này
+          const sumCell = custSheet.getCell(contract.sumCell)
+          let oldSumFormula = ''
+          if (sumCell.formula) {
+            oldSumFormula = sumCell.formula
+          } else if (typeof sumCell.value === 'object' && sumCell.value !== null && 'formula' in sumCell.value) {
+            oldSumFormula = (sumCell.value as { formula: string }).formula
+          }
+
+          if (oldSumFormula) {
+            const newSumFormula = expandSumFormulaRange(oldSumFormula, contract.dataRowEnd, 1)
+            sumCell.value = { formula: newSumFormula }
+          }
+
+          contract.dataRowEnd += 1
+
+          // Dời công thức SUM của các hợp đồng nằm bên dưới
+          for (const otherContract of contractsList) {
+            if (otherContract.row !== contract.row && otherContract.dataRowStart >= insertAt) {
+              const otherSumCell = custSheet.getCell(otherContract.sumCell)
+              let formula = ''
+              if (otherSumCell.formula) {
+                formula = otherSumCell.formula
+              } else if (typeof otherSumCell.value === 'object' && otherSumCell.value !== null && 'formula' in otherSumCell.value) {
+                formula = (otherSumCell.value as { formula: string }).formula
+              }
+
+              if (formula) {
+                otherSumCell.value = { formula: shiftFormulaRows(formula, insertAt, 1) }
+              }
+
+              otherContract.dataRowStart += 1
+              otherContract.dataRowEnd += 1
+            }
+          }
         }
+
+        nextWriteRow++
+        totalCustomerInserted++
       }
     }
   }
 
-  // 7. Xuất workbook ra buffer
+  // 5. Xuất workbook ra buffer
   const buffer = await workbook.xlsx.writeBuffer()
   const uint8 = new Uint8Array(buffer)
 
@@ -337,6 +381,6 @@ export async function writeShipments(
     updatedBuffer: uint8,
     insertedMainCount: entries.length,
     insertedCustomerCount: totalCustomerInserted,
-    message: `Đã ghi thành công ${entries.length} phiếu vào sổ tổng và các tab khách hàng tương ứng.`,
+    message: `Đã ghi thành công ${entries.length} phiếu vào Sổ tổng và ${totalCustomerInserted} dòng vào các tab khách hàng tương ứng.`,
   }
 }

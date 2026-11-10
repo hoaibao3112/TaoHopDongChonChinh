@@ -342,7 +342,7 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     expect(r5.getCell('E').value).toBe(0);
     expect((r5.getCell('F').value as { formula: string }).formula).toBe('E5+D5');
     expect((r5.getCell('G').value as { formula: string }).formula).toBe('(D5*11)+(E5*7)');
-    expect(r5.getCell('H').value).toBe('CHỊ BÉ BẢY');
+    expect(r5.getCell('H').value).toBe('CHỊ 7 (CTC)');
 
     // Dòng 6: Ghe 14400kg
     const r6 = mainWs.getRow(6);
@@ -487,7 +487,7 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     expect(buf.byteLength).toBeGreaterThan(0);
   });
 
-  it('Kiểm tra thực tế trên file mẫu gốc THÙY (MỚI)I_BÁO CÁO TRẤU.xlsx (nếu có)', async () => {
+  it('Kiểm tra thực tế trên file mẫu gốc THÙY (MỚI)I_BÁO CÁO TRẤU.xlsx: ghi TRƯỚC bảng thống kê và vào đúng tab con', async () => {
     const samplePath = path.resolve(process.cwd(), 'THÙY (MỚI)I_BÁO CÁO TRẤU.xlsx');
     if (!fs.existsSync(samplePath)) {
       return; // Bỏ qua trên môi trường CI
@@ -497,23 +497,40 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     await wb.xlsx.readFile(samplePath);
     const meta = extractWorkbookMetadata(wb, 'THÙY (MỚI)I_BÁO CÁO TRẤU.xlsx');
 
-    const sheetChi7 = meta.customerSheets.find((s) => s.sheetName === 'CHỊ 7 (CTC)');
-    expect(sheetChi7).toBeDefined();
-    expect(sheetChi7!.contracts.length).toBeGreaterThan(0);
+    // Dòng cuối thực tế của Sổ tổng phải là 2641 (trước bảng thống kê 3682)
+    expect(meta.mainSheetLastRow).toBe(2641);
 
-    const lastContract = sheetChi7!.contracts[sheetChi7!.contracts.length - 1];
+    const sheetCoLieu = meta.customerSheets.find((s) => s.sheetName === 'CÔ LIỄU MỚI ');
+    const sheetTrangBT = meta.customerSheets.find((s) => s.sheetName === 'TRANG BẾN TRE');
+    expect(sheetCoLieu).toBeDefined();
+    expect(sheetTrangBT).toBeDefined();
+
+    const coLieuContract = sheetCoLieu!.contracts[sheetCoLieu!.contracts.length - 1];
+    const trangContract = sheetTrangBT!.contracts[sheetTrangBT!.contracts.length - 1];
 
     const batch: ShipmentEntry[] = [
       {
         id: 'real-1',
         date: '2026-11-10',
-        team: 'ĐỨC',
-        vehicleName: '63H-02309',
+        team: 'ĐỘI ĐỨC (NSX)',
+        vehicleName: '54h 1423',
+        type: 'Ghe',
+        weightKg: 1000,
+        customer: 'CÔ LIỄU',
+        targetSheetName: 'CÔ LIỄU MỚI ',
+        contractRow: coLieuContract.row,
+        note: 'Cơ Sở 1',
+      },
+      {
+        id: 'real-2',
+        date: '2026-11-10',
+        team: 'ĐỘI ĐỨC (NSX)',
+        vehicleName: '56 tranhoaibao',
         type: 'Xe',
-        weightKg: 6510,
-        customer: 'CHỊ BÉ BẢY',
-        targetSheetName: 'CHỊ 7 (CTC)',
-        contractRow: lastContract.row,
+        weightKg: 4204,
+        customer: 'TRANG BẾN TRE',
+        targetSheetName: 'TRANG BẾN TRE',
+        contractRow: trangContract.row,
         note: 'HĐ',
       },
     ];
@@ -521,7 +538,34 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     const res = await writeShipments(wb, batch, meta);
     expect(res.success).toBe(true);
     expect(res.updatedBuffer).toBeDefined();
-    expect(res.updatedBuffer!.byteLength).toBeGreaterThan(500000);
+
+    // 1. Kiểm tra Sổ tổng: phải ghi vào dòng 2642 & 2643 (TRƯỚC hộp báo cáo 3682) và KHÔNG bị hidden
+    const mainWs = wb.getWorksheet('Xuat Trấu Cty')!;
+    const r2642 = mainWs.getRow(2642);
+    expect(r2642.hidden).toBe(false);
+    expect(r2642.getCell('C').value).toBe('54h 1423');
+    expect(r2642.getCell('E').value).toBe(1000);
+    expect(r2642.getCell('H').value).toBe('CÔ LIỄU');
+
+    const r2643 = mainWs.getRow(2643);
+    expect(r2643.hidden).toBe(false);
+    expect(r2643.getCell('C').value).toBe('56 tranhoaibao');
+    expect(r2643.getCell('D').value).toBe(4204);
+    expect(r2643.getCell('H').value).toBe('TRANG BẾN TRE');
+
+    // Hộp báo cáo tại 3682 vẫn còn nguyên vẹn ở phía dưới
+    const r3682Val = String(mainWs.getRow(3682).getCell('C').value || '');
+    expect(r3682Val).toMatch(/báo cáo xuất trấu/i);
+
+    // 2. Kiểm tra Tab con CÔ LIỄU MỚI : dữ liệu cũ ở 63 -> ghi ngay vào dòng 64
+    const coLieuWs = wb.getWorksheet('CÔ LIỄU MỚI ')!;
+    expect(coLieuWs.getRow(64).getCell('C').value).toBe('54h 1423');
+    expect(coLieuWs.getRow(64).getCell('F').value).toBe(1000);
+
+    // 3. Kiểm tra Tab con TRANG BẾN TRE: dữ liệu cũ ở 1161 -> ghi ngay vào dòng 1162
+    const trangWs = wb.getWorksheet('TRANG BẾN TRE')!;
+    expect(trangWs.getRow(1162).getCell('C').value).toBe('56 tranhoaibao');
+    expect(trangWs.getRow(1162).getCell('F').value).toBe(4204);
   }, 15000);
 });
 
