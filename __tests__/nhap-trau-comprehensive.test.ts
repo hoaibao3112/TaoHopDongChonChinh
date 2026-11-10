@@ -13,8 +13,10 @@ import {
   normalizeVehicleName,
   normalizeDate,
 } from '@/lib/nhap-trau/validator';
-import { writeShipments } from '@/lib/nhap-trau/excelWriter';
+import { writeShipments, flattenSharedFormulas } from '@/lib/nhap-trau/excelWriter';
 import { extractWorkbookMetadata } from '@/lib/nhap-trau/excelReader';
+import fs from 'fs';
+import path from 'path';
 import type { ShipmentEntry, WorkbookMetadata } from '@/lib/nhap-trau/types';
 
 describe('1. Kiểm tra Công thức & Phạm vi Excel (Formula Updater)', () => {
@@ -465,4 +467,61 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     const mainWs = wb.getWorksheet('Xuat Trấu Cty')!;
     expect(mainWs.getRow(5).getCell('A').value).toBeNull();
   });
+
+  it('Giải mã Shared Formulas thành công trước khi xuất buffer để không bị lỗi master/clone', async () => {
+    const wb = await buildTestWorkbook();
+    const custWs = wb.getWorksheet('CHỊ 7 (CTC)')!;
+
+    // Giả lập ô shared formula giống Excel
+    custWs.getCell('H10').value = { formula: 'E10*2', shareType: 'shared', ref: 'H10:H12' } as unknown as ExcelJS.CellValue;
+    custWs.getCell('H11').value = { sharedFormula: 'H10' } as unknown as ExcelJS.CellValue;
+    custWs.getCell('H12').value = { sharedFormula: 'H10' } as unknown as ExcelJS.CellValue;
+
+    flattenSharedFormulas(wb);
+
+    const h11 = custWs.getCell('H11').value as { formula?: string; sharedFormula?: string };
+    expect(h11.sharedFormula).toBeUndefined();
+    expect(h11.formula).toBeTruthy();
+
+    const buf = await wb.xlsx.writeBuffer();
+    expect(buf.byteLength).toBeGreaterThan(0);
+  });
+
+  it('Kiểm tra thực tế trên file mẫu gốc THÙY (MỚI)I_BÁO CÁO TRẤU.xlsx (nếu có)', async () => {
+    const samplePath = path.resolve(process.cwd(), 'THÙY (MỚI)I_BÁO CÁO TRẤU.xlsx');
+    if (!fs.existsSync(samplePath)) {
+      return; // Bỏ qua trên môi trường CI
+    }
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(samplePath);
+    const meta = extractWorkbookMetadata(wb, 'THÙY (MỚI)I_BÁO CÁO TRẤU.xlsx');
+
+    const sheetChi7 = meta.customerSheets.find((s) => s.sheetName === 'CHỊ 7 (CTC)');
+    expect(sheetChi7).toBeDefined();
+    expect(sheetChi7!.contracts.length).toBeGreaterThan(0);
+
+    const lastContract = sheetChi7!.contracts[sheetChi7!.contracts.length - 1];
+
+    const batch: ShipmentEntry[] = [
+      {
+        id: 'real-1',
+        date: '2026-11-10',
+        team: 'ĐỨC',
+        vehicleName: '63H-02309',
+        type: 'Xe',
+        weightKg: 6510,
+        customer: 'CHỊ BÉ BẢY',
+        targetSheetName: 'CHỊ 7 (CTC)',
+        contractRow: lastContract.row,
+        note: 'HĐ',
+      },
+    ];
+
+    const res = await writeShipments(wb, batch, meta);
+    expect(res.success).toBe(true);
+    expect(res.updatedBuffer).toBeDefined();
+    expect(res.updatedBuffer!.byteLength).toBeGreaterThan(500000);
+  }, 15000);
 });
+

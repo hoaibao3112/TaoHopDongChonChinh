@@ -26,7 +26,7 @@ export default function NhapTrauView() {
 
   // ─── Workbook & File State ─────────────────────────────────────────────────
   const [excelFile, setExcelFile] = useState<File | null>(null);
-  const [workbookInstance, setWorkbookInstance] = useState<ExcelJS.Workbook | null>(null);
+  const [rawFileBuffer, setRawFileBuffer] = useState<ArrayBuffer | null>(null);
   const [metadata, setMetadata] = useState<WorkbookMetadata | null>(null);
   const [isReadingFile, setIsReadingFile] = useState<boolean>(false);
 
@@ -77,8 +77,9 @@ export default function NhapTrauView() {
     setSuccessMessage(null);
 
     try {
-      const { workbook, metadata: meta } = await readWorkbook(file);
-      setWorkbookInstance(workbook);
+      const arrayBuffer = await file.arrayBuffer();
+      const { metadata: meta } = await readWorkbook(arrayBuffer);
+      setRawFileBuffer(arrayBuffer);
       setMetadata(meta);
 
       // Nếu đã có tab khách hàng đầu tiên, set làm mặc định cho dòng 1
@@ -226,8 +227,8 @@ export default function NhapTrauView() {
 
   // ─── Step 3: Write & Download Updated Excel ────────────────────────────────
   const handleExportUpdatedExcel = async () => {
-    if (!workbookInstance || !metadata) {
-      setErrorMessage('Chưa có dữ liệu workbook hợp lệ. Vui lòng tải lại file Excel.');
+    if (!rawFileBuffer || !metadata) {
+      setErrorMessage('Chưa có dữ liệu file Excel hợp lệ. Vui lòng tải lại file Excel.');
       return;
     }
 
@@ -241,7 +242,11 @@ export default function NhapTrauView() {
     setSuccessMessage(null);
 
     try {
-      const result = await writeShipments(workbookInstance, entries, metadata);
+      // Nạp mới từ buffer gốc để đảm bảo mọi lần xuất đều sạch sẽ, không cộng dồn
+      const freshWorkbook = new ExcelJS.Workbook();
+      await freshWorkbook.xlsx.load(rawFileBuffer);
+
+      const result = await writeShipments(freshWorkbook, entries, metadata);
 
       if (result.success && result.updatedBuffer) {
         // Tải file về máy người dùng

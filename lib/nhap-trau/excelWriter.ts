@@ -44,6 +44,45 @@ function copyCellStyle(sourceCell: ExcelJS.Cell, targetCell: ExcelJS.Cell): void
 }
 
 /**
+ * Giải mã (Flatten) toàn bộ Shared Formula trong workbook thành công thức độc lập.
+ * Khắc phục triệt để bug của ExcelJS khi spliceRows làm mất đồng bộ vị trí master/clone.
+ */
+export function flattenSharedFormulas(workbook: ExcelJS.Workbook): void {
+  workbook.eachSheet((ws) => {
+    ws.eachRow({ includeEmpty: false }, (row) => {
+      row.eachCell({ includeEmpty: false }, (cell) => {
+        const val = cell.value
+        if (
+          val &&
+          typeof val === 'object' &&
+          ('sharedFormula' in val || 'shareType' in val)
+        ) {
+          let computedFormula: string | undefined
+          try {
+            computedFormula = cell.formula
+          } catch {
+            computedFormula = undefined
+          }
+
+          const prevResult =
+            'result' in val ? (val as { result?: unknown }).result : undefined
+
+          if (computedFormula) {
+            cell.value = (
+              prevResult !== undefined
+                ? { formula: computedFormula, result: prevResult }
+                : { formula: computedFormula }
+            ) as ExcelJS.CellValue
+          } else {
+            cell.value = (prevResult !== undefined ? prevResult : null) as ExcelJS.CellValue
+          }
+        }
+      })
+    })
+  })
+}
+
+/**
  * Ghi danh sách các phiếu xuất trấu vào workbook một cách nguyên tử (Atomic).
  * Nếu có bất kỳ lỗi nào, ném ra Error và không xuất file.
  */
@@ -61,6 +100,9 @@ export async function writeShipments(
       : 'Dữ liệu phiếu nhập không hợp lệ.'
     throw new Error(errorMsg)
   }
+
+  // 1.5. Giải mã toàn bộ Shared Formulas trước khi chèn/sửa dòng để tránh lỗi master/clone của ExcelJS
+  flattenSharedFormulas(workbook)
 
   // 2. Kiểm tra các sheet bắt buộc
   const mainSheet = workbook.getWorksheet(SHEET_NAMES.MAIN)
@@ -184,9 +226,9 @@ export async function writeShipments(
       contractGroups[cRow].push(entry)
     }
 
-    // Lấy danh sách hợp đồng hiện có trong sheet
+    // Lấy danh sách hợp đồng hiện có trong sheet (deep clone để tránh mutate metadata gốc)
     const sheetMeta = metadata?.customerSheets.find((s) => s.sheetName === sheetName)
-    const contractsList: ContractInfo[] = sheetMeta ? [...sheetMeta.contracts] : []
+    const contractsList: ContractInfo[] = sheetMeta ? sheetMeta.contracts.map((c) => ({ ...c })) : []
 
     // Xử lý từng nhóm hợp đồng
     for (const [cRowStr, cEntries] of Object.entries(contractGroups)) {
