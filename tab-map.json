@@ -1,0 +1,582 @@
+{
+  "analyzedAt": "2026-11-10",
+  "sourceFile": "THÙY (MỚI)I_BÁO CÁO TRẤU.xlsx",
+  "totalSheets": 31,
+
+  "sheetXuatTrauCty": {
+    "name": "Xuat Trấu Cty",
+    "state": "visible",
+    "purpose": "Sổ tổng - ghi mỗi chuyến xuất trấu",
+    "rowCount": 3700,
+    "lastDataRow": 3696,
+    "headerRow": 3,
+    "dataStartRow": 4,
+    "autoFilter": "A3:K3680",
+    "columns": {
+      "A": "Ngày Tháng (Date)",
+      "B": "Đội Xuất (string)",
+      "C": "Tên Phương Tiện (string)",
+      "D": "Xuất Xe (kg) (11đ) - số lượng nếu loại=Xe",
+      "E": "Xuất Ghe (kg) (7đ) - số lượng nếu loại=Ghe",
+      "F": "Tổng Xuất(kg) = E+D (công thức, ví dụ F4: =E4+D4)",
+      "G": "Tiền Công = (D*11)+(E*7) (công thức, ví dụ G4: =(D4*11)+(E4*7))",
+      "H": "Khách Hàng (string)",
+      "I": "Ghi Chú - HĐ / Cơ Sở 1 / Cơ Sở 2 (string)",
+      "J": "(để trống hoặc phụ)",
+      "K": "(để trống hoặc phụ)"
+    },
+    "subtotals": {
+      "D2": "SUBTOTAL(109,D4:D3679)",
+      "E2": "SUBTOTAL(109,E4:E3679)",
+      "F2": "SUBTOTAL(109,F4:F3679)",
+      "G2": "SUBTOTAL(109,G4:G3679)"
+    },
+    "notes": [
+      "Dòng 1: tiêu đề BÁO CÁO XUẤT TRẤU MỖI NGÀY (merge nhiều cột)",
+      "Dòng 2: hàng SUBTOTAL (D2, E2, F2, G2)",
+      "Dòng 3: tiêu đề cột",
+      "Dữ liệu từ dòng 4 đến khoảng 3696",
+      "AutoFilter vùng A3:K3680 - cần mở rộng nếu thêm quá dòng 3680",
+      "SUBTOTAL cố định vùng D4:D3679 - cần kiểm tra và mở rộng nếu dữ liệu vượt dòng 3679"
+    ]
+  },
+
+  "sheetTongHD": {
+    "name": "Tổng HĐ",
+    "state": "visible",
+    "purpose": "Tổng hợp hợp đồng - KHÔNG SỬA, dùng công thức liên kết từ tab khách",
+    "notes": [
+      "KHÔNG ghi vào sheet này, nó tự cập nhật theo công thức",
+      "Có autoFilter A2:O29",
+      "SUBTOTAL(109,I3:I30) ở I1"
+    ]
+  },
+
+  "sheetThongTinKH": {
+    "name": "THÔNG TIN KH",
+    "state": "hidden",
+    "purpose": "Danh sách khách hàng - nguồn dropdown",
+    "headerRow": 3,
+    "dataStartRow": 4,
+    "columns": {
+      "B": "STT",
+      "C": "TÊN KHÁCH HÀNG",
+      "D": "TÊN CÔNG TY",
+      "E": "SĐT",
+      "F": "ĐỊA CHỈ"
+    },
+    "customers": [
+      "CHỊ BÉ BẢY",
+      "CHỊ BÉ BA",
+      "TIẾN CÁI BÈ",
+      "HIẾU CẦN THƠ",
+      "ÚT LIỄU",
+      "ANH TẤN",
+      "THÁI BẢO NGỌC"
+    ],
+    "notes": ["KHÔNG sửa sheet này"]
+  },
+
+  "sheetDSPhuongTien": {
+    "name": "DS PHƯƠNG TIỆN",
+    "state": "hidden",
+    "purpose": "Danh sách phương tiện theo khách",
+    "headerRow": 3,
+    "dataStartRow": 4,
+    "autoFilter": "B3:M3",
+    "columns": {
+      "B": "STT (xe)",
+      "C": "TÊN KHÁCH HÀNG (xe)",
+      "D": "TÊN TÀI XẾ (xe)",
+      "E": "SỐ PHƯƠNG TIỆN (xe) - nhiều xe mỗi dòng (xuống hàng)",
+      "F": "SỐ CCCD",
+      "I": "STT (ghe?)",
+      "J": "TÊN KHÁCH HÀNG (ghe?)",
+      "K": "TÊN TÀI XẾ (ghe?)"
+    },
+    "notes": [
+      "Cột E chứa nhiều biển số trên cùng 1 ô (cách nhau bởi newline)",
+      "KHÔNG sửa sheet này"
+    ]
+  },
+
+  "customerSheets": [
+    {
+      "name": "CHỊ 7 (CTC)",
+      "state": "visible",
+      "customer": "CHỊ BÉ BẢY",
+      "rowCount": 8328,
+      "lastDataRow": 8328,
+      "headerRow": 7,
+      "dataStartRow": 8,
+      "autoFilter": "A7:J445",
+      "columns": {
+        "A": "STT",
+        "B": "Ngày Thàng (Date)",
+        "C": "Phương Tiện",
+        "D": "Ghi Chú",
+        "E": "Số Lượng Nhận Xe (kg)",
+        "F": "Số Lượng Nhận Ghe (kg)",
+        "G": "SL Tồn HĐ..."
+      },
+      "contractSummaryRows": {
+        "row2": "Tổng Hợp Đồng - SUBTOTAL(9,D3:D6)",
+        "row3": "HĐ Nhận xe 06/05/2026 - SL=500000 - SUM(E82:E155) tại F3",
+        "row4": "HĐ Nhận Xe 15/05/2026 - SL=1000000 - SUM(E156:E301) tại F4",
+        "row5": "HĐ Nhận xe 25/05/2026 - SL=1000000 - SUM(E302:E449) tại F5",
+        "row6": "HĐ Nhận xe 15/09/2026 - SL=500000 - SUM(E450:E471) tại F6"
+      },
+      "contracts": [
+        { "row": 3, "label": "HĐ Nhận xe 06/05/2026", "slKg": 500000, "colSoLuong": "E", "sumCell": "F3", "sumRange": "E82:E155", "dataRowStart": 82, "dataRowEnd": 155 },
+        { "row": 4, "label": "HĐ Nhận Xe 15/05/2026", "slKg": 1000000, "colSoLuong": "E", "sumCell": "F4", "sumRange": "E156:E301", "dataRowStart": 156, "dataRowEnd": 301 },
+        { "row": 5, "label": "HĐ Nhận xe 25/05/2026", "slKg": 1000000, "colSoLuong": "E", "sumCell": "F5", "sumRange": "E302:E449", "dataRowStart": 302, "dataRowEnd": 449 },
+        { "row": 6, "label": "HĐ Nhận xe 15/09/2026", "slKg": 500000, "colSoLuong": "E", "sumCell": "F6", "sumRange": "E450:E471", "dataRowStart": 450, "dataRowEnd": 471 }
+      ],
+      "notes": [
+        "⚠️ Dòng đầu dữ liệu (row8) có công thức gõ cứng: E8=F:6530-1949 - bất thường, không xử lý được tự động",
+        "Sheet này có 8328 dòng (nhiều hợp đồng lịch sử). AutoFilter chỉ bao A7:J445",
+        "Hợp đồng hiện tại (HĐ 15/09/2026) dùng vùng E450:E471"
+      ]
+    },
+    {
+      "name": "A TIẾN  ( MỚI ) ",
+      "state": "visible",
+      "customer": "TIẾN CÁI BÈ (mới)",
+      "rowCount": 72,
+      "lastDataRow": 71,
+      "headerRow": 5,
+      "dataStartRow": 6,
+      "columns": {
+        "A": "STT",
+        "B": "Ngày Thàng",
+        "C": "Phương Tiện",
+        "D": "Tên Hàng",
+        "F": "Số Lượng Nhận xe (kg)",
+        "G": "SL Tồn HĐ Nhận Xe (kg)"
+      },
+      "contracts": [
+        { "row": 3, "label": "SL HĐ Nhận xe 09/10/2026", "slKg": 200000, "colSoLuong": "F", "sumCell": "F3", "sumRange": "F36:F72", "dataRowStart": 36, "dataRowEnd": 72 },
+        { "row": 4, "label": "SL HĐ Nhận xe 27/08/2026", "slKg": 200000, "colSoLuong": "F", "sumCell": "F4", "sumRange": "F6:F69", "dataRowStart": 6, "dataRowEnd": 69 }
+      ],
+      "notes": [
+        "⚠️ Hai hợp đồng dùng cột F (không phải E)",
+        "Vùng SUM của hai HĐ bị ĐAN XEN nhau (F6:F69 và F36:F72) - cần người dùng chọn đúng HĐ"
+      ]
+    },
+    {
+      "name": "TRANG BẾN TRE",
+      "state": "visible",
+      "customer": "TRANG BẾN TRE",
+      "rowCount": 1192,
+      "lastDataRow": 1191,
+      "headerRow": 27,
+      "dataStartRow": 28,
+      "autoFilter": "A27:Q1153",
+      "columns": {
+        "B": "Ngày",
+        "C": "Phương Tiện",
+        "F": "Số Lượng Nhận Xe (cột chính)",
+        "L": "Số Lượng Nhận Ghe (hoặc cột phụ)"
+      },
+      "contracts": [
+        { "row": 3, "label": "HĐ Nhận Xe 04/06/2024", "slKg": 100000, "colSoLuong": "?", "sumCell": "?", "notes": "Cần đọc chi tiết hơn vùng row3-27" },
+        { "row": 10, "label": "HĐ có SUM(J268:J326)", "slKg": "?", "colSoLuong": "J", "sumCell": "J10", "sumRange": "J268:J326", "dataRowStart": 268, "dataRowEnd": 326 },
+        { "row": 14, "label": "HĐ có SUM(F420:F613)", "slKg": "?", "colSoLuong": "F", "sumCell": "F14", "sumRange": "F420:F613", "dataRowStart": 420, "dataRowEnd": 613 }
+      ],
+      "notes": [
+        "⚠️ PHỨC TẠP: Sheet rất lớn (1192 dòng), nhiều hợp đồng dùng CỘT KHÁC NHAU (J, L, F)",
+        "Tiêu đề dữ liệu ở dòng 27 (không phải 5-7 như các sheet khác)",
+        "Cần phân tích thêm nếu muốn hỗ trợ sheet này"
+      ]
+    },
+    {
+      "name": "CÔ LIỄU MỚI ",
+      "state": "visible",
+      "customer": "ÚT LIỄU (mới)",
+      "rowCount": 77,
+      "lastDataRow": 77,
+      "headerRow": 5,
+      "dataStartRow": 6,
+      "columns": {
+        "B": "Ngày Thàng",
+        "C": "Phương Tiện",
+        "E": "Số Lượng Nhận Xe (kg) (cột E trống)",
+        "F": "Số Lượng Nhận Ghe (kg)"
+      },
+      "contracts": [
+        { "row": 4, "label": "SL HĐ Nhận xe 29/08/2026", "slKg": 1000000, "colSoLuong": "F", "sumCell": "F4", "sumRange": "F6:F77", "dataRowStart": 6, "dataRowEnd": 77 }
+      ],
+      "notes": [
+        "⚠️ SUBTOTAL tại D3 có lỗi #REF! - bất thường",
+        "Chỉ dùng cột F cho số lượng (ghe)"
+      ]
+    },
+    {
+      "name": "ĐĂNG THÀNH PHÁT ",
+      "state": "visible",
+      "customer": "ĐĂNG THÀNH PHÁT",
+      "rowCount": 87,
+      "lastDataRow": 84,
+      "headerRow": 5,
+      "dataStartRow": 6,
+      "columns": {
+        "B": "Ngày Thàng",
+        "C": "Phương Tiện",
+        "F": "Số Lượng Nhận Xe (kg)"
+      },
+      "contracts": [
+        { "row": 3, "label": "SL HĐ Nhận xe 25/09/2026", "slKg": 200000, "colSoLuong": "F", "sumCell": "F3", "sumRange": "F6:F34", "dataRowStart": 6, "dataRowEnd": 34 },
+        { "row": 4, "label": "SL HĐ Nhận xe 05/11/2026", "slKg": 200000, "colSoLuong": "F", "sumCell": "F4", "sumRange": "F35:F82", "dataRowStart": 35, "dataRowEnd": 82 }
+      ],
+      "notes": [
+        "⚠️ SUBTOTAL tại D2 có lỗi #REF!",
+        "Cột F cho số lượng"
+      ]
+    },
+    {
+      "name": "LÝ MINH ANH ",
+      "state": "visible",
+      "customer": "LÝ MINH ANH",
+      "rowCount": 27,
+      "lastDataRow": 27,
+      "headerRow": 4,
+      "dataStartRow": 5,
+      "columns": {
+        "B": "Ngày Thàng",
+        "C": "Phương Tiện",
+        "F": "Số Lượng Nhận Ghe (kg)"
+      },
+      "contracts": [
+        { "row": 3, "label": "SL HĐ Nhận xe 30/07/2026", "slKg": 1000000, "colSoLuong": "F", "sumCell": "F3", "sumRange": "F5:F27", "dataRowStart": 5, "dataRowEnd": 27 }
+      ],
+      "notes": [
+        "⚠️ SUBTOTAL tại D2 và H2 có lỗi #REF!"
+      ]
+    },
+    {
+      "name": "CHỊ BÉ BA (TTM)",
+      "state": "visible",
+      "customer": "CHỊ BÉ BA",
+      "rowCount": 373,
+      "lastDataRow": 373,
+      "headerRow": 7,
+      "dataStartRow": 8,
+      "autoFilter": "A7:S88",
+      "columns": {
+        "B": "Ngày Thàng",
+        "C": "Phương Tiện",
+        "E": "Số Lượng Nhận Xe (kg)",
+        "F": "Số Lượng Nhận Ghe (kg)"
+      },
+      "contracts": [
+        { "row": 3, "label": "HĐ Nhận Ghe 27/07/2024", "slKg": "?", "colSoLuong": "F", "notes": "SUM phức tạp, nhiều cột" },
+        { "row": 4, "label": "HĐ Nhận Ghe 13/08/2024", "slKg": "?", "colSoLuong": "F" },
+        { "row": 5, "label": "HĐ Nhận Ghe 03/12/2024", "slKg": "?", "colSoLuong": "P", "sumCell": "F5", "sumRange": "P53:P83", "dataRowStart": 53, "dataRowEnd": 83 },
+        { "row": 84, "label": "SUM tổng F30:F83", "sumCell": "F84", "sumRange": "F30:F83", "notes": "Dòng tổng phụ" }
+      ],
+      "notes": [
+        "⚠️ PHỨC TẠP: HĐ row5 dùng cột P (không thường gặp)",
+        "⚠️ Row8 (đầu tiên) có công thức gõ cứng: F8=32046-19766",
+        "Nhiều hợp đồng lịch sử, bố cục không đều"
+      ]
+    },
+    {
+      "name": "GIANG THANH BÌNH ",
+      "state": "visible",
+      "customer": "GIANG THANH BÌNH",
+      "rowCount": 462,
+      "lastDataRow": 0,
+      "headerRow": 12,
+      "dataStartRow": 13,
+      "autoFilter": "A12:J104",
+      "columns": {
+        "A": "Ngày Thàng hoặc STT",
+        "B": "Phương Tiện",
+        "F": "Số Lượng Nhận Ghe (kg)"
+      },
+      "contracts": [
+        { "row": 3, "label": "HĐ01/2026 - Nhận Ghe 03/03/2026", "slKg": 704723, "colSoLuong": "F", "sumCell": "F3", "sumRange": "F56:F65", "dataRowStart": 56, "dataRowEnd": 65 },
+        { "row": 4, "label": "HĐ02/2026 - Nhận Ghe 08/04/2026", "slKg": 500000, "colSoLuong": "F", "sumCell": "F4", "sumRange": "F66:F74", "dataRowStart": 66, "dataRowEnd": 74 },
+        { "row": 5, "label": "HĐ03/2026 - Nhận Ghe 28/04/2026", "slKg": 500000, "colSoLuong": "F", "sumCell": "F5", "sumRange": "F75:F81", "dataRowStart": 75, "dataRowEnd": 81 },
+        { "row": 6, "label": "HĐ04/2026 - Nhận Ghe 12/05/2026", "slKg": 1000000, "colSoLuong": "F", "sumCell": "F6", "sumRange": "F82:F101", "dataRowStart": 82, "dataRowEnd": 101 },
+        { "row": 7, "label": "HĐ05/2026 - Nhận Ghe 18/05/2026", "slKg": 500000, "colSoLuong": "F", "sumCell": "F7", "sumRange": "F102:F112", "dataRowStart": 102, "dataRowEnd": 112 },
+        { "row": 8, "label": "HĐ/2026 - Nhận 29/05/2026", "slKg": 500000, "colSoLuong": "F", "sumCell": "F8", "sumRange": "F113:F??", "notes": "Cần xác định điểm cuối" }
+      ],
+      "notes": [
+        "Sheet có tiêu đề ở dòng 12 (không phổ biến)",
+        "⚠️ SUM của HĐ07 (F7) liên kết có sheet prefix: 'GIANG THANH BÌNH '!F102:F112",
+        "Sheet hiện có lastDataRow=0 theo scan 20 dòng cuối - cần kiểm tra lại"
+      ]
+    },
+    {
+      "name": "GIANG TB MỚI 2-11",
+      "state": "visible",
+      "customer": "GIANG THANH BÌNH (mới 02/11/2026)",
+      "rowCount": 25,
+      "lastDataRow": 8,
+      "headerRow": 5,
+      "dataStartRow": 6,
+      "columns": {
+        "A": "Ngày Thàng",
+        "B": "Tên Phương Tiện",
+        "E": "Số Lượng Nhận Xe (kg)",
+        "F": "Số Lượng Nhận Ghe (kg)"
+      },
+      "contracts": [
+        { "row": 3, "label": "HĐ NGÀY 02-11-2026", "slKg": 1000000, "colSoLuong": "F", "sumCell": "E3", "sumRange": "E6:E25", "altSumCell": "F3", "altSumRange": "F6:F25", "dataRowStart": 6, "dataRowEnd": 25 }
+      ],
+      "notes": [
+        "Sheet mới (tạo 02/11/2026), ít dữ liệu",
+        "Cột tiêu đề ở dòng 5, dữ liệu từ 6",
+        "Dùng cột F (ghe). SUBTOTAL(109,G3:G4) tại H2"
+      ]
+    },
+    {
+      "name": "CHỊ MAI THÁI BẢO NGỌC",
+      "state": "visible",
+      "customer": "THÁI BẢO NGỌC",
+      "rowCount": 274,
+      "lastDataRow": 273,
+      "headerRow": "?",
+      "dataStartRow": "?",
+      "columns": {
+        "B": "Ngày Thàng",
+        "C": "Phương Tiện",
+        "E": "Số Lượng Nhận Xe (kg)"
+      },
+      "contracts": [
+        { "row": 3, "label": "HĐ Nhận xe 28/10/2025", "slKg": 500000, "colSoLuong": "E", "sumCell": "F3", "sumRange": "E19:E26", "dataRowStart": 19, "dataRowEnd": 26 },
+        { "row": 4, "label": "HĐ Nhận xe 30/10/2025", "slKg": 1000000, "colSoLuong": "E", "sumCell": "F4", "sumRange": "E27:E41", "dataRowStart": 27, "dataRowEnd": 41 },
+        { "row": 5, "label": "HĐ Nhận xe 02/11/2025", "slKg": 1000000, "colSoLuong": "E", "sumCell": "F5", "sumRange": "E42:E51", "dataRowStart": 42, "dataRowEnd": 51 },
+        { "row": 6, "label": "HĐ Nhận xe 24/11/2025", "slKg": 1000000, "colSoLuong": "E", "sumCell": "F6", "sumRange": "E52:E67", "dataRowStart": 52, "dataRowEnd": 67 },
+        { "row": 7, "label": "HĐ Nhận xe 18/12/2025", "slKg": 1000000, "colSoLuong": "E", "sumCell": "F7", "sumRange": "E68:E87", "dataRowStart": 68, "dataRowEnd": 87 }
+      ],
+      "notes": [
+        "Nhiều hợp đồng lịch sử",
+        "Cần đọc thêm để xác định dòng header chính xác"
+      ]
+    },
+    {
+      "name": "NAM HOÀNG OANH",
+      "state": "visible",
+      "customer": "NAM HOÀNG OANH",
+      "rowCount": 195,
+      "lastDataRow": 0,
+      "headerRow": 7,
+      "dataStartRow": 8,
+      "columns": {
+        "B": "Ngày Thàng",
+        "C": "Phương Tiện",
+        "E": "Số Lượng Nhận Xe (kg) (theo row3,4)",
+        "F": "Số Lượng Nhận Xe (kg) (theo row5) - bất thường"
+      },
+      "contracts": [
+        { "row": 3, "label": "HĐ Nhận xe 17/12/2025", "slKg": 1000000, "colSoLuong": "E", "sumCell": "F3", "sumRange": "E8:E23", "dataRowStart": 8, "dataRowEnd": 23 },
+        { "row": 4, "label": "HĐ Nhận xe 23/12/2025", "slKg": 1000000, "colSoLuong": "E", "sumCell": "F4", "sumRange": "E24:E40", "dataRowStart": 24, "dataRowEnd": 40 },
+        { "row": 5, "label": "HĐ Nhận xe 02/11/2026", "slKg": 3000000, "colSoLuong": "F", "sumCell": "F5", "sumRange": "F8:F34", "dataRowStart": 8, "dataRowEnd": 34 }
+      ],
+      "notes": [
+        "⚠️ BẤT THƯỜNG: HĐ row5 dùng cột F thay vì E",
+        "⚠️ lastDataRow=0 theo scan - cần kiểm tra lại"
+      ]
+    },
+    {
+      "name": "TRÂM ANH",
+      "state": "visible",
+      "customer": "TRÂM ANH",
+      "rowCount": 103,
+      "lastDataRow": 103,
+      "headerRow": 7,
+      "dataStartRow": 8,
+      "columns": {
+        "B": "Ngày Thàng",
+        "C": "Phương Tiện",
+        "E": "Số Lượng Nhận Xe (kg)"
+      },
+      "contracts": [
+        { "row": 3, "label": "HĐ Nhận xe 08/01/2026", "slKg": 1000000, "colSoLuong": "E", "sumCell": "F3", "sumRange": "E8:E22", "dataRowStart": 8, "dataRowEnd": 22 },
+        { "row": 4, "label": "HĐ Nhận xe 22/01/2026", "slKg": 1000000, "colSoLuong": "E", "sumCell": "F4", "sumRange": "E23:E41", "dataRowStart": 23, "dataRowEnd": 41 },
+        { "row": 5, "label": "HĐ NHẬN XE 30/07/2026", "slKg": 150000, "colSoLuong": "E", "sumCell": "F5", "sumRange": "E38:E58", "dataRowStart": 38, "dataRowEnd": 58 },
+        { "row": 6, "label": "HĐ NHẬN XE 30/09/2026", "slKg": 200000, "colSoLuong": "E", "sumCell": "F6", "sumRange": "E59:E81", "dataRowStart": 59, "dataRowEnd": 81 }
+      ],
+      "notes": [
+        "⚠️ Vùng SUM của HĐ row3 và row4 bị đan xen (E23:E41 và E38:E58)"
+      ]
+    },
+    {
+      "name": "CẨM (THANH XUÂN )",
+      "state": "visible",
+      "customer": "CẨM THANH XUÂN",
+      "rowCount": 44,
+      "lastDataRow": 44,
+      "headerRow": 6,
+      "dataStartRow": 7,
+      "columns": {
+        "B": "Ngày Thàng",
+        "C": "Phương Tiện",
+        "E": "Số Lượng Nhận Xe (kg)",
+        "F": "Số Lượng Nhận Ghe (kg)"
+      },
+      "contracts": [
+        { "row": 2, "label": "HĐ Nhận Ghe 15/05/2026", "slKg": 300000, "colSoLuong": "F", "sumCell": "F2", "sumRange": "F7:F11", "dataRowStart": 7, "dataRowEnd": 11 },
+        { "row": 4, "label": "HĐ Nhận Ghe 29/05/2026", "slKg": 500000, "colSoLuong": "F", "sumCell": "F4", "sumRange": "F12:F22", "dataRowStart": 12, "dataRowEnd": 22 },
+        { "row": 5, "label": "SL Nhận Ghe 17/08/2026", "slKg": 1000000, "colSoLuong": "EF", "sumCell": "F5", "sumRange": "SUM(E23:E41)+SUM(F23:F41)", "dataRowStart": 23, "dataRowEnd": 41 }
+      ],
+      "notes": [
+        "⚠️ BẤT THƯỜNG: HĐ row5 dùng SUM(E23:E41)+SUM(F23:F41) - cả 2 cột E và F",
+        "⚠️ Row2 vừa là header HĐ vừa có D2=300000 (không phải label)"
+      ]
+    },
+    {
+      "name": "ĐƯỢC PHƯỜNG",
+      "state": "visible",
+      "customer": "ĐƯỢC PHƯỜNG",
+      "rowCount": 307,
+      "lastDataRow": 305,
+      "headerRow": 17,
+      "dataStartRow": 18,
+      "autoFilter": "A17:I251",
+      "columns": {
+        "B": "Ngày",
+        "C": "Phương Tiện",
+        "E": "Số Lượng Nhận Ghe (kg)"
+      },
+      "contracts": [
+        { "row": 3, "label": "HĐ Nhận Ghe 13/08/2024", "slKg": 500000, "colSoLuong": "E", "sumCell": "E3", "sumRange": "E18:E24", "dataRowStart": 18, "dataRowEnd": 24 },
+        { "row": 4, "label": "HĐ Nhận Ghe 13/08/2024 (2)", "slKg": 2000000, "colSoLuong": "E", "sumCell": "E4", "sumRange": "E27:E251", "dataRowStart": 27, "dataRowEnd": 251 },
+        { "row": 5, "label": "HĐ Nhận Ghe 18/7/25", "slKg": 500000, "colSoLuong": "E", "sumCell": "E5", "sumRange": "E57:E63", "dataRowStart": 57, "dataRowEnd": 63 },
+        { "row": 6, "label": "HĐ Nhận Ghe 01/8/25", "slKg": 1003063, "colSoLuong": "E", "sumCell": "E6", "sumRange": "E118:E132", "dataRowStart": 118, "dataRowEnd": 132 },
+        { "row": 7, "label": "HĐ Nhận Ghe 04/8/25", "slKg": 2000000, "colSoLuong": "E", "sumCell": "E7", "sumRange": "E80:E117", "dataRowStart": 80, "dataRowEnd": 117 },
+        { "row": 8, "label": "HĐ Nhận Ghe 08/01/2026", "slKg": 320000, "colSoLuong": "E", "sumCell": "E8", "sumRange": "E??:E??", "notes": "Cần đọc thêm" }
+      ],
+      "notes": [
+        "⚠️ PHỨC TẠP: Dùng cột E thay vì F, header ở dòng 17",
+        "⚠️ Vùng SUM các HĐ bị đan xen phức tạp (E57:E63 nằm trong E27:E251)",
+        "Bố cục cột khác: C2=lượng hđ, D2=Đã Nhận, E2=SUBTOTAL"
+      ]
+    },
+    {
+      "name": "MY TÂM (Giang TB)",
+      "state": "visible",
+      "customer": "MY TÂM (liên kết GIANG THANH BÌNH)",
+      "rowCount": 27,
+      "lastDataRow": 27,
+      "headerRow": 4,
+      "dataStartRow": 5,
+      "columns": {
+        "B": "Ngày Thàng",
+        "C": "Phương Tiện",
+        "F": "Số Lượng Nhận Ghe (kg)"
+      },
+      "contracts": [
+        { "row": 3, "label": "SL HĐ Nhận xe 09/10/2026", "slKg": 1000000, "colSoLuong": "F", "sumCell": "F3", "sumRange": "F5:F27", "dataRowStart": 5, "dataRowEnd": 27 }
+      ],
+      "notes": [
+        "⚠️ SUBTOTAL tại D2 có lỗi #REF!",
+        "Sheet nhỏ, 1 hợp đồng"
+      ]
+    }
+  ],
+
+  "hiddenCustomerSheets": [
+    {
+      "name": "TIẾN CÁI BÈ",
+      "state": "hidden",
+      "customer": "TIẾN CÁI BÈ",
+      "rowCount": 1274,
+      "notes": ["Sheet ẩn - không hiển thị trong dropdown, không ghi vào"]
+    },
+    {
+      "name": "HIẾU CẦN THƠ",
+      "state": "hidden",
+      "customer": "HIẾU CẦN THƠ",
+      "rowCount": 1701,
+      "notes": ["Sheet ẩn - không hiển thị trong dropdown, không ghi vào"]
+    },
+    {
+      "name": "ÚT LIỄU (CTY DƯƠNG LIỄU)",
+      "state": "hidden",
+      "customer": "ÚT LIỄU",
+      "rowCount": 2243,
+      "notes": ["Sheet ẩn - không hiển thị trong dropdown, không ghi vào"]
+    },
+    {
+      "name": "ANH ĐỨC BT",
+      "state": "hidden",
+      "notes": ["Sheet ẩn - ghe, 2 HĐ, dùng cột F"]
+    },
+    {
+      "name": "HUY DÂN PHÁT",
+      "state": "hidden",
+      "notes": ["Sheet ẩn - 1 HĐ dùng cột E"]
+    },
+    {
+      "name": "ANH CHÂU",
+      "state": "hidden",
+      "notes": ["Sheet ẩn - dùng cột E (xe) và F (ghe)"]
+    }
+  ],
+
+  "otherSheets": [
+    { "name": "in bảng kê", "state": "visible", "notes": "Sheet in ấn - không ghi vào" },
+    { "name": "làm bảng kê", "state": "visible", "notes": "Sheet bảng kê chi tiết - không ghi vào" },
+    { "name": "Nhập Trấu Kho Anh Duy", "state": "hidden", "notes": "Sheet riêng - không ghi vào" },
+    { "name": "sắp tài ", "state": "hidden", "notes": "Sheet lịch tài - không ghi vào" },
+    { "name": "A CẨM PLTH ", "state": "hidden", "notes": "Sheet ẩn - không ghi vào" },
+    { "name": "TRANG THÀNH PHÁT", "state": "hidden", "notes": "Sheet ẩn - không ghi vào" }
+  ],
+
+  "criticalFindings": [
+    {
+      "severity": "HIGH",
+      "issue": "Nhiều sheet dùng cột khác nhau cho số lượng (E hoặc F), không đồng nhất",
+      "affectedSheets": ["Hầu hết các tab khách"],
+      "decision_needed": "Cần cấu hình per-sheet: colXe và colGhe"
+    },
+    {
+      "severity": "HIGH",
+      "issue": "Một số SUBTOTAL có lỗi #REF! ngay trong file gốc",
+      "affectedSheets": ["CÔ LIỄU MỚI", "ĐĂNG THÀNH PHÁT", "LÝ MINH ANH", "MY TÂM (Giang TB)"],
+      "decision_needed": "App nên bỏ qua lỗi này (không sửa, không lan rộng lỗi)"
+    },
+    {
+      "severity": "HIGH",
+      "issue": "Vùng SUM của nhiều HĐ trong cùng sheet bị đan xen nhau",
+      "affectedSheets": ["A TIẾN (MỚI)", "TRÂM ANH", "ĐƯỢC PHƯỜNG"],
+      "decision_needed": "Người dùng phải chọn đúng HĐ; app phải thêm vào đúng vùng và chỉ sửa SUM của HĐ đó"
+    },
+    {
+      "severity": "MEDIUM",
+      "issue": "CHỊ 7 (CTC): row8 có công thức gõ cứng (=6530-1949), không phải số thuần",
+      "decision_needed": "Chỉ ghi vào dòng mới, không đọc/dùng row8 làm mẫu"
+    },
+    {
+      "severity": "MEDIUM",
+      "issue": "CẨM (THANH XUÂN): HĐ mới nhất dùng SUM(E+F) không thể tự động mở rộng đơn giản",
+      "decision_needed": "Báo người dùng: HĐ này không hỗ trợ tự động, phải tự ghi"
+    },
+    {
+      "severity": "MEDIUM",
+      "issue": "ĐƯỢC PHƯỜNG: Header ở dòng 17, bố cục cột rất khác (cột E = SL, không phải F)",
+      "decision_needed": "Phải hardcode per-sheet config cho sheet này"
+    },
+    {
+      "severity": "LOW",
+      "issue": "TRANG BẾN TRE: Rất phức tạp, nhiều HĐ dùng cột J, L, F khác nhau",
+      "decision_needed": "Nên hỗ trợ trong giai đoạn sau, hiện tại báo 'không hỗ trợ'"
+    },
+    {
+      "severity": "LOW",
+      "issue": "AutoFilter 'Xuat Trấu Cty' cố định tại A3:K3680 - nếu dữ liệu vượt dòng 3680 phải mở rộng",
+      "decision_needed": "App tự mở rộng autoFilter khi thêm dòng"
+    }
+  ],
+
+  "questions_for_user": [
+    "1. Sheet ẩn (TIẾN CÁI BÈ, HIẾU CẦN THƠ, ÚT LIỄU...): bạn có muốn hỗ trợ ghi vào các sheet ẩn không? Hay chỉ ghi vào sheet hiện (visible)?",
+    "2. TRANG BẾN TRE rất phức tạp - bạn có muốn tôi phân tích sâu hơn hoặc bỏ qua giai đoạn 1?",
+    "3. Với sheet CẨM (THANH XUÂN) HĐ mới (SUM E+F): app nên từ chối ghi hay ghi mà không cập nhật SUM?",
+    "4. Các HĐ cũ (ví dụ CHỊ 7 HĐ 06/05/2026 đã hết quota 500,000kg) - app có nên tự ẩn hoặc đánh dấu hết không?"
+  ]
+}
+

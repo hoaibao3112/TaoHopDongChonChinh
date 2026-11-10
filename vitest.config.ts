@@ -7,7 +7,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['__tests__/**/*.test.ts', '**/*.test.ts'],
-    exclude: ['node_modules', '.next'],
+    exclude: ['**/node_modules/**', '.next/**', 'nhap-trau-app/**'],
   },
 });
 
