@@ -5,7 +5,7 @@ export const SESSION_COOKIE_NAME = 'auth_contract_session';
 export const ROLE_COOKIE_NAME = 'auth_user_role';
 export const SESSION_COOKIE_MAX_AGE = 60 * 60 * 12; // 12 giờ
 
-export type UserRole = 'payroll' | 'contracts' | 'admin';
+export type UserRole = 'payroll' | 'contracts' | 'admin' | 'husk';
 
 export interface AuthCheckResult {
   isAuthenticated: boolean;
@@ -17,6 +17,7 @@ export interface AuthCheckResult {
  * Kiểm tra mật khẩu phân quyền:
  * - hoaibao -> Phân hệ Tính Lương Nông Sản (/tinh-luong)
  * - chonchinh -> Phân hệ Tạo Hợp Đồng Mua Bán (/)
+ * - teamlua -> Phân hệ Quét Phiếu & Bảng Kê Xuất Trấu (/xuat-trau)
  * - admin / APP_PASSWORD -> Toàn quyền truy cập cả hai phân hệ
  */
 export function checkPassword(password: string): AuthCheckResult {
@@ -35,6 +36,14 @@ export function checkPassword(password: string): AuthCheckResult {
       isAuthenticated: true,
       role: 'contracts',
       redirectUrl: '/',
+    };
+  }
+
+  if (clean === 'teamlua') {
+    return {
+      isAuthenticated: true,
+      role: 'husk',
+      redirectUrl: '/xuat-trau',
     };
   }
 
@@ -94,7 +103,7 @@ export function isRequestAuthenticated(request: NextRequest): boolean {
  */
 export function getRequestUserRole(request: NextRequest): UserRole {
   const role = request.cookies.get(ROLE_COOKIE_NAME)?.value as UserRole;
-  if (role === 'payroll' || role === 'contracts') return role;
+  if (role === 'payroll' || role === 'contracts' || role === 'husk') return role;
   return 'admin';
 }
 
@@ -112,6 +121,6 @@ export async function isServerComponentAuthenticated(): Promise<boolean> {
 export async function getServerComponentUserRole(): Promise<UserRole> {
   const cookieStore = await cookies();
   const role = cookieStore.get(ROLE_COOKIE_NAME)?.value as UserRole;
-  if (role === 'payroll' || role === 'contracts') return role;
+  if (role === 'payroll' || role === 'contracts' || role === 'husk') return role;
   return 'admin';
 }

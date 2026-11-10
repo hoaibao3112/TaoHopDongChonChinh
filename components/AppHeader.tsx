@@ -13,7 +13,7 @@ export default function AppHeader() {
     // Đọc cookie phân quyền trên client
     const match = document.cookie.match(/(?:^|; )auth_user_role=([^;]*)/);
     const val = match ? (decodeURIComponent(match[1]) as UserRole) : null;
-    if (val === 'payroll' || val === 'contracts' || val === 'admin') {
+    if (val === 'payroll' || val === 'contracts' || val === 'admin' || val === 'husk') {
       setRole(val);
     }
   }, []);
@@ -26,6 +26,7 @@ export default function AppHeader() {
   // Quyền truy cập các tab
   const canAccessContracts = role === 'contracts' || role === 'admin' || role === null;
   const canAccessPayroll = role === 'payroll' || role === 'admin' || role === null;
+  const canAccessHusk = role === 'husk' || role === 'payroll' || role === 'admin' || role === null;
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md transition-all shadow-xs">
@@ -92,22 +93,24 @@ export default function AppHeader() {
                   <span>🔥</span>
                   <span>Nhập Sấy CS2</span>
                 </Link>
-
-                <Link
-                  href="/xuat-trau"
-                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                    isXuatTrau
-                      ? 'bg-white text-amber-900 shadow-xs ring-1 ring-amber-300'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                  }`}
-                >
-                  <span>🚛</span>
-                  <span>Quét Phiếu Trấu</span>
-                  <span className="rounded-full bg-amber-200 text-amber-900 text-[10px] px-1.5 py-0.2 font-bold">
-                    Mới
-                  </span>
-                </Link>
               </>
+            )}
+
+            {canAccessHusk && (
+              <Link
+                href="/xuat-trau"
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                  isXuatTrau
+                    ? 'bg-white text-amber-900 shadow-xs ring-1 ring-amber-300'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                <span>🚛</span>
+                <span>Quét Phiếu Trấu</span>
+                <span className="rounded-full bg-amber-200 text-amber-900 text-[10px] px-1.5 py-0.2 font-bold">
+                  Mới
+                </span>
+              </Link>
             )}
           </nav>
         </div>
@@ -125,6 +128,13 @@ export default function AppHeader() {
             <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800 shadow-2xs">
               <span>👤</span>
               <span>Chơn Chính (Hợp Đồng)</span>
+            </div>
+          )}
+
+          {role === 'husk' && (
+            <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-900 shadow-2xs">
+              <span>🚛</span>
+              <span>Đội Trấu (teamlua)</span>
             </div>
           )}
 

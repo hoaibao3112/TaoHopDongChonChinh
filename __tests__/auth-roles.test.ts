@@ -24,6 +24,20 @@ describe('Bảo mật Phân quyền Đăng nhập (Auth & Role-Based Access)', (
     expect(result.redirectUrl).toBe('/');
   });
 
+  it('Mật khẩu teamlua -> Phân hệ Quét Phiếu & Bảng Kê Xuất Trấu (/xuat-trau)', () => {
+    const result = checkPassword('teamlua');
+    expect(result.isAuthenticated).toBe(true);
+    expect(result.role).toBe('husk');
+    expect(result.redirectUrl).toBe('/xuat-trau');
+  });
+
+  it('Mật khẩu teamlua có khoảng trắng thừa -> vẫn nhận diện chuẩn xác', () => {
+    const result = checkPassword('   teamlua   ');
+    expect(result.isAuthenticated).toBe(true);
+    expect(result.role).toBe('husk');
+    expect(result.redirectUrl).toBe('/xuat-trau');
+  });
+
   it('Mật khẩu admin chuẩn (matkhau123) -> Toàn quyền quản trị', () => {
     const result = checkPassword('matkhau123');
     expect(result.isAuthenticated).toBe(true);
@@ -57,5 +71,15 @@ describe('Bảo mật Phân quyền Đăng nhập (Auth & Role-Based Access)', (
     const role = getRequestUserRole(req);
     expect(role).toBe('contracts');
   });
-});
 
+  it('getRequestUserRole nhận diện role husk từ cookie request', () => {
+    const req = new NextRequest('http://localhost:3000/xuat-trau', {
+      headers: {
+        cookie: `${SESSION_COOKIE_NAME}=authenticated; ${ROLE_COOKIE_NAME}=husk`,
+      },
+    });
+
+    const role = getRequestUserRole(req);
+    expect(role).toBe('husk');
+  });
+});

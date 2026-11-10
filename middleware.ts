@@ -49,13 +49,24 @@ export function middleware(request: NextRequest): NextResponse {
 
   // 2. Phân quyền cho Chơn Chính ('contracts'): Chỉ vào Tạo Hợp Đồng
   if (role === 'contracts') {
-    // Nếu cố vào /tinh-luong -> redirect về trang chủ /
-    if (pathname.startsWith('/tinh-luong')) {
+    // Nếu cố vào /tinh-luong, /nhap-say hoặc /xuat-trau -> redirect về trang chủ /
+    if (
+      pathname.startsWith('/tinh-luong') ||
+      pathname.startsWith('/nhap-say') ||
+      pathname.startsWith('/xuat-trau')
+    ) {
       return NextResponse.redirect(new URL('/', request.url));
     }
   }
 
-  // 3. Phân quyền Quản trị viên ('admin'): Toàn quyền truy cập cả hai phân hệ
+  // 3. Phân quyền cho Đội Trấu ('husk') với mật khẩu teamlua: Chỉ vào Xuất Trấu (/xuat-trau)
+  if (role === 'husk') {
+    if (!pathname.startsWith('/xuat-trau') && !pathname.startsWith('/api/husk')) {
+      return NextResponse.redirect(new URL('/xuat-trau', request.url));
+    }
+  }
+
+  // 4. Phân quyền Quản trị viên ('admin'): Toàn quyền truy cập tất cả phân hệ
   return NextResponse.next();
 }
 
