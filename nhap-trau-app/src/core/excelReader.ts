@@ -24,11 +24,36 @@ export function isDateLikeCell(val: ExcelJS.CellValue): boolean {
 }
 
 /**
+ * Tìm vị trí dòng bắt đầu của hộp báo cáo tổng kết (nếu có) trong sheet.
+ */
+export function findSummaryBoxStartRow(
+  mainSheet: ExcelJS.Worksheet,
+  fromRow: number = 4
+): number | null {
+  for (let r = fromRow; r <= mainSheet.rowCount; r++) {
+    const row = mainSheet.getRow(r)
+    for (let c = 1; c <= 10; c++) {
+      const val = row.getCell(c).value
+      if (
+        typeof val === 'string' &&
+        /báo cáo xuất trấu|dạ em gửi báo cáo|tổng lượng\s*:/i.test(val)
+      ) {
+        return r
+      }
+    }
+  }
+  return null
+}
+
+/**
  * Tìm dòng cuối cùng thực sự có dữ liệu chuyến xe/ghe trong Sổ tổng "Xuat Trấu Cty".
- * Bỏ qua hoàn toàn các dòng trống và hộp báo cáo tổng kết nằm phía dưới.
+ * Luôn tìm Ở PHÍA TRÊN hộp báo cáo tổng kết (đảm bảo hộp báo cáo luôn nằm ở cuối cùng).
  */
 export function findActualMainLastRow(mainSheet: ExcelJS.Worksheet): number {
-  for (let r = mainSheet.rowCount; r >= 4; r--) {
+  const summaryRow = findSummaryBoxStartRow(mainSheet, 4)
+  const scanLimit = summaryRow ? summaryRow - 1 : mainSheet.rowCount
+
+  for (let r = scanLimit; r >= 4; r--) {
     const row = mainSheet.getRow(r)
     const dateVal = row.getCell('A').value
     if (isDateLikeCell(dateVal)) {
@@ -36,22 +61,6 @@ export function findActualMainLastRow(mainSheet: ExcelJS.Worksheet): number {
     }
   }
   return 3
-}
-
-/**
- * Tìm vị trí dòng bắt đầu của hộp báo cáo tổng kết (nếu có) phía sau lastDataRow.
- */
-export function findSummaryBoxStartRow(mainSheet: ExcelJS.Worksheet, afterRow: number): number | null {
-  for (let r = afterRow + 1; r <= mainSheet.rowCount; r++) {
-    const row = mainSheet.getRow(r)
-    for (let c = 1; c <= 10; c++) {
-      const val = row.getCell(c).value
-      if (typeof val === 'string' && /báo cáo xuất trấu|tổng lượng/i.test(val)) {
-        return r
-      }
-    }
-  }
-  return null
 }
 
 /**

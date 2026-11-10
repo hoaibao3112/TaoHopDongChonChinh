@@ -133,8 +133,11 @@ export async function writeShipments(
     mainCurrentRow++
     const targetRow = mainSheet.getRow(mainCurrentRow)
 
-    // Đảm bảo dòng mới được hiển thị (unhide) vì các dòng trống chờ sẵn trong file gốc có thể đang hidden=true
+    // Đảm bảo dòng mới được hiển thị (unhide) và cùng chiều cao với dòng mẫu
     targetRow.hidden = false
+    if (templateRow.height) {
+      targetRow.height = templateRow.height
+    }
 
     const dateObj = parseDateValue(entry.date)
     const isXe = entry.type === 'Xe'

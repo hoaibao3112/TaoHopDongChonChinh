@@ -567,5 +567,43 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     expect(trangWs.getRow(1162).getCell('C').value).toBe('56 tranhoaibao');
     expect(trangWs.getRow(1162).getCell('F').value).toBe(4204);
   }, 15000);
+
+  it('Luôn ghi vào PHÍA TRÊN hộp bảng thống kê kể cả khi dưới hộp từng có dữ liệu cũ', async () => {
+    const wb = await buildTestWorkbook();
+    const mainWs = wb.getWorksheet('Xuat Trấu Cty')!;
+
+    // Đặt hộp bảng thống kê ở dòng 15
+    mainWs.getCell('C15').value = 'Dạ em gửi báo cáo xuất trấu ngày 09/11/2026\nTổng lượng : 79.160 kg';
+    // Giả lập lỡ có 1 dòng rác ở dòng 20 (nằm DƯỚI hộp báo cáo)
+    mainWs.getRow(20).getCell('A').value = new Date('2026-11-10');
+    mainWs.getRow(20).getCell('C').value = 'Dữ liệu cũ nằm dưới hộp';
+
+    const meta = extractWorkbookMetadata(wb);
+    // Phải trả về dòng 4 (phía trên hộp 15), tuyệt đối không trả về dòng 20!
+    expect(meta.mainSheetLastRow).toBe(4);
+
+    const batch: ShipmentEntry[] = [
+      {
+        id: 'above-box-1',
+        date: '2026-11-10',
+        team: 'ĐỘI ĐỨC (NSX)',
+        vehicleName: '63H-88888',
+        type: 'Xe',
+        weightKg: 7000,
+        customer: 'CHỊ 7 (CTC)',
+        targetSheetName: 'CHỊ 7 (CTC)',
+        contractRow: 3,
+        note: 'HĐ',
+      },
+    ];
+
+    await writeShipments(wb, batch, meta);
+
+    // Phải ghi vào dòng 5 (ngay sau dòng 4, phía trên hộp 15)
+    expect(mainWs.getRow(5).getCell('C').value).toBe('63H-88888');
+    expect(mainWs.getRow(5).getCell('D').value).toBe(7000);
+    // Hộp báo cáo ở dòng 15 vẫn nằm cuối bảng, không ghi xuống dòng 21
+    expect(mainWs.getRow(21).getCell('C').value).toBeNull();
+  });
 });
 
