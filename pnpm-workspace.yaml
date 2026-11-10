@@ -1,7 +1,3 @@
-packages:
-  - '.'
-  - 'nhap-trau-app'
-
 allowBuilds:
   protobufjs: true
   sharp: true
