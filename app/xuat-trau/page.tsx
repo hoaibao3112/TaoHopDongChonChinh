@@ -2,11 +2,11 @@ import React from 'react';
 import { redirect } from 'next/navigation';
 import { isServerComponentAuthenticated } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
-import HuskPayrollView from '@/components/HuskPayrollView';
+import HuskContainerView from '@/components/HuskContainerView';
 
 export const metadata = {
-  title: 'Xuất Trấu & Quét Phiếu Cân | XNK Chơn Chính',
-  description: 'Hệ thống tự động quét phiếu cân bằng AI và ghi bảng kê tính lương xuất trấu',
+  title: 'Nhập Trấu & Báo Cáo Xuất Trấu | XNK Chơn Chính',
+  description: 'Hệ thống nhập phiếu xuất trấu hàng ngày theo Xe và Ghe, tự động ghi Sổ tổng và Tab khách',
 };
 
 export default async function XuatTrauPage() {
@@ -20,9 +20,8 @@ export default async function XuatTrauPage() {
       <AppHeader />
 
       <main className="mx-auto max-w-7xl px-4 pt-6 sm:px-6">
-        <HuskPayrollView />
+        <HuskContainerView />
       </main>
     </div>
   );
 }
-

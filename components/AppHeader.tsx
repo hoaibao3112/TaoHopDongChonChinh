@@ -101,13 +101,13 @@ export default function AppHeader() {
                 href="/xuat-trau"
                 className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
                   isXuatTrau
-                    ? 'bg-white text-amber-900 shadow-xs ring-1 ring-amber-300'
+                    ? 'bg-white text-amber-900 shadow-xs ring-1 ring-amber-400'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                 }`}
               >
                 <span>🚛</span>
-                <span>Quét Phiếu Trấu</span>
-                <span className="rounded-full bg-amber-200 text-amber-900 text-[10px] px-1.5 py-0.2 font-bold">
+                <span>Nhập Trấu (Xe &amp; Ghe)</span>
+                <span className="rounded-full bg-amber-600 text-white text-[10px] px-2 py-0.5 font-bold shadow-2xs">
                   Mới
                 </span>
               </Link>
