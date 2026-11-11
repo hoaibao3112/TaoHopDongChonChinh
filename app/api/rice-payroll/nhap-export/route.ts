@@ -100,10 +100,12 @@ export async function POST(req: NextRequest) {
       year = 2026,
       batches = [],
       chumLoUnitPrice = 11_000,
-      trauItems = DEFAULT_OCTOBER_TRAU_ITEMS,
       managementSalary = 6_000_000,
       iceUnitPricePerDay = 10_000,
     } = body;
+
+    const isOct2026 = month === 10 && year === 2026;
+    const trauItems = body.trauItems ?? (isOct2026 ? DEFAULT_OCTOBER_TRAU_ITEMS : []);
 
     const mm   = String(month).padStart(2, '0');
     const yy   = String(year).slice(-2);
@@ -134,31 +136,36 @@ export async function POST(req: NextRequest) {
     const totalTrauTons = trauItems.reduce((s, t) => s + t.soLuong, 0);
     const totalTrauMoney = trauItems.reduce((s, t) => s + t.thanhTien, 0);
 
-    // Phân nhóm lúa để đưa vào bảng quyết toán
-    // Nhóm 1: ST25 (đơn giá 23.000)
-    // Nhóm 2: OM18 + Thơm Lài + JAPO (đơn giá 20.000)
+    // Phân nhóm lúa để đưa vào bảng quyết toán (ưu tiên đơn giá & thành tiền thực tế từ UI)
+    // Nhóm 1: ST25 (mặc định 23.000)
+    // Nhóm 2: OM18 + Thơm Lài + JAPO và các loại khác (mặc định 20.000)
     let tonsST25 = 0;
+    let moneyST25 = 0;
     let tonsPhothong = 0;
+    let moneyPhothong = 0;
     sortedBatches.forEach((b) => {
       const type = (b.riceType || '').toUpperCase();
       if (type.includes('ST25')) {
         tonsST25 += b.roundedTons;
+        moneyST25 += b.thanhTienNhap ?? b.roundedTons * (b.pricePerTon || 23_000);
       } else {
         tonsPhothong += b.roundedTons;
+        moneyPhothong += b.thanhTienNhap ?? b.roundedTons * (b.pricePerTon || 20_000);
       }
     });
-
-    const moneyST25 = tonsST25 * 23_000;
-    const moneyPhothong = tonsPhothong * 20_000;
+    const unitPriceST25 = tonsST25 > 0 ? Math.round(moneyST25 / tonsST25) : 23_000;
+    const unitPricePhothong = tonsPhothong > 0 ? Math.round(moneyPhothong / tonsPhothong) : 20_000;
 
     // Trấu theo phương tiện
     const trauOng5 = trauItems.filter((t) => t.phuongTien.toUpperCase().includes('ÔNG 5'));
     const tonsTrauOng5 = trauOng5.reduce((s, t) => s + t.soLuong, 0);
     const moneyTrauOng5 = trauOng5.reduce((s, t) => s + t.thanhTien, 0);
+    const unitPriceTrauOng5 = tonsTrauOng5 > 0 ? Math.round(moneyTrauOng5 / tonsTrauOng5) : 27273;
 
     const trauNgoai = trauItems.filter((t) => !t.phuongTien.toUpperCase().includes('ÔNG 5'));
     const tonsTrauNgoai = trauNgoai.reduce((s, t) => s + t.soLuong, 0);
     const moneyTrauNgoai = trauNgoai.reduce((s, t) => s + t.thanhTien, 0);
+    const unitPriceTrauNgoai = tonsTrauNgoai > 0 ? Math.round(moneyTrauNgoai / tonsTrauNgoai) : 27000;
 
     const totalTienNhapTongHop = moneyPhothong + moneyST25 + moneyTrauOng5 + moneyTrauNgoai;
     const totalTienCanChi = totalTienNhapTongHop + totalThanhTienChumLo + managementSalary + totalTienNuocDa;
@@ -410,7 +417,7 @@ export async function POST(req: NextRequest) {
     let totalAdvanceMoney = 0;
     DOI_DUONG_WORKERS.forEach((w, idx) => {
       const row = idx + 4;
-      const adv = w.sampleOctoberAdvance ?? 0;
+      const adv = isOct2026 ? (w.sampleOctoberAdvance ?? 0) : 0;
       totalAdvanceMoney += adv;
       setCell(ws3, `A${row}`, 'n', w.stt,           styleData('center'));
       setCell(ws3, `B${row}`, 's', w.name,          styleData('left', true));
@@ -485,8 +492,8 @@ export async function POST(req: NextRequest) {
     let totalThucLanhMoney = 0;
     DOI_DUONG_WORKERS.forEach((w, idx) => {
       const row = idx + 3;
-      const sal = w.sampleOctoberSalary ?? 0;
-      const adv = w.sampleOctoberAdvance ?? 0;
+      const sal = isOct2026 ? (w.sampleOctoberSalary ?? 0) : 0;
+      const adv = isOct2026 ? (w.sampleOctoberAdvance ?? 0) : 0;
       const thucLanh = sal - adv;
       totalSalaryMoney += sal;
       totalThucLanhMoney += thucLanh;
@@ -538,27 +545,27 @@ export async function POST(req: NextRequest) {
 
     // Row 32: NHẬP LÚA OM18 + THƠM LÀI + JAPO
     setCell(ws4, 'B32', 's', 'NHẬP LÚA OM18+\r\nTHƠM LÀI+JAPO', styleData('left'));
-    setCell(ws4, 'C32', 'n', tonsPhothong, { ...styleData('center'), numFmt: FMT_NUMBER });
-    setCell(ws4, 'D32', 'n', 20000,        { ...styleMoney(), numFmt: FMT_MONEY });
-    setCell(ws4, 'E32', 'n', moneyPhothong, { ...styleMoney(), numFmt: FMT_MONEY });
+    setCell(ws4, 'C32', 'n', tonsPhothong,      { ...styleData('center'), numFmt: FMT_NUMBER });
+    setCell(ws4, 'D32', 'n', unitPricePhothong, { ...styleMoney(), numFmt: FMT_MONEY });
+    setCell(ws4, 'E32', 'n', moneyPhothong,     { ...styleMoney(), numFmt: FMT_MONEY });
 
     // Row 33: NHẬP LÚA ST25 ĐL, ST25 KDM
     setCell(ws4, 'B33', 's', 'NHẬP LÚA ST25 ĐL,\r\nST25 KDM', styleData('left'));
-    setCell(ws4, 'C33', 'n', tonsST25, { ...styleData('center'), numFmt: FMT_NUMBER });
-    setCell(ws4, 'D33', 'n', 23000,    { ...styleMoney(), numFmt: FMT_MONEY });
-    setCell(ws4, 'E33', 'n', moneyST25, { ...styleMoney(), numFmt: FMT_MONEY });
+    setCell(ws4, 'C33', 'n', tonsST25,      { ...styleData('center'), numFmt: FMT_NUMBER });
+    setCell(ws4, 'D33', 'n', unitPriceST25, { ...styleMoney(), numFmt: FMT_MONEY });
+    setCell(ws4, 'E33', 'n', moneyST25,     { ...styleMoney(), numFmt: FMT_MONEY });
 
     // Row 34: NHẬP TRẤU GHE ÔNG 5
     setCell(ws4, 'B34', 's', 'NHẬP TRẤU GHE ÔNG 5', styleData('left'));
-    setCell(ws4, 'C34', 'n', tonsTrauOng5, { ...styleData('center'), numFmt: FMT_NUMBER });
-    setCell(ws4, 'D34', 'n', 27273,        { ...styleMoney(), numFmt: FMT_MONEY });
-    setCell(ws4, 'E34', 'n', moneyTrauOng5, { ...styleMoney(), numFmt: FMT_MONEY });
+    setCell(ws4, 'C34', 'n', tonsTrauOng5,      { ...styleData('center'), numFmt: FMT_NUMBER });
+    setCell(ws4, 'D34', 'n', unitPriceTrauOng5, { ...styleMoney(), numFmt: FMT_MONEY });
+    setCell(ws4, 'E34', 'n', moneyTrauOng5,     { ...styleMoney(), numFmt: FMT_MONEY });
 
     // Row 35: NHẬP TRẤU GHE NGOÀI
     setCell(ws4, 'B35', 's', 'NHẬP TRẤU GHE NGOÀI', styleData('left'));
-    setCell(ws4, 'C35', 'n', tonsTrauNgoai, { ...styleData('center'), numFmt: FMT_NUMBER });
-    setCell(ws4, 'D35', 'n', 27000,         { ...styleMoney(), numFmt: FMT_MONEY });
-    setCell(ws4, 'E35', 'n', moneyTrauNgoai, { ...styleMoney(), numFmt: FMT_MONEY });
+    setCell(ws4, 'C35', 'n', tonsTrauNgoai,      { ...styleData('center'), numFmt: FMT_NUMBER });
+    setCell(ws4, 'D35', 'n', unitPriceTrauNgoai, { ...styleMoney(), numFmt: FMT_MONEY });
+    setCell(ws4, 'E35', 'n', moneyTrauNgoai,     { ...styleMoney(), numFmt: FMT_MONEY });
 
     // Row 36: TỔNG CỘNG TIỀN NHẬP
     setCell(ws4, 'B36', 's', 'TỔNG CỘNG ', sumStyle4);

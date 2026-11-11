@@ -1,11 +1,19 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { RiceBatch, DailyReconciliationResult } from '@/lib/rice-payroll/types';
 import { isCoSo1, isCoSo2, isFacilityMatch } from '@/lib/rice-payroll/facility-filter';
 import { getDefaultClassification, getDefaultTons } from '@/lib/rice-payroll/sample-classification';
 import { roundRiceTons } from '@/lib/rice-payroll/rounding';
 import { allocateSmartRiceTons } from '@/lib/rice-payroll/smart-round-allocation';
+import {
+  compareMonthKeysDesc,
+  fromHtmlMonthValue,
+  getMonthKeyFromDate,
+  getSortedMonthKeysFromDates,
+  parseMonthKey,
+  toHtmlMonthValue,
+} from '@/lib/rice-payroll/month-utils';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -142,109 +150,14 @@ export default function RicePayrollView() {
 
   // ── Lựa chọn Cơ sở / Đội ──
   const [selectedFacilityKey, setSelectedFacilityKey] = useState<'CS1' | 'CS2'>('CS1');
-  const selectedFacility = selectedFacilityKey === 'CS2' ? 'Cơ sở II' : 'Cơ sở 1';
+  const selectedFacilityRef = useRef<'CS1' | 'CS2'>('CS1');
+  selectedFacilityRef.current = selectedFacilityKey;
+
+  const selectedFacility = selectedFacilityKey === 'CS2' ? 'Cơ sở II' : 'Cơ sở I';
   const selectedTeamName =
     selectedFacilityKey === 'CS2'
       ? 'ĐỘI DƯƠNG - XUẤT CƠ SỞ II'
       : 'ĐỘI CHÚ 6 THANH - XUẤT CS1';
-
-  // ─── TỰ ĐỘNG NẠP DỮ LIỆU NỀN KHI MỞ TRANG ──────────────────────────────────
-  const loadData = useCallback(async (useSample = true, file?: File) => {
-    setIsLoadingFile(true);
-    setFileError('');
-    try {
-      let res: Response;
-      if (file) {
-        const formData = new FormData();
-        formData.append('file', file);
-        res = await fetch('/api/rice-payroll/parse', { method: 'POST', body: formData });
-      } else {
-        res = await fetch('/api/rice-payroll/parse', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ useSample: true }),
-        });
-      }
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi khi nạp dữ liệu mẻ lúa');
-
-      setLoadedFileName(data.fileName);
-      setAllBatches(data.batches || []);
-      setAllDates(data.dates || []);
-
-      // Tìm tháng mới nhất có dữ liệu để chọn mặc định
-      const months = new Set<string>();
-      (data.dates || []).forEach((d: string) => {
-        const parts = d.split('/');
-        if (parts.length === 3) months.add(`${parts[1]}/${parts[2]}`);
-      });
-      const sortedMonths = Array.from(months).sort().reverse();
-      if (sortedMonths.length > 0) {
-        // Ưu tiên tháng 10/2026 hoặc 09/2026 nếu có
-        if (sortedMonths.includes('10/2026')) {
-          setSelectedMonthKey('10/2026');
-        } else if (sortedMonths.includes('09/2026')) {
-          setSelectedMonthKey('09/2026');
-        } else {
-          setSelectedMonthKey(sortedMonths[0]);
-        }
-      }
-    } catch (err) {
-      setFileError(err instanceof Error ? err.message : 'Không thể nạp dữ liệu');
-    } finally {
-      setIsLoadingFile(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadData(true);
-  }, [loadData]);
-
-  
-  // ─── Danh sách tất cả các ngày xuống lúa thực tế theo Cơ sở được chọn (CS1 hoặc CS2) ──
-  const facilityDischargeDates = useMemo(() => {
-    const set = new Set<string>();
-    allBatches.forEach((b) => {
-      if (isFacilityMatch(b.dryFacility, selectedFacilityKey) && b.dischargeDate) {
-        set.add(b.dischargeDate);
-      }
-    });
-    return Array.from(set).sort((a, b) => {
-      const [d1, m1, y1] = a.split('/').map(Number);
-      const [d2, m2, y2] = b.split('/').map(Number);
-      return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
-    });
-  }, [allBatches, selectedFacilityKey]);
-
-  // Alias để tương thích
-  const cs1DischargeDates = facilityDischargeDates;
-
-  // ─── Danh sách các tháng có lúa xuống theo Cơ sở được chọn ───────────────────
-  const availableMonths = useMemo(() => {
-    const set = new Set<string>();
-    facilityDischargeDates.forEach((d) => {
-      const parts = d.split('/');
-      if (parts.length === 3) set.add(`${parts[1]}/${parts[2]}`);
-    });
-    return Array.from(set).sort().reverse(); // Mới nhất lên đầu
-  }, [facilityDischargeDates]);
-
-  // ─── Danh sách ngày thuộc tháng đang chọn (SẮP XẾP TĂNG DẦN: TỪ NGÀY 01 ĐẾN 30/31) ──
-  const datesInSelectedMonth = useMemo(() => {
-    if (!selectedMonthKey) return [];
-    return facilityDischargeDates.filter((d) => d.endsWith(`/${selectedMonthKey}`));
-  }, [facilityDischargeDates, selectedMonthKey]);
-
-  // ─── Danh sách tất cả các mẻ lúa thực tế theo Cơ sở & Tháng đang chọn ─────────
-  const monthBatches = useMemo(() => {
-    if (!selectedMonthKey) return [];
-    return allBatches.filter(
-      (b) =>
-        isFacilityMatch(b.dryFacility, selectedFacilityKey) &&
-        (b.dischargeDate || '').endsWith(`/${selectedMonthKey}`)
-    );
-  }, [allBatches, selectedFacilityKey, selectedMonthKey]);
 
   // ─── TỰ ĐỘNG NẠP CÁC NGÀY XUẤT LÚA THỰC TẾ TRONG THÁNG TỪ FILE MASTER ──────────
   const populateMonthDays = useCallback(
@@ -256,7 +169,7 @@ export default function RicePayrollView() {
             .filter(
               (b) =>
                 isFacilityMatch(b.dryFacility, targetFacility) &&
-                (b.dischargeDate || '').endsWith(`/${monthKey}`)
+                getMonthKeyFromDate(b.dischargeDate) === monthKey
             )
             .map((b) => b.dischargeDate)
         )
@@ -267,7 +180,15 @@ export default function RicePayrollView() {
       });
 
       if (validDates.length === 0) {
-        setRows([]);
+        setRows([
+          {
+            ...newRow(monthKey ? `01/${monthKey}` : ''),
+            priceCoTro: masterPriceCoTro,
+            priceKhongTro: masterPriceKhongTro,
+          },
+        ]);
+        setDetailRow(null);
+        setSavedLogs([]);
         return;
       }
 
@@ -286,7 +207,7 @@ export default function RicePayrollView() {
             else tonsKhong += t;
           });
         } else {
-          // Các tháng khác: mặc định lấy tổng số tấn của ngày
+          // Tháng 11 và các tháng khác: nạp toàn bộ số tấn có dữ liệu (mặc định Có trở, tính được ngay cả khi chưa hết tháng)
           const dayTons = dayBatches.reduce((s, b) => s + b.roundedTons, 0);
           tonsCo = dayTons;
           tonsKhong = 0;
@@ -308,22 +229,140 @@ export default function RicePayrollView() {
     [selectedFacilityKey, masterPriceCoTro, masterPriceKhongTro]
   );
 
+  // ─── TỰ ĐỘNG NẠP DỮ LIỆU NỀN KHI MỞ TRANG HOẶC KHI UPLOAD FILE MỚI ───────────
+  const loadData = useCallback(
+    async (useSample = true, file?: File) => {
+      setIsLoadingFile(true);
+      setFileError('');
+      try {
+        let res: Response;
+        if (file) {
+          const formData = new FormData();
+          formData.append('file', file);
+          res = await fetch('/api/rice-payroll/parse', { method: 'POST', body: formData });
+        } else {
+          res = await fetch('/api/rice-payroll/parse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ useSample: true }),
+          });
+        }
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Lỗi khi nạp dữ liệu mẻ lúa');
+
+        const loadedBatches: RiceBatch[] = data.batches || [];
+        const currentFacility = selectedFacilityRef.current;
+
+        setLoadedFileName(data.fileName);
+        setAllBatches(loadedBatches);
+        setAllDates(data.dates || []);
+        setBatchOverrides({});
+
+        // Chọn tháng mới nhất theo thời gian có dữ liệu xuất của cơ sở hiện tại (vd: 11/2026, 12/2026, 01/2027...)
+        const facilityMonths = getSortedMonthKeysFromDates(
+          loadedBatches
+            .filter((b) => isFacilityMatch(b.dryFacility, currentFacility) && b.dischargeDate)
+            .map((b) => b.dischargeDate)
+        );
+        const fallbackMonths = getSortedMonthKeysFromDates(
+          loadedBatches.filter((b) => b.dischargeDate).map((b) => b.dischargeDate)
+        );
+        const candidateMonths =
+          facilityMonths.length > 0
+            ? facilityMonths
+            : fallbackMonths.length > 0
+            ? fallbackMonths
+            : getSortedMonthKeysFromDates(data.dates || []);
+
+        const targetMonth = candidateMonths[0] || selectedMonthKey;
+        if (targetMonth) {
+          setSelectedMonthKey(targetMonth);
+          populateMonthDays(targetMonth, loadedBatches, currentFacility);
+        }
+      } catch (err) {
+        setFileError(err instanceof Error ? err.message : 'Không thể nạp dữ liệu');
+      } finally {
+        setIsLoadingFile(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  useEffect(() => {
+    loadData(true);
+  }, [loadData]);
+
+  // ─── Danh sách tất cả các ngày xuống lúa thực tế theo Cơ sở được chọn (CS1 hoặc CS2) ──
+  const facilityDischargeDates = useMemo(() => {
+    const set = new Set<string>();
+    allBatches.forEach((b) => {
+      if (isFacilityMatch(b.dryFacility, selectedFacilityKey) && b.dischargeDate) {
+        set.add(b.dischargeDate);
+      }
+    });
+    return Array.from(set).sort((a, b) => {
+      const [d1, m1, y1] = a.split('/').map(Number);
+      const [d2, m2, y2] = b.split('/').map(Number);
+      return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
+    });
+  }, [allBatches, selectedFacilityKey]);
+
+  // Alias để tương thích
+  const cs1DischargeDates = facilityDischargeDates;
+
+  // ─── Danh sách các tháng có lúa xuống theo Cơ sở được chọn (mới nhất lên đầu) ──
+  const availableMonths = useMemo(() => {
+    return getSortedMonthKeysFromDates(facilityDischargeDates);
+  }, [facilityDischargeDates]);
+
+  // Đảm bảo tháng người dùng tự chọn (vd: tháng 11 hoặc tháng tương lai chưa có mẻ trong file mẫu) luôn nằm trong dropdown
+  const dropdownMonths = useMemo(() => {
+    const set = new Set(availableMonths);
+    if (selectedMonthKey && parseMonthKey(selectedMonthKey)) {
+      set.add(selectedMonthKey);
+    }
+    return Array.from(set).sort(compareMonthKeysDesc);
+  }, [availableMonths, selectedMonthKey]);
+
+  // ─── Danh sách ngày thuộc tháng đang chọn (SẮP XẾP TĂNG DẦN: TỪ NGÀY 01 ĐẾN 30/31) ──
+  const datesInSelectedMonth = useMemo(() => {
+    if (!selectedMonthKey) return [];
+    return facilityDischargeDates.filter((d) => getMonthKeyFromDate(d) === selectedMonthKey);
+  }, [facilityDischargeDates, selectedMonthKey]);
+
+  // ─── Danh sách tất cả các mẻ lúa thực tế theo Cơ sở & Tháng đang chọn ─────────
+  const monthBatches = useMemo(() => {
+    if (!selectedMonthKey) return [];
+    return allBatches.filter(
+      (b) =>
+        isFacilityMatch(b.dryFacility, selectedFacilityKey) &&
+        getMonthKeyFromDate(b.dischargeDate) === selectedMonthKey
+    );
+  }, [allBatches, selectedFacilityKey, selectedMonthKey]);
+
   // Chuyển đổi Cơ sở (CS1 <-> CS2)
   const handleSwitchFacility = (facilityKey: 'CS1' | 'CS2') => {
     if (facilityKey === selectedFacilityKey) return;
+    selectedFacilityRef.current = facilityKey;
     setSelectedFacilityKey(facilityKey);
     setBatchOverrides({});
-    populateMonthDays(selectedMonthKey, allBatches, facilityKey);
-  };
 
-  // Khi nạp dữ liệu xong lần đầu hoặc khi có dữ liệu, tự động nạp các ngày công của tháng
-  const hasInitializedRef = React.useRef(false);
-  useEffect(() => {
-    if (allBatches.length > 0 && selectedMonthKey && !hasInitializedRef.current) {
-      hasInitializedRef.current = true;
-      populateMonthDays(selectedMonthKey, allBatches);
+    const targetMonths = getSortedMonthKeysFromDates(
+      allBatches
+        .filter((b) => isFacilityMatch(b.dryFacility, facilityKey) && b.dischargeDate)
+        .map((b) => b.dischargeDate)
+    );
+    const hasDataInCurrentMonth = targetMonths.includes(selectedMonthKey);
+    const nextMonth =
+      hasDataInCurrentMonth || targetMonths.length === 0 ? selectedMonthKey : targetMonths[0];
+
+    if (nextMonth !== selectedMonthKey) {
+      setSelectedMonthKey(nextMonth);
     }
-  }, [allBatches, selectedMonthKey, populateMonthDays]);
+    populateMonthDays(nextMonth, allBatches, facilityKey);
+  };
 
   // ─── Danh sách mẻ lúa hiển thị ở Tab 2 (theo tìm kiếm và bộ lọc) ────────────
   const filteredMonthBatches = useMemo(() => {
@@ -805,8 +844,18 @@ export default function RicePayrollView() {
       });
       setDetailRow({ ...row, result, status: newStatus });
 
-      // TỰ ĐỘNG ĐƯA VÀO BẢNG LƯƠNG THÁNG NGAY KHI GHÉP KHỚP (Không cần bắt user bấm nút 💾 thủ công)
+      // TỰ ĐỘNG ĐƯA VÀO BẢNG LƯƠNG THÁNG & ĐỒNG BỘ PHÂN LOẠI MẺ NGAY KHI GHÉP KHỚP
       if (result.isMatched) {
+        setBatchOverrides((prevOv) => {
+          const next = { ...prevOv };
+          result.batchesCoTro.forEach((b) => {
+            next[b.id] = { isCoTro: true, tons: prevOv[b.id]?.tons ?? b.roundedTons };
+          });
+          result.batchesKhongTro.forEach((b) => {
+            next[b.id] = { isCoTro: false, tons: prevOv[b.id]?.tons ?? b.roundedTons };
+          });
+          return next;
+        });
         setSavedLogs((prev) => {
           const filtered = prev.filter((l) => l.date !== result.date);
           return [...filtered, result];
@@ -904,7 +953,10 @@ export default function RicePayrollView() {
           batchOverrides[b.id]?.tons !== undefined
             ? batchOverrides[b.id].tons!
             : getDefaultTons(b);
-        const unitPrice = isCoTro ? masterPriceCoTro : masterPriceKhongTro;
+        const dayRow = rows.find((r) => r.date === b.dischargeDate);
+        const unitPrice = isCoTro
+          ? (dayRow?.priceCoTro ?? masterPriceCoTro)
+          : (dayRow?.priceKhongTro ?? masterPriceKhongTro);
 
         return {
           weighDate: b.weighDate || b.dryDate || '',
@@ -1045,7 +1097,7 @@ export default function RicePayrollView() {
                 </div>
               </div>
 
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <label htmlFor="month-select" className="text-xs font-medium text-slate-700">
                   Chọn tháng:
                 </label>
@@ -1059,12 +1111,28 @@ export default function RicePayrollView() {
                       : 'border-blue-500 bg-blue-50/50 text-blue-900'
                   }`}
                 >
-                  {availableMonths.map((m) => (
-                    <option key={m} value={m}>
-                      Tháng {m} ({facilityDischargeDates.filter((d) => d.endsWith(`/${m}`)).length} ngày xuất)
-                    </option>
-                  ))}
+                  {dropdownMonths.map((m) => {
+                    const dayCount = facilityDischargeDates.filter(
+                      (d) => getMonthKeyFromDate(d) === m
+                    ).length;
+                    return (
+                      <option key={m} value={m}>
+                        Tháng {m} ({dayCount > 0 ? `${dayCount} ngày xuất` : 'Nhập tay'})
+                      </option>
+                    );
+                  })}
                 </select>
+                <input
+                  type="month"
+                  aria-label="Chọn tháng bất kỳ (bao gồm tháng hiện tại và tương lai)"
+                  value={toHtmlMonthValue(selectedMonthKey)}
+                  onChange={(e) => {
+                    const mk = fromHtmlMonthValue(e.target.value);
+                    if (mk) handleSelectMonth(mk);
+                  }}
+                  title="Chọn nhanh tháng bất kỳ (vd: tháng 11 hoặc các tháng tương lai)"
+                  className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:border-slate-400 focus:border-blue-500 focus:outline-none shadow-2xs cursor-pointer"
+                />
               </div>
             </div>
           </div>
@@ -1144,7 +1212,7 @@ export default function RicePayrollView() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
-              Quản Lý Công Nhật & Mẻ Lúa &bull; Tháng {selectedMonthKey} &bull; Cơ sở I
+              Quản Lý Công Nhật &amp; Mẻ Lúa &bull; Tháng {selectedMonthKey} &bull; {selectedFacility}
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
               Đọc tự động từ <strong>File Lúa Master</strong>. Nhập số tấn sổ tay hoặc xem chi tiết từng mẻ lúa thực tế.
@@ -2134,9 +2202,13 @@ export default function RicePayrollView() {
                   type="button"
                   onClick={handleResetBatchesToSample}
                   className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-all cursor-pointer shadow-2xs"
-                  title="Khôi phục phân loại theo file mẫu tháng 10 chuẩn (1.586t Có trở, 1.703t Không trở)"
+                  title={
+                    selectedMonthKey === '10/2026'
+                      ? 'Khôi phục phân loại theo file mẫu tháng 10 chuẩn'
+                      : 'Khôi phục phân loại mặc định từ file lúa'
+                  }
                 >
-                  🔄 Chuẩn mẫu T10
+                  {selectedMonthKey === '10/2026' ? '🔄 Chuẩn mẫu T10' : '↺ Về mặc định'}
                 </button>
               </div>
             </div>
@@ -2367,7 +2439,7 @@ export default function RicePayrollView() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
-              Bảng Kê Lương Tháng {selectedMonthKey} &bull; Đội Chú 6 Thanh
+              Bảng Kê Lương Tháng {selectedMonthKey} &bull; {selectedFacilityKey === 'CS2' ? 'Đội Dương' : 'Đội Chú 6 Thanh'}
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
               {effectiveLogs.length > 0 || monthBatches.length > 0 ? (

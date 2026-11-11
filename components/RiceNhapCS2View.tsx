@@ -11,7 +11,7 @@
  *   4. Xuất Excel bảng tổng hợp nhập sấy
  */
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RiceBatch } from '@/lib/rice-payroll/types';
 import { isCoSo2 } from '@/lib/rice-payroll/facility-filter';
 import { roundRiceTons } from '@/lib/rice-payroll/rounding';
@@ -22,6 +22,7 @@ import {
 } from '@/lib/rice-payroll/rice-price-config';
 import { RiceTypePrice, NhapBatch, NhapSummary, NhapTrauItem } from '@/lib/rice-payroll/nhap-types';
 import { DEFAULT_OCTOBER_TRAU_ITEMS } from '@/lib/rice-payroll/nhap-trau-config';
+import { getMonthKeyFromDate, getSortedMonthKeysFromDates } from '@/lib/rice-payroll/month-utils';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -35,10 +36,7 @@ function formatMoney(n: number): string {
 }
 
 function getMonthKey(dateStr: string): string {
-  // "dd/MM/yyyy" -> "MM/yyyy"
-  const parts = dateStr.split('/');
-  if (parts.length < 3) return '';
-  return `${parts[1]}/${parts[2]}`;
+  return getMonthKeyFromDate(dateStr);
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -60,8 +58,14 @@ export default function RiceNhapCS2View() {
   const [newPrice, setNewPrice] = useState('');
   const [showPricePanel, setShowPricePanel] = useState(true);
 
-  // Nhập Trấu & Quyết toán
-  const [trauItems, setTrauItems] = useState<NhapTrauItem[]>(DEFAULT_OCTOBER_TRAU_ITEMS);
+  // Nhập Trấu & Quyết toán (tách theo từng tháng để tháng 11 & tương lai không bị dính trấu T10)
+  const [trauItemsByMonth, setTrauItemsByMonth] = useState<Record<string, NhapTrauItem[]>>({
+    '10/2026': DEFAULT_OCTOBER_TRAU_ITEMS,
+  });
+  const trauItems = useMemo(
+    () => (selectedMonthKey ? trauItemsByMonth[selectedMonthKey] ?? [] : []),
+    [trauItemsByMonth, selectedMonthKey],
+  );
   const [managementSalary, setManagementSalary] = useState<number>(6_000_000);
   const [iceUnitPricePerDay, setIceUnitPricePerDay] = useState<number>(10_000);
   const [showTrauPanel, setShowTrauPanel] = useState(false);
@@ -76,38 +80,75 @@ export default function RiceNhapCS2View() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  // ─── Parse file Excel ───────────────────────────────────────────────────
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // ─── Parse file Excel (hoặc nạp dữ liệu mẫu) ────────────────────────────
+  const applyParsedBatches = useCallback((batches: RiceBatch[]) => {
+    setAllBatches(batches);
+    const cs2Months = getSortedMonthKeysFromDates(
+      batches.filter((b) => isCoSo2(b.dryFacility) && b.dryDate).map((b) => b.dryDate),
+    );
+    setSelectedMonthKey(cs2Months[0] ?? '');
+  }, []);
 
+  const loadSampleData = useCallback(async () => {
     setIsParsing(true);
     setParseError(null);
-    setAllBatches([]);
-    setSelectedMonthKey('');
-
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
       const res = await fetch('/api/rice-payroll/parse', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ useSample: true }),
       });
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Lỗi không xác định' }));
-        throw new Error(err.error ?? 'Lỗi parse file');
+        throw new Error(err.error ?? 'Lỗi nạp dữ liệu mẫu');
       }
-
-      const data = await res.json() as { batches: RiceBatch[] };
-      setAllBatches(data.batches ?? []);
+      const data = (await res.json()) as { batches: RiceBatch[] };
+      applyParsedBatches(data.batches ?? []);
     } catch (err) {
       setParseError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsParsing(false);
     }
-  }, []);
+  }, [applyParsedBatches]);
+
+  useEffect(() => {
+    loadSampleData();
+  }, [loadSampleData]);
+
+  const handleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setIsParsing(true);
+      setParseError(null);
+      setAllBatches([]);
+      setSelectedMonthKey('');
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch('/api/rice-payroll/parse', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: 'Lỗi không xác định' }));
+          throw new Error(err.error ?? 'Lỗi parse file');
+        }
+
+        const data = (await res.json()) as { batches: RiceBatch[] };
+        applyParsedBatches(data.batches ?? []);
+      } catch (err) {
+        setParseError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setIsParsing(false);
+      }
+    },
+    [applyParsedBatches],
+  );
 
   // ─── Lọc CS2 theo dryDate ───────────────────────────────────────────────
   const cs2Batches = useMemo(
@@ -115,19 +156,9 @@ export default function RiceNhapCS2View() {
     [allBatches],
   );
 
-  // ─── Danh sách tháng có nhập CS2 ────────────────────────────────────────
+  // ─── Danh sách tháng có nhập CS2 (mới nhất lên đầu) ─────────────────────
   const availableMonths = useMemo(() => {
-    const monthSet = new Set<string>();
-    cs2Batches.forEach((b) => {
-      const mk = getMonthKey(b.dryDate);
-      if (mk) monthSet.add(mk);
-    });
-    // Sort: MM/yyyy ascending
-    return Array.from(monthSet).sort((a, b) => {
-      const [ma, ya] = a.split('/').map(Number);
-      const [mb, yb] = b.split('/').map(Number);
-      return ya !== yb ? ya - yb : ma - mb;
-    });
+    return getSortedMonthKeysFromDates(cs2Batches.map((b) => b.dryDate));
   }, [cs2Batches]);
 
   // ─── Mẻ của tháng được chọn ─────────────────────────────────────────────
@@ -244,13 +275,21 @@ export default function RiceNhapCS2View() {
       thanhTien: Math.round(tons * price),
     };
 
-    setTrauItems((prev) => [...prev, newItem]);
+    const monthKey = selectedMonthKey || 'custom';
+    setTrauItemsByMonth((prev) => ({
+      ...prev,
+      [monthKey]: [...(prev[monthKey] ?? []), newItem],
+    }));
     setNewTrauDate('');
     setNewTrauTons('');
   };
 
   const handleDeleteTrauItem = (id: string) => {
-    setTrauItems((prev) => prev.filter((t) => t.id !== id));
+    const monthKey = selectedMonthKey || 'custom';
+    setTrauItemsByMonth((prev) => ({
+      ...prev,
+      [monthKey]: (prev[monthKey] ?? []).filter((t) => t.id !== id),
+    }));
   };
 
   // ─── Xuất Excel ─────────────────────────────────────────────────────────

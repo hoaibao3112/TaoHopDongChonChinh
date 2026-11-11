@@ -24,7 +24,7 @@ export function formatExcelDate(raw: unknown): string {
   }
 
   const str = String(raw).trim();
-  if (/^\d{5}$/.test(str)) {
+  if (/^\d{5}(\.\d+)?$/.test(str)) {
     try {
       return XLSX.SSF.format('dd/mm/yyyy', Number(str));
     } catch {
@@ -32,10 +32,17 @@ export function formatExcelDate(raw: unknown): string {
     }
   }
 
-  // Nếu định dạng YYYY-MM-DD -> chuyển về DD/MM/YYYY
+  // Nếu định dạng YYYY-MM-DD hoặc YYYY/MM/DD -> chuyển về DD/MM/YYYY
   const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (isoMatch) {
     const [, y, m, d] = isoMatch;
+    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+  }
+
+  // Nếu định dạng D/M/YYYY hoặc D-M-YYYY -> chuẩn hóa về DD/MM/YYYY
+  const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (dmyMatch) {
+    const [, d, m, y] = dmyMatch;
     return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
   }
 

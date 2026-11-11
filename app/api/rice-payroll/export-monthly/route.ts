@@ -212,6 +212,51 @@ export async function POST(req: NextRequest) {
         }
       });
 
+      // Cách 2b: Nếu có dailyLogs nhập tay (chưa ghép mẻ / tháng mới chưa có file master) -> tạo dòng từ dailyLogs
+      if (items.length === 0 && dailyLogs.length > 0) {
+        const defaultFacilityLabel = isCS2 ? 'CƠ SỞ II' : 'CƠ SỞ I';
+        dailyLogs.forEach((log) => {
+          if (log.expectedTonsCoTro > 0) {
+            items.push({
+              weighDate: log.date,
+              purchaser: '',
+              customer: 'SỔ TAY CÔNG NHẬT',
+              vehicle: '',
+              riceType: '',
+              freshWeightKg: null,
+              freshBoVehicle: '',
+              dryDate: log.date,
+              dryFacility: defaultFacilityLabel,
+              dryWeightKg: log.expectedTonsCoTro * 1000,
+              roundedTons: log.expectedTonsCoTro,
+              dischargeDate: log.date,
+              dryVehicle: '',
+              isCoTro: true,
+              unitPrice: log.unitPriceCoTro || 20000,
+            });
+          }
+          if (log.expectedTonsKhongTro > 0) {
+            items.push({
+              weighDate: log.date,
+              purchaser: '',
+              customer: 'SỔ TAY CÔNG NHẬT',
+              vehicle: '',
+              riceType: '',
+              freshWeightKg: null,
+              freshBoVehicle: '',
+              dryDate: log.date,
+              dryFacility: defaultFacilityLabel,
+              dryWeightKg: log.expectedTonsKhongTro * 1000,
+              roundedTons: log.expectedTonsKhongTro,
+              dischargeDate: log.date,
+              dryVehicle: '',
+              isCoTro: false,
+              unitPrice: log.unitPriceKhongTro || 16000,
+            });
+          }
+        });
+      }
+
       // Cách 3: Nếu vẫn chưa có mẻ lúa thực tế -> ĐỌC TRỰC TIẾP TỪ FILE LÚA MASTER THEO THÁNG & CƠ SỞ I
       if (items.length === 0) {
         try {
@@ -1006,7 +1051,10 @@ export async function POST(req: NextRequest) {
     const tonsKhongTroTotal = items.filter((i) => !i.isCoTro).reduce((s, i) => s + i.roundedTons, 0);
     const priceCoTroDefault = items.find((i) => i.isCoTro)?.unitPrice || 20000;
     const priceKhongTroDefault = items.find((i) => !i.isCoTro)?.unitPrice || 16000;
-    const workDaysCount = new Set(items.map((i) => i.dischargeDate).filter(Boolean)).size || (isCS2 ? 15 : 23);
+    const workDaysCount =
+      new Set(items.map((i) => i.dischargeDate).filter(Boolean)).size ||
+      new Set(dailyLogs.map((l) => l.date).filter(Boolean)).size ||
+      (isCS2 ? 15 : 23);
     const iceAmount = workDaysCount * 10000;
     const totalCalculated = tonsCoTroTotal * priceCoTroDefault + tonsKhongTroTotal * priceKhongTroDefault + iceAmount;
     const advanceTotalVal = isOct2026 ? (isCS2 ? 29000000 : 32000000) : 0;

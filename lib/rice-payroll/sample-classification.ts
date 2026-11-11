@@ -40,6 +40,11 @@ const cs2OctoberDetails: Record<string, SampleDetail> = {
  * Lấy thông tin đối chiếu thực tế từ file mẫu Tháng 10/2026 (Cơ sở I và Cơ sở II)
  */
 export function getSampleDetail(b: RiceBatch): SampleDetail | null {
+  // Chỉ áp dụng đối chiếu cứng cho dữ liệu mẫu Tháng 10/2026 để không lẫn sang tháng 11 và các tháng sau
+  if (!(b.dischargeDate || '').endsWith('/10/2026')) {
+    return null;
+  }
+
   // 1. Kiểm tra Cơ sở II (Đội Dương)
   if (isCoSo2(b.dryFacility)) {
     const keyCS2 = `${(b.vehicleName || '').trim()}__${Math.round(b.dryWeightKg || 0)}`;
@@ -66,7 +71,9 @@ export function getDefaultClassification(b: RiceBatch): boolean {
   const detail = getSampleDetail(b);
   if (detail) return detail.isCoTro;
 
-  if (b.dischargeDate) {
+  // Chỉ áp dụng quy tắc tạm theo nửa tháng cho tháng 10/2026;
+  // từ tháng 11/2026 và các tháng khác mặc định Có trở (đồng nhất với bảng ngày công).
+  if ((b.dischargeDate || '').endsWith('/10/2026')) {
     const parts = b.dischargeDate.split('/');
     const day = parseInt(parts[0], 10);
     if (!isNaN(day)) {
