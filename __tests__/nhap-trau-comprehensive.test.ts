@@ -15,6 +15,7 @@ import {
 } from '@/lib/nhap-trau/validator';
 import { writeShipments, flattenSharedFormulas } from '@/lib/nhap-trau/excelWriter';
 import { extractWorkbookMetadata } from '@/lib/nhap-trau/excelReader';
+import { generateDailyReports } from '@/lib/nhap-trau/reportGenerator';
 import fs from 'fs';
 import path from 'path';
 import type { ShipmentEntry, WorkbookMetadata } from '@/lib/nhap-trau/types';
@@ -605,5 +606,58 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     // Hộp báo cáo ở dòng 15 vẫn nằm cuối bảng, không ghi xuống dòng 21
     expect(mainWs.getRow(21).getCell('C').value).toBeNull();
   });
+
+  it('Sinh báo cáo văn bản tự động ngày 10/11/2026 khớp 100% từng kg với mẫu thực tế trên file thật', async () => {
+    const samplePath = path.resolve(process.cwd(), 'THÙY (MỚI)I_BÁO CÁO TRẤU.xlsx');
+    if (!fs.existsSync(samplePath)) {
+      return; // Bỏ qua trên môi trường CI
+    }
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(samplePath);
+    const meta = extractWorkbookMetadata(wb, 'THÙY (MỚI)I_BÁO CÁO TRẤU.xlsx');
+
+    const getLastContractRow = (sheetName: string) => {
+      const s = meta.customerSheets.find((x) => x.sheetName === sheetName)!;
+      return s.contracts[s.contracts.length - 1].row;
+    };
+
+    // Đúng 8 chuyến xe ngày 10/11/2026 theo ảnh của user
+    const batch1011: ShipmentEntry[] = [
+      { id: '1', date: '2026-11-10', team: 'HẠNH', vehicleName: '76H 03803', type: 'Xe', weightKg: 7400, customer: 'TRANG BẾN TRE', targetSheetName: 'TRANG BẾN TRE', contractRow: getLastContractRow('TRANG BẾN TRE'), note: 'HĐ' },
+      { id: '2', date: '2026-11-10', team: 'HẠNH', vehicleName: '63H 05099', type: 'Xe', weightKg: 7230, customer: 'TRANG BẾN TRE', targetSheetName: 'TRANG BẾN TRE', contractRow: getLastContractRow('TRANG BẾN TRE'), note: 'HĐ' },
+      { id: '3', date: '2026-11-10', team: 'HẠNH', vehicleName: '63C 23620', type: 'Xe', weightKg: 7390, customer: 'CHỊ MAI (TBN)', targetSheetName: 'CHỊ MAI THÁI BẢO NGỌC', contractRow: getLastContractRow('CHỊ MAI THÁI BẢO NGỌC'), note: 'HĐ' },
+      { id: '4', date: '2026-11-10', team: 'HẠNH', vehicleName: '62H 01966', type: 'Xe', weightKg: 6960, customer: 'CÔ LIỄU', targetSheetName: 'CÔ LIỄU MỚI ', contractRow: getLastContractRow('CÔ LIỄU MỚI '), note: 'HĐ' },
+      { id: '5', date: '2026-11-10', team: 'HẠNH', vehicleName: '65E 00579', type: 'Xe', weightKg: 7400, customer: 'CÔ LIỄU', targetSheetName: 'CÔ LIỄU MỚI ', contractRow: getLastContractRow('CÔ LIỄU MỚI '), note: 'HĐ' },
+      { id: '6', date: '2026-11-10', team: 'HẠNH', vehicleName: '63H 05144', type: 'Xe', weightKg: 7400, customer: 'PHAN TIẾN', targetSheetName: 'A TIẾN  ( MỚI ) ', contractRow: 3, note: 'HĐ' },
+      { id: '7', date: '2026-11-10', team: 'HẠNH', vehicleName: '71C 04272', type: 'Xe', weightKg: 7060, customer: 'NAM HH', targetSheetName: 'NAM HOÀNG OANH', contractRow: getLastContractRow('NAM HOÀNG OANH'), note: 'HĐ' },
+      { id: '8', date: '2026-11-10', team: 'HẠNH', vehicleName: '71C 04272', type: 'Xe', weightKg: 6770, customer: 'NAM HH', targetSheetName: 'NAM HOÀNG OANH', contractRow: getLastContractRow('NAM HOÀNG OANH'), note: 'HĐ' },
+    ];
+
+    const report = generateDailyReports(wb, batch1011, '2026-11-10', meta);
+
+    expect(report.totalKg).toBe(57610);
+    expect(report.hdKg).toBe(57610);
+    expect(report.csKg).toBe(0);
+    expect(report.totalRemainingKg).toBe(7738498);
+    expect(report.contractCount).toBe(18);
+
+    // Kiểm tra chính xác text sinh ra khớp 100% số liệu trong ảnh user gửi
+    expect(report.dailyShipmentText).toContain('Dạ em gửi báo cáo xuất trấu ngày 10/11/2026');
+    expect(report.dailyShipmentText).toContain('Tổng lượng: 57.610 kg');
+    expect(report.dailyShipmentText).toContain('1_Xuất xe: 57.610 kg (08 xe)');
+    expect(report.dailyShipmentText).toContain('1_Trang Bến Tre: 14.630 kg (02 xe)');
+    expect(report.dailyShipmentText).toContain('2_Chị Mai TBN: 7.390 kg (01 xe)');
+    expect(report.dailyShipmentText).toContain('3_Cô Liễu: 14.360 kg (02 xe)');
+    expect(report.dailyShipmentText).toContain('4_Phan Tiến: 7.400 kg (01 xe)');
+    expect(report.dailyShipmentText).toContain('5_Nam HH: 13.830 kg (02 xe)');
+
+    expect(report.contractBalanceText).toContain('Tổng tồn: 7.738.498 (kg)');
+    expect(report.contractBalanceText).toContain('5_Cô Liễu: 529.440 (kg)');
+    expect(report.contractBalanceText).toContain('11_Chị Trang (Bến Tre): 500.670 (kg)');
+    expect(report.contractBalanceText).toContain('12_Chị Mai (Thái Bảo Ngọc): 21.944 (kg)');
+    expect(report.contractBalanceText).toContain('17_Phan Tiến: 22.470 (kg)');
+    expect(report.contractBalanceText).toContain('18_Nam Hoàng Hoanh: 224.350 (kg)');
+  }, 15000);
 });
 

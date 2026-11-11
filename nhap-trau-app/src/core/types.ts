@@ -95,5 +95,11 @@ export interface WriteResult {
   insertedMainCount: number
   insertedCustomerCount: number
   message: string
+  reportSummary?: {
+    dateDisplay: string
+    dailyShipmentText: string
+    contractBalanceText: string
+    combinedText: string
+  }
 }
 

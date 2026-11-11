@@ -18,7 +18,8 @@ import {
 } from '@/lib/nhap-trau/config';
 import { readWorkbook } from '@/lib/nhap-trau/excelReader';
 import { writeShipments } from '@/lib/nhap-trau/excelWriter';
-import { validateBatchEntries, normalizeVehicleName } from '@/lib/nhap-trau/validator';
+import { validateBatchEntries } from '@/lib/nhap-trau/validator';
+import { generateDailyReports } from '@/lib/nhap-trau/reportGenerator';
 
 export default function NhapTrauView() {
   // ─── Step State ─────────────────────────────────────────────────────────────
@@ -27,8 +28,16 @@ export default function NhapTrauView() {
   // ─── Workbook & File State ─────────────────────────────────────────────────
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [rawFileBuffer, setRawFileBuffer] = useState<ArrayBuffer | null>(null);
+  const [parsedWorkbook, setParsedWorkbook] = useState<ExcelJS.Workbook | null>(null);
   const [metadata, setMetadata] = useState<WorkbookMetadata | null>(null);
   const [isReadingFile, setIsReadingFile] = useState<boolean>(false);
+
+  // ─── Report State ──────────────────────────────────────────────────────────
+  const [reportDate, setReportDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
+  const [updateReportBoxes, setUpdateReportBoxes] = useState<boolean>(true);
+  const [copiedType, setCopiedType] = useState<'daily' | 'contract' | 'both' | null>(null);
 
   // ─── Batch Quick Settings ──────────────────────────────────────────────────
   const [defaultDate, setDefaultDate] = useState<string>(
@@ -78,8 +87,9 @@ export default function NhapTrauView() {
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const { metadata: meta } = await readWorkbook(arrayBuffer);
+      const { workbook, metadata: meta } = await readWorkbook(arrayBuffer);
       setRawFileBuffer(arrayBuffer);
+      setParsedWorkbook(workbook);
       setMetadata(meta);
 
       // Nếu đã có tab khách hàng đầu tiên, set làm mặc định cho dòng 1 (ưu tiên HĐ cuối cùng đang chạy)
@@ -225,6 +235,27 @@ export default function NhapTrauView() {
     };
   }, [entries]);
 
+  // ─── Live Daily Report Generator ───────────────────────────────────────────
+  const effectiveReportDate = reportDate || entries[0]?.date || defaultDate;
+  const dailyReport = useMemo(() => {
+    if (!parsedWorkbook || !metadata) return null;
+    try {
+      return generateDailyReports(parsedWorkbook, entries, effectiveReportDate, metadata);
+    } catch {
+      return null;
+    }
+  }, [parsedWorkbook, entries, effectiveReportDate, metadata]);
+
+  const handleCopyText = async (text: string, type: 'daily' | 'contract' | 'both') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedType(type);
+      setTimeout(() => setCopiedType(null), 2500);
+    } catch {
+      setErrorMessage('Không thể truy cập clipboard. Vui lòng bôi đen văn bản và copy thủ công.');
+    }
+  };
+
   // ─── Validation Result ─────────────────────────────────────────────────────
   const validationResult = useMemo(() => {
     if (!metadata) return null;
@@ -252,7 +283,10 @@ export default function NhapTrauView() {
       const freshWorkbook = new ExcelJS.Workbook();
       await freshWorkbook.xlsx.load(rawFileBuffer);
 
-      const result = await writeShipments(freshWorkbook, entries, metadata);
+      const result = await writeShipments(freshWorkbook, entries, metadata, {
+        updateReportBoxes,
+        reportDate: effectiveReportDate,
+      });
 
       if (result.success && result.updatedBuffer) {
         // Tải file về máy người dùng
@@ -967,15 +1001,114 @@ export default function NhapTrauView() {
             </div>
           )}
 
+          {/* Daily Automated Zalo/Text Reports */}
+          {dailyReport && (
+            <div className="rounded-3xl border border-indigo-200/90 bg-gradient-to-br from-indigo-50/60 via-white to-blue-50/40 p-5 sm:p-6 space-y-4 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100 pb-4">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                    <span>📋</span>
+                    <span>Báo Cáo Hằng Ngày Tự Động (Copy gửi Zalo)</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Hệ thống tự động gom toàn bộ chuyến trong ngày được chọn + trừ tồn tự động cho toàn bộ {dailyReport.contractCount} hợp đồng.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+                    <span className="text-xs font-bold text-slate-600">Ngày BC:</span>
+                    <input
+                      type="date"
+                      value={effectiveReportDate}
+                      onChange={(e) => setReportDate(e.target.value)}
+                      className="text-xs font-bold text-slate-900 focus:outline-none cursor-pointer"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyText(dailyReport.combinedText, 'both')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1.5 ${
+                      copiedType === 'both'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    }`}
+                  >
+                    <span>{copiedType === 'both' ? '✅ Đã Copy Cả 2!' : '📋 Copy Cả 2 Báo Cáo'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Report Box 1: Daily Shipment */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
+                      1. Báo Cáo Xuất Trấu ({dailyReport.dateDisplay})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyText(dailyReport.dailyShipmentText, 'daily')}
+                      className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                        copiedType === 'daily'
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                          : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {copiedType === 'daily' ? '✅ Đã copy' : '📋 Copy mục 1'}
+                    </button>
+                  </div>
+                  <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-800 bg-slate-50/80 p-3.5 rounded-xl border border-slate-100 max-h-72 overflow-y-auto select-all">
+                    {dailyReport.dailyShipmentText}
+                  </pre>
+                </div>
+
+                {/* Report Box 2: Contract Balance */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">
+                      2. Báo Cáo Hợp Đồng &amp; Tồn Kho ({dailyReport.contractCount} HĐ)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyText(dailyReport.contractBalanceText, 'contract')}
+                      className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                        copiedType === 'contract'
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                          : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {copiedType === 'contract' ? '✅ Đã copy' : '📋 Copy mục 2'}
+                    </button>
+                  </div>
+                  <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-800 bg-slate-50/80 p-3.5 rounded-xl border border-slate-100 max-h-72 overflow-y-auto select-all">
+                    {dailyReport.contractBalanceText}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Export Action Card */}
           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-6 text-center space-y-4">
-            <div className="max-w-md mx-auto space-y-1">
+            <div className="max-w-lg mx-auto space-y-2">
               <h3 className="text-base font-bold text-slate-900">
                 Sẵn sàng cập nhật vào file Excel
               </h3>
               <p className="text-xs text-slate-500">
                 Hệ thống sẽ giữ nguyên vẹn 100% công thức, format, sheet ẩn, và tự động mở rộng vùng SUM của từng hợp đồng.
               </p>
+
+              <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 bg-white px-3.5 py-2 rounded-xl border border-slate-200 cursor-pointer select-none shadow-2xs">
+                <input
+                  type="checkbox"
+                  checked={updateReportBoxes}
+                  onChange={(e) => setUpdateReportBoxes(e.target.checked)}
+                  className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 h-4 w-4"
+                />
+                <span>Tự động cập nhật luôn 2 đoạn báo cáo ngày mới vào hộp văn bản trong file Excel tải về</span>
+              </label>
             </div>
 
             <button

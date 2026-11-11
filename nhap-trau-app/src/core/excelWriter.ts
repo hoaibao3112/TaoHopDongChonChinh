@@ -21,6 +21,10 @@ import {
   findSummaryBoxStartRow,
   findLastUsedRowInRange,
 } from './excelReader'
+import {
+  generateDailyReports,
+  updateExcelReportTextBoxes,
+} from './reportGenerator'
 
 /**
  * Hàm phân tích ngày sang đối tượng Date chuẩn.
@@ -94,7 +98,8 @@ export function flattenSharedFormulas(workbook: ExcelJS.Workbook): void {
 export async function writeShipments(
   workbook: ExcelJS.Workbook,
   entries: ShipmentEntry[],
-  metadata?: WorkbookMetadata
+  metadata?: WorkbookMetadata,
+  options?: { updateReportBoxes?: boolean; reportDate?: string }
 ): Promise<WriteResult> {
   // 1. Kiểm tra tính nguyên tử: Validate toàn bộ entries
   const validation = validateBatchEntries(entries, metadata)
@@ -105,6 +110,10 @@ export async function writeShipments(
       : 'Dữ liệu phiếu nhập không hợp lệ.'
     throw new Error(errorMsg)
   }
+
+  // 1.2. Sinh báo cáo văn bản tự động trước khi ghi dòng vào sổ tổng (để tránh cộng trùng pendingEntries)
+  const reportDate = options?.reportDate || entries[entries.length - 1]?.date || new Date().toISOString().split('T')[0]
+  const generatedReport = generateDailyReports(workbook, entries, reportDate, metadata)
 
   // 1.5. Giải mã toàn bộ Shared Formulas trước khi chèn/sửa dòng để tránh lỗi master/clone của ExcelJS
   flattenSharedFormulas(workbook)
@@ -375,6 +384,11 @@ export async function writeShipments(
     }
   }
 
+  // 4.5. Tự động cập nhật 2 hộp báo cáo văn bản (trong Sổ Tổng & Tổng HĐ) nếu được bật
+  if (options?.updateReportBoxes !== false) {
+    updateExcelReportTextBoxes(workbook, generatedReport)
+  }
+
   // 5. Xuất workbook ra buffer
   const buffer = await workbook.xlsx.writeBuffer()
   const uint8 = new Uint8Array(buffer)
@@ -385,5 +399,11 @@ export async function writeShipments(
     insertedMainCount: entries.length,
     insertedCustomerCount: totalCustomerInserted,
     message: `Đã ghi thành công ${entries.length} phiếu vào Sổ tổng và ${totalCustomerInserted} dòng vào các tab khách hàng tương ứng.`,
+    reportSummary: {
+      dateDisplay: generatedReport.dateDisplay,
+      dailyShipmentText: generatedReport.dailyShipmentText,
+      contractBalanceText: generatedReport.contractBalanceText,
+      combinedText: generatedReport.combinedText,
+    },
   }
 }
