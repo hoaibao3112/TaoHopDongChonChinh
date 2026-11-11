@@ -10,6 +10,32 @@ export interface ExistingSheetAnalysis {
   sampleFormattingRowNumber: number;
   signatureStartRowNumber: number;
   allSheetNames: string[];
+  detectedTeam?: string;
+}
+
+/**
+ * Chuẩn hóa giá trị ô ngày ExcelJS về "DD/MM/YYYY" (an toàn với UTC midnight từ ExcelJS).
+ */
+export function formatExcelCellDateToDDMMYYYY(cellVal: unknown): string {
+  if (cellVal instanceof Date && !isNaN(cellVal.getTime())) {
+    const d = String(cellVal.getUTCDate()).padStart(2, '0');
+    const m = String(cellVal.getUTCMonth() + 1).padStart(2, '0');
+    const y = cellVal.getUTCFullYear();
+    return `${d}/${m}/${y}`;
+  }
+  if (typeof cellVal === 'string') {
+    const trimmed = cellVal.trim();
+    const dmy = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    if (dmy) {
+      return `${dmy[1].padStart(2, '0')}/${dmy[2].padStart(2, '0')}/${dmy[3]}`;
+    }
+    const ymd = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+    if (ymd) {
+      return `${ymd[3].padStart(2, '0')}/${ymd[2].padStart(2, '0')}/${ymd[1]}`;
+    }
+    return trimmed;
+  }
+  return '';
 }
 
 /**
@@ -17,6 +43,7 @@ export interface ExistingSheetAnalysis {
  * - Tìm các dòng dữ liệu hiện tại
  * - Tìm STT lớn nhất
  * - Tìm vị trí dòng dữ liệu cuối (để nối tiếp STT)
+ * - Nhận diện tên đội phổ biến nhất trong cột C (ví dụ: QUÝ, ĐỨC)
  * - Lấy danh sách các dòng trấu đã có để đối chiếu kiểm tra trùng
  */
 export async function readExistingPayrollExcel(
@@ -43,10 +70,12 @@ export async function readExistingPayrollExcel(
   }
 
   const existingRows: ExistingExcelRow[] = [];
+  const teamCounts = new Map<string, number>();
   let maxStt = 0;
   let lastDataRowNumber = 7;
   let sampleFormattingRowNumber = 8;
   let signatureStartRowNumber = 53;
+  let foundSignature = false;
 
   worksheet.eachRow((row, rowNumber) => {
     // Dòng dữ liệu bắt đầu từ dòng 8 trở đi
@@ -60,8 +89,9 @@ export async function readExistingPayrollExcel(
       // Kiểm tra xem có phải dòng chữ ký không (ví dụ chứa chữ "Người lập bảng", "Xác nhận")
       const textRow = row.values ? String(row.values) : '';
       if (textRow.includes('Người lập bảng') || textRow.includes('Xác nhận')) {
-        if (signatureStartRowNumber === 53 || rowNumber < signatureStartRowNumber) {
+        if (!foundSignature || rowNumber < signatureStartRowNumber) {
           signatureStartRowNumber = rowNumber;
+          foundSignature = true;
         }
         return;
       }
@@ -75,29 +105,33 @@ export async function readExistingPayrollExcel(
         lastDataRowNumber = Math.max(lastDataRowNumber, rowNumber);
         sampleFormattingRowNumber = rowNumber;
 
-        // Trích xuất ngày
-        let dateStr = '';
-        if (cellB instanceof Date) {
-          const d = String(cellB.getDate()).padStart(2, '0');
-          const m = String(cellB.getMonth() + 1).padStart(2, '0');
-          const y = cellB.getFullYear();
-          dateStr = `${d}/${m}/${y}`;
-        } else if (typeof cellB === 'string') {
-          dateStr = cellB.trim();
-        }
-
+        const dateStr = formatExcelCellDateToDDMMYYYY(cellB);
         const desc = typeof cellD === 'string' ? cellD.trim() : cellD ? String(cellD) : '';
         const kgVal = typeof cellE === 'number' ? cellE : parseFloat(String(cellE || '0')) || 0;
+        const teamStr = cellC ? String(cellC).trim() : '';
+
+        if (teamStr) {
+          teamCounts.set(teamStr, (teamCounts.get(teamStr) || 0) + 1);
+        }
 
         existingRows.push({
           stt: sttNum,
           rowNumber,
           dateStr,
-          team: cellC ? String(cellC) : '',
+          team: teamStr,
           description: desc,
           weightKg: kgVal,
         });
       }
+    }
+  });
+
+  let detectedTeam: string | undefined;
+  let maxTeamCount = 0;
+  teamCounts.forEach((count, team) => {
+    if (count > maxTeamCount) {
+      maxTeamCount = count;
+      detectedTeam = team;
     }
   });
 
@@ -110,5 +144,6 @@ export async function readExistingPayrollExcel(
     sampleFormattingRowNumber,
     signatureStartRowNumber,
     allSheetNames,
+    detectedTeam,
   };
 }

@@ -39,13 +39,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Giới hạn tối đa 30 ảnh phiếu cân cho mỗi lượt quét' }, { status: 400 });
     }
 
-    // 1. Nếu có file Excel mẫu gửi kèm -> Đọc dữ liệu đã có để phát hiện trùng (bọc try-catch an toàn)
+    // 1. Nếu có file Excel mẫu gửi kèm -> Đọc dữ liệu đã có để phát hiện trùng & nhận diện tên đội
     let existingRows: ExistingExcelRow[] = [];
+    let detectedTeam: string | undefined;
+    let detectedSheetName: string | undefined;
     if (excelFile && excelFile.size > 0) {
       try {
         const excelBytes = await excelFile.arrayBuffer();
         const analysis = await readExistingPayrollExcel(Buffer.from(excelBytes), sheetName);
         existingRows = analysis.existingRows;
+        detectedTeam = analysis.detectedTeam;
+        detectedSheetName = analysis.sheetName;
       } catch (excelErr: unknown) {
         console.warn('Cảnh báo: Không thể phân tích file Excel hiện có, tiếp tục quét OCR không đối chiếu trùng:', excelErr);
       }
@@ -168,6 +172,8 @@ export async function POST(req: NextRequest) {
       slips: scannedItems,
       totalScanned: scannedItems.length,
       existingCount: existingRows.length,
+      detectedTeam,
+      detectedSheetName,
     });
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error);

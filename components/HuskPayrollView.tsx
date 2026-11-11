@@ -11,6 +11,7 @@ export default function HuskPayrollView() {
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [settings, setSettings] = useState<HuskSettings>(DEFAULT_HUSK_SETTINGS);
+  const [isTeamManuallyEdited, setIsTeamManuallyEdited] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
 
   // ─── Processing State ─────────────────────────────────────────────────────
@@ -32,6 +33,7 @@ export default function HuskPayrollView() {
     const file = e.target.files?.[0];
     if (file) {
       setExcelFile(file);
+      setIsTeamManuallyEdited(false);
       setErrorMessage(null);
     }
   };
@@ -92,8 +94,21 @@ export default function HuskPayrollView() {
       }
 
       setScannedSlips(data.slips || []);
+      if (!isTeamManuallyEdited && data.detectedTeam) {
+        setSettings((prev) => ({
+          ...prev,
+          defaultTeam: data.detectedTeam,
+          ...(data.detectedSheetName ? { sheetName: data.detectedSheetName } : {}),
+        }));
+      }
       setScanProgress(100);
-      setSuccessMessage(`Đã đọc thành công ${data.totalScanned || 0} phiếu cân.`);
+      setSuccessMessage(
+        `Đã đọc thành công ${data.totalScanned || 0} phiếu cân.${
+          !isTeamManuallyEdited && data.detectedTeam
+            ? ` Tự nhận diện đội: ${data.detectedTeam}.`
+            : ''
+        }`
+      );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMessage(msg);
@@ -259,7 +274,10 @@ export default function HuskPayrollView() {
                 <input
                   type="text"
                   value={settings.defaultTeam}
-                  onChange={(e) => setSettings({ ...settings, defaultTeam: e.target.value })}
+                  onChange={(e) => {
+                    setIsTeamManuallyEdited(true);
+                    setSettings({ ...settings, defaultTeam: e.target.value });
+                  }}
                   className="mt-1 w-full rounded-lg border border-amber-300/40 bg-white/10 px-3 py-1.5 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </div>

@@ -292,4 +292,134 @@ describe('5. Kiểm tra Ghi Dòng Trấu Vào File Excel', () => {
     const wbXml = zip.file('xl/workbook.xml')?.asText() || '';
     expect(wbXml).toContain('fullCalcOnLoad="1"');
   });
+
+  it('chèn phiếu trấu theo đúng thứ tự ngày (trước dòng trùng ngày 06/10) trên file thật LƯƠNG ĐỘI QUÝ-T10.2026.xlsx', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { readExistingPayrollExcel, formatExcelCellDateToDDMMYYYY } = await import('../lib/excel/readExisting');
+
+    const samplePath = path.join(__dirname, '../LƯƠNG ĐỘI QUÝ-T10.2026.xlsx');
+    if (!fs.existsSync(samplePath)) return;
+
+    const buf = fs.readFileSync(samplePath);
+    const analysis = await readExistingPayrollExcel(buf, 'QUÝ');
+    expect(analysis.hasTargetSheet).toBe(true);
+    expect(analysis.existingRows).toHaveLength(44);
+    expect(analysis.detectedTeam).toBe('QUÝ');
+
+    const slips: ScannedSlipItem[] = [
+      {
+        id: 'test-15',
+        fileName: 'p15.jpg',
+        selected: true,
+        customer: 'Chị 7',
+        vehicle: '63H-02309',
+        productType: 'Trấu',
+        direction: 'Xuất',
+        date: '15/10/2026',
+        weightGrossKg: 14400,
+        weightTareKg: 7890,
+        weightNetKg: 6510,
+        tons: 6.5,
+        unitPrice: 11000,
+        amount: 71500,
+        description: 'Xuất một xe trấu 63H 02309 của chị 7',
+        warnings: [],
+        isDuplicateExisting: false,
+        isDuplicateInBatch: false,
+      },
+      {
+        id: 'test-06',
+        fileName: 'p06.jpg',
+        selected: true,
+        customer: 'Anh Ba',
+        vehicle: '63C-12345',
+        productType: 'Trấu',
+        direction: 'Xuất',
+        date: '06/10/2026',
+        weightGrossKg: 15000,
+        weightTareKg: 8160,
+        weightNetKg: 6840,
+        tons: 6.8,
+        unitPrice: 11000,
+        amount: 74800,
+        description: 'Xuất một xe trấu 63C 12345 của anh ba',
+        warnings: [],
+        isDuplicateExisting: false,
+        isDuplicateInBatch: false,
+      },
+    ];
+
+    const res = await writeHuskRowsToExcel(buf, slips, {
+      unitPrice: 11000,
+      defaultTeam: analysis.detectedTeam || 'QUÝ',
+      sheetName: 'QUÝ',
+      mergeTrips: false,
+    });
+
+    expect(res.insertedCount).toBe(2);
+
+    const outWb = new ExcelJS.Workbook();
+    await outWb.xlsx.load(res.updatedBuffer as any);
+    const outWs = outWb.getWorksheet('QUÝ')!;
+    expect(outWs).toBeDefined();
+
+    // Tổng 46 dòng dữ liệu (8..53), STT đánh lại 1..46 liên tục và ngày tăng dần
+    let prevDateKey = 0;
+    let firstOct06Idx = -1;
+    let newOct06Idx = -1;
+    let existingOct06Idx = -1;
+    let newOct15Row = -1;
+
+    for (let i = 0; i < 46; i++) {
+      const r = 8 + i;
+      const row = outWs.getRow(r);
+      expect(row.getCell(1).value).toBe(i + 1);
+
+      const dateStr = formatExcelCellDateToDDMMYYYY(row.getCell(2).value);
+      const [dd, mm, yyyy] = dateStr.split('/').map(Number);
+      const dateKey = yyyy * 10000 + mm * 100 + dd;
+      expect(dateKey).toBeGreaterThanOrEqual(prevDateKey);
+      prevDateKey = dateKey;
+
+      const desc = String(row.getCell(4).value || '');
+      if (dateStr === '06/10/2026') {
+        if (firstOct06Idx === -1) firstOct06Idx = r;
+        if (desc === 'Xuất một xe trấu 63C 12345 của anh ba') newOct06Idx = r;
+        if (desc.includes('62H 00596')) existingOct06Idx = r;
+      }
+      if (dateStr === '15/10/2026' && desc === 'Xuất một xe trấu 63H 02309 của chị 7') {
+        newOct15Row = r;
+      }
+    }
+
+    // Phiếu 06/10 mới phải nằm TRƯỚC các dòng 06/10 có sẵn
+    expect(newOct06Idx).toBe(firstOct06Idx);
+    expect(newOct06Idx).toBeLessThan(existingOct06Idx);
+    expect(outWs.getRow(newOct06Idx).getCell(3).value).toBe('QUÝ');
+    expect(outWs.getRow(newOct06Idx).getCell(18).formula).toBe(`Q${newOct06Idx}*F${newOct06Idx}`);
+
+    // Phiếu 15/10 nằm đúng giữa 11/10 và 19/10
+    expect(newOct15Row).toBeGreaterThan(existingOct06Idx);
+    expect(outWs.getRow(newOct15Row).getCell(18).formula).toBe(`Q${newOct15Row}*F${newOct15Row}`);
+
+    // Dòng có sẵn sau vị trí chèn (vd ngày 19/10: từ R39 cũ dịch +2 xuống R41 mới) phải giữ đúng công thức dời dòng
+    const movedOct19Row = outWs.getRow(41);
+    expect(formatExcelCellDateToDDMMYYYY(movedOct19Row.getCell(2).value)).toBe('19/10/2026');
+    expect(movedOct19Row.getCell(12).formula).toBe('F41*K41');
+    expect(movedOct19Row.getCell(19).formula).toContain('R41');
+
+    // Khối chữ ký dời xuống dưới dòng 53 và không có lỗi #REF!
+    let sigRow = 0;
+    outWs.eachRow((row, num) => {
+      if (String(row.values).includes('Người lập bảng')) {
+        sigRow = num;
+      }
+      for (let c = 1; c <= 19; c++) {
+        const f = row.getCell(c).formula;
+        if (f) expect(f).not.toContain('#REF!');
+      }
+    });
+    expect(sigRow).toBeGreaterThan(53);
+  });
 });
