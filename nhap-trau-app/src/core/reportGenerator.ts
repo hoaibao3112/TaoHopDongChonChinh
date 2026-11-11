@@ -128,6 +128,51 @@ function parseQ3TemplateMeta(q3Text: string): ParsedQ3ContractMeta[] {
 }
 
 /**
+ * Khớp hợp đồng trong sheet Tổng HĐ với thông tin phụ (tên gọi đẹp, ngày hết HĐ) từ Q3 theo tên khách
+ * (tránh bị lệch khi người dùng thêm hoặc xóa bớt dòng hợp đồng trong tương lai).
+ */
+function findMatchingQ3Meta(
+  rawName: string,
+  unusedQ3: ParsedQ3ContractMeta[]
+): ParsedQ3ContractMeta | undefined {
+  const norm = rawName.normalize('NFC').toLowerCase().trim()
+
+  const matchByKeyword = (kw: string): number =>
+    unusedQ3.findIndex((item) => item.displayName.normalize('NFC').toLowerCase().includes(kw))
+
+  let foundIdx = -1
+  if (norm.includes('bé bảy')) foundIdx = matchByKeyword('bé bảy')
+  else if (norm.includes('lý minh anh')) foundIdx = matchByKeyword('lý minh anh')
+  else if (norm.includes('bé ba')) foundIdx = matchByKeyword('bé ba')
+  else if (norm.includes('liễu')) foundIdx = matchByKeyword('liễu')
+  else if (norm.includes('anh tý') && norm.includes('giang')) foundIdx = matchByKeyword('anh tý')
+  else if (norm.includes('giang thanh bình')) foundIdx = matchByKeyword('giang')
+  else if (norm.includes('my tâm')) foundIdx = matchByKeyword('my tâm')
+  else if (norm.includes('cẩm')) foundIdx = matchByKeyword('cẩm')
+  else if (norm.includes('trang')) foundIdx = matchByKeyword('trang')
+  else if (norm.includes('mai')) foundIdx = matchByKeyword('mai')
+  else if (norm.includes('trâm anh')) foundIdx = matchByKeyword('trâm anh')
+  else if (norm.includes('được phường')) foundIdx = matchByKeyword('được phường')
+  else if (norm.includes('đăng thành phát')) foundIdx = matchByKeyword('đăng')
+  else if (norm.includes('tiến')) foundIdx = matchByKeyword('tiến')
+  else if (norm.includes('nam hoàng')) foundIdx = matchByKeyword('nam hoàng')
+  else {
+    // Fallback: tìm bất kỳ chữ đầu trùng nhau
+    const firstWord = norm.split(/\s+/)[0]
+    if (firstWord && firstWord.length >= 2) {
+      foundIdx = matchByKeyword(firstWord)
+    }
+  }
+
+  if (foundIdx !== -1) {
+    const matched = unusedQ3[foundIdx]
+    unusedQ3.splice(foundIdx, 1)
+    return matched
+  }
+  return undefined
+}
+
+/**
  * Cộng 1 tháng từ ngày ký HĐ để suy ra ngày hết HĐ mặc định nếu chưa có trong mẫu.
  */
 function computeDefaultExpiryDate(signDate: Date | null): string {
@@ -341,13 +386,15 @@ export function generateDailyReports(
       }
     }
 
+    const unusedQ3 = [...parsedQ3]
     const contractDetailLines: string[] = []
 
-    for (let r = 4; r <= 30; r++) {
+    for (let r = 4; r <= 50; r++) {
       const row = tongHdSheet.getRow(r)
       const rawName = row.getCell('B').value
       const qtyContract = Number(row.getCell('G').value) || 0
-      if (!rawName || qtyContract <= 0) continue
+      const statusStr = String(row.getCell('J').value || '').trim()
+      if (!rawName || qtyContract <= 0 || /đã\s*xong|hết|hủy/i.test(statusStr)) continue
 
       const idx = contractDetailLines.length + 1
       const price = Number(row.getCell('E').value) || 0
@@ -395,8 +442,8 @@ export function generateDailyReports(
       const finalRemaining = Math.max(0, currentRemaining - addedKg)
       totalRemainingKg += finalRemaining
 
-      // Lấy tên hiển thị và ngày hết HĐ từ mẫu Q3 tương ứng nếu khớp số thứ tự
-      const q3Match = parsedQ3.find((p) => p.index === idx)
+      // Khớp thông tin tên hiển thị & ngày hết HĐ từ mẫu theo tên khách (an toàn khi thêm/xóa HĐ)
+      const q3Match = findMatchingQ3Meta(String(rawName), unusedQ3)
       const displayName = q3Match?.displayName || String(rawName).trim()
       const expiryStr = q3Match?.expiryText || computeDefaultExpiryDate(signDate)
 
@@ -464,3 +511,4 @@ export function updateExcelReportTextBoxes(
     }
   }
 }
+

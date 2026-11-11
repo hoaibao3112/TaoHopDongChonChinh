@@ -659,5 +659,28 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     expect(report.contractBalanceText).toContain('17_Phan Tiến: 22.470 (kg)');
     expect(report.contractBalanceText).toContain('18_Nam Hoàng Hoanh: 224.350 (kg)');
   }, 15000);
+
+  it('Báo cáo thay đổi hoàn toàn ĐỘNG theo ngày mới (có Ghe, Cơ Sở 1, XNK/NSX, ngày hoàn toàn mới)', async () => {
+    const wb = await buildTestWorkbook();
+    const meta = extractWorkbookMetadata(wb);
+
+    const dynamicBatch: ShipmentEntry[] = [
+      { id: 'd1', date: '2026-11-15', team: 'ĐỘI ĐỨC (NSX)', vehicleName: '63H-11111', type: 'Xe', weightKg: 8500, customer: 'CHỊ 7 (CTC)', targetSheetName: 'CHỊ 7 (CTC)', contractRow: 3, note: 'HĐ' },
+      { id: 'd2', date: '2026-11-15', team: 'ĐỘI XNK', vehicleName: 'Ghe An Giang', type: 'Ghe', weightKg: 25000, customer: 'CHỊ 7 (CTC)', targetSheetName: 'CHỊ 7 (CTC)', contractRow: 3, note: 'Cơ Sở 1' },
+    ];
+
+    const report = generateDailyReports(wb, dynamicBatch, '2026-11-15', meta);
+    expect(report.dateDisplay).toBe('15/11/2026');
+    expect(report.totalKg).toBe(33500);
+    expect(report.hdKg).toBe(8500);
+    expect(report.csKg).toBe(25000);
+    expect(report.dailyShipmentText).toContain('Dạ em gửi báo cáo xuất trấu ngày 15/11/2026');
+    expect(report.dailyShipmentText).toContain('Tổng lượng: 33.500 kg');
+    expect(report.dailyShipmentText).toContain('Xuất HĐ: 8.500 kg');
+    expect(report.dailyShipmentText).toContain('Xuất Cơ sở: 25.000 kg');
+    expect(report.dailyShipmentText).toContain('1_Xuất xe: 8.500 kg (01 xe)');
+    expect(report.dailyShipmentText).toContain('2_ Xuất ghe: 25.000 kg (01 ghe)');
+    expect(report.dailyShipmentText).toContain('1_Chị 7 (CTC): 33.500 kg (01 xe, 01 ghe)');
+  });
 });
 
