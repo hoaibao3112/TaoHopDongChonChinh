@@ -8,6 +8,8 @@ import type {
 import {
   SHEET_NAMES,
   PRECONFIGURED_CUSTOMER_SHEETS,
+  getCustomerSheetConfig,
+  parseTabName,
 } from './config'
 import {
   expandSumFormulaRange,
@@ -25,6 +27,47 @@ import {
   generateDailyReports,
   updateExcelReportTextBoxes,
 } from './reportGenerator'
+
+/**
+ * Tìm worksheet an toàn, hỗ trợ cả tên tab cũ và tên tab mới đã đổi theo quy tắc <Tên KH> <Ngày ký ddMMyy><Số HĐ NN>.
+ */
+export function findWorksheetFlexible(
+  workbook: ExcelJS.Workbook,
+  targetName: string
+): ExcelJS.Worksheet | undefined {
+  if (!targetName) return undefined
+  const direct = workbook.getWorksheet(targetName)
+  if (direct) return direct
+
+  const normTarget = targetName.normalize('NFC').trim().toLowerCase()
+  // 1. Khớp chính xác không phân biệt hoa thường và chuẩn hóa NFC
+  const exact = workbook.worksheets.find(
+    (ws) => ws.name.normalize('NFC').trim().toLowerCase() === normTarget
+  )
+  if (exact) return exact
+
+  // 2. Khớp thông minh qua phân tích tên tab
+  const parsedTarget = parseTabName(targetName)
+  const baseTarget = (parsedTarget.baseCustomerName || targetName).normalize('NFC').trim().toLowerCase()
+
+  for (const ws of workbook.worksheets) {
+    const wsParsed = parseTabName(ws.name)
+    const wsBase = (wsParsed.baseCustomerName || ws.name).normalize('NFC').trim().toLowerCase()
+    if (wsBase === baseTarget) {
+      if (parsedTarget.contractSeq !== undefined && wsParsed.contractSeq !== undefined) {
+        if (parsedTarget.contractSeq === wsParsed.contractSeq) return ws
+      } else {
+        return ws
+      }
+    }
+  }
+
+  // 3. Khớp từ khóa chứa nhau
+  return workbook.worksheets.find((ws) => {
+    const wsNorm = ws.name.normalize('NFC').trim().toLowerCase()
+    return wsNorm.includes(baseTarget) || baseTarget.includes(wsNorm)
+  })
+}
 
 /**
  * Hàm phân tích ngày sang đối tượng Date chuẩn.
@@ -154,7 +197,7 @@ export async function writeShipments(
     const kgGhe = !isXe ? entry.weightKg : 0
 
     // Lấy tên khách chuẩn cho Sổ tổng
-    const preSheetCfg = PRECONFIGURED_CUSTOMER_SHEETS[entry.targetSheetName]
+    const preSheetCfg = getCustomerSheetConfig(entry.targetSheetName)
     const cleanCustomerName =
       preSheetCfg?.mainCustomerName ||
       entry.customer?.trim() ||
@@ -226,12 +269,12 @@ export async function writeShipments(
   let totalCustomerInserted = 0
 
   for (const [sheetName, sheetEntries] of Object.entries(sheetGroups)) {
-    const custSheet = workbook.getWorksheet(sheetName)
+    const custSheet = findWorksheetFlexible(workbook, sheetName)
     if (!custSheet) {
       throw new Error(`Không tìm thấy tab khách hàng "${sheetName}" trong workbook.`)
     }
 
-    const preConfig = PRECONFIGURED_CUSTOMER_SHEETS[sheetName] || {}
+    const preConfig = getCustomerSheetConfig(custSheet.name) || getCustomerSheetConfig(sheetName) || {}
     const colDate = preConfig.colDate || 'B'
     const colVehicle = preConfig.colVehicle || 'C'
     const defaultColXe = preConfig.colXe || 'E'
@@ -246,7 +289,9 @@ export async function writeShipments(
     }
 
     // Deep clone danh sách hợp đồng hiện có trong sheet
-    const sheetMeta = metadata?.customerSheets.find((s) => s.sheetName === sheetName)
+    const sheetMeta = metadata?.customerSheets.find(
+      (s) => s.sheetName === sheetName || s.sheetName === custSheet.name
+    )
     const contractsList: ContractInfo[] = sheetMeta ? sheetMeta.contracts.map((c) => ({ ...c })) : []
 
     // Xử lý từng nhóm hợp đồng

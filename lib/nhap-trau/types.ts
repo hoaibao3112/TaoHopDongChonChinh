@@ -30,6 +30,18 @@ export interface ContractInfo {
   remainingKg?: number
 }
 
+export interface ParsedTabInfo {
+  sheetName: string
+  baseCustomerName: string
+  dateRaw?: string // vd "121126"
+  dateStr?: string // vd "12/11/2026"
+  dateIso?: string // vd "2026-11-12"
+  contractSeq?: number // vd 1, 2...
+  contractSeqStr?: string // vd "01", "02"...
+  hasMultipleContracts: boolean // true nếu có đuôi 2 số (vd 12112601), false nếu chỉ có 6 số (vd 121126)
+  summaryDescription: string
+}
+
 export interface CustomerSheetMeta {
   sheetName: string
   customerName: string
@@ -44,6 +56,12 @@ export interface CustomerSheetMeta {
   colGhe?: string
   contracts: ContractInfo[]
   warnings?: string[]
+  // Thông tin trích xuất từ quy tắc đặt tên tab: <Tên KH> <Ngày ký: ddMMyy><Số thứ tự HĐ: 2 số>
+  parsedContractDate?: string // "DD/MM/YYYY"
+  parsedContractDateIso?: string // "YYYY-MM-DD"
+  parsedContractSeq?: number // 1, 2...
+  hasMultipleContracts?: boolean // true: có HĐ tiếp theo, false: chỉ 1 HĐ
+  tabSummary?: string // Mô tả tóm tắt trạng thái HĐ
 }
 
 export interface WorkbookMetadata {

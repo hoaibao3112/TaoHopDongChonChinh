@@ -15,6 +15,7 @@ import {
 } from '@/lib/nhap-trau/validator';
 import { writeShipments, flattenSharedFormulas } from '@/lib/nhap-trau/excelWriter';
 import { extractWorkbookMetadata } from '@/lib/nhap-trau/excelReader';
+import { parseTabName, getCustomerSheetConfig } from '@/lib/nhap-trau/config';
 import { generateDailyReports } from '@/lib/nhap-trau/reportGenerator';
 import fs from 'fs';
 import path from 'path';
@@ -501,10 +502,26 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     // Dòng cuối thực tế của Sổ tổng phải là 2641 (trước bảng thống kê 3682)
     expect(meta.mainSheetLastRow).toBe(2641);
 
-    const sheetCoLieu = meta.customerSheets.find((s) => s.sheetName === 'CÔ LIỄU MỚI ');
-    const sheetTrangBT = meta.customerSheets.find((s) => s.sheetName === 'TRANG BẾN TRE');
+    const sheetCoLieu = meta.customerSheets.find((s) => s.sheetName.includes('CÔ LIỄU'));
+    const sheetTrangBT = meta.customerSheets.find((s) => s.sheetName.includes('TRANG BẾN TRE'));
     expect(sheetCoLieu).toBeDefined();
     expect(sheetTrangBT).toBeDefined();
+
+    // Kiểm tra tính năng nhận diện tab theo tên KH và ngày ký/số thứ tự HĐ
+    expect(sheetCoLieu!.parsedContractDate).toBe('28/09/2026');
+    expect(sheetCoLieu!.hasMultipleContracts).toBe(false); // 6 số: chỉ có 1 HĐ
+
+    const sheetBeBa = meta.customerSheets.find((s) => s.sheetName.includes('CHỊ BÉ BA'));
+    expect(sheetBeBa).toBeDefined();
+    expect(sheetBeBa!.parsedContractDate).toBe('27/05/2026');
+    expect(sheetBeBa!.parsedContractSeq).toBe(1);
+    expect(sheetBeBa!.hasMultipleContracts).toBe(true); // Đuôi 01: có HĐ thứ 2 nữa
+
+    const sheetGiangTB3 = meta.customerSheets.find((s) => s.sheetName.includes('02112603'));
+    expect(sheetGiangTB3).toBeDefined();
+    expect(sheetGiangTB3!.parsedContractDate).toBe('02/11/2026');
+    expect(sheetGiangTB3!.parsedContractSeq).toBe(3);
+    expect(sheetGiangTB3!.hasMultipleContracts).toBe(true);
 
     const coLieuContract = sheetCoLieu!.contracts[sheetCoLieu!.contracts.length - 1];
     const trangContract = sheetTrangBT!.contracts[sheetTrangBT!.contracts.length - 1];
@@ -518,7 +535,7 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
         type: 'Ghe',
         weightKg: 1000,
         customer: 'CÔ LIỄU',
-        targetSheetName: 'CÔ LIỄU MỚI ',
+        targetSheetName: sheetCoLieu!.sheetName,
         contractRow: coLieuContract.row,
         note: 'Cơ Sở 1',
       },
@@ -530,7 +547,7 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
         type: 'Xe',
         weightKg: 4204,
         customer: 'TRANG BẾN TRE',
-        targetSheetName: 'TRANG BẾN TRE',
+        targetSheetName: sheetTrangBT!.sheetName,
         contractRow: trangContract.row,
         note: 'HĐ',
       },
@@ -617,21 +634,32 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     await wb.xlsx.readFile(samplePath);
     const meta = extractWorkbookMetadata(wb, 'THÙY (MỚI)I_BÁO CÁO TRẤU.xlsx');
 
-    const getLastContractRow = (sheetName: string) => {
-      const s = meta.customerSheets.find((x) => x.sheetName === sheetName)!;
+    const findSheet = (keyword: string) => {
+      return meta.customerSheets.find(
+        (x) => x.sheetName === keyword || x.sheetName.includes(keyword) || x.customerName.includes(keyword)
+      )!;
+    };
+    const getLastContractRow = (keyword: string) => {
+      const s = findSheet(keyword);
       return s.contracts[s.contracts.length - 1].row;
     };
 
     // Đúng 8 chuyến xe ngày 10/11/2026 theo ảnh của user
+    const sheetTrangBT = findSheet('TRANG BẾN TRE');
+    const sheetMai = findSheet('CHỊ MAI THÁI BẢO NGỌC');
+    const sheetCoLieu = findSheet('CÔ LIỄU');
+    const sheetTien = findSheet('A TIẾN');
+    const sheetNam = findSheet('NAM HOÀNG');
+
     const batch1011: ShipmentEntry[] = [
-      { id: '1', date: '2026-11-10', team: 'HẠNH', vehicleName: '76H 03803', type: 'Xe', weightKg: 7400, customer: 'TRANG BẾN TRE', targetSheetName: 'TRANG BẾN TRE', contractRow: getLastContractRow('TRANG BẾN TRE'), note: 'HĐ' },
-      { id: '2', date: '2026-11-10', team: 'HẠNH', vehicleName: '63H 05099', type: 'Xe', weightKg: 7230, customer: 'TRANG BẾN TRE', targetSheetName: 'TRANG BẾN TRE', contractRow: getLastContractRow('TRANG BẾN TRE'), note: 'HĐ' },
-      { id: '3', date: '2026-11-10', team: 'HẠNH', vehicleName: '63C 23620', type: 'Xe', weightKg: 7390, customer: 'CHỊ MAI (TBN)', targetSheetName: 'CHỊ MAI THÁI BẢO NGỌC', contractRow: getLastContractRow('CHỊ MAI THÁI BẢO NGỌC'), note: 'HĐ' },
-      { id: '4', date: '2026-11-10', team: 'HẠNH', vehicleName: '62H 01966', type: 'Xe', weightKg: 6960, customer: 'CÔ LIỄU', targetSheetName: 'CÔ LIỄU MỚI ', contractRow: getLastContractRow('CÔ LIỄU MỚI '), note: 'HĐ' },
-      { id: '5', date: '2026-11-10', team: 'HẠNH', vehicleName: '65E 00579', type: 'Xe', weightKg: 7400, customer: 'CÔ LIỄU', targetSheetName: 'CÔ LIỄU MỚI ', contractRow: getLastContractRow('CÔ LIỄU MỚI '), note: 'HĐ' },
-      { id: '6', date: '2026-11-10', team: 'HẠNH', vehicleName: '63H 05144', type: 'Xe', weightKg: 7400, customer: 'PHAN TIẾN', targetSheetName: 'A TIẾN  ( MỚI ) ', contractRow: 3, note: 'HĐ' },
-      { id: '7', date: '2026-11-10', team: 'HẠNH', vehicleName: '71C 04272', type: 'Xe', weightKg: 7060, customer: 'NAM HH', targetSheetName: 'NAM HOÀNG OANH', contractRow: getLastContractRow('NAM HOÀNG OANH'), note: 'HĐ' },
-      { id: '8', date: '2026-11-10', team: 'HẠNH', vehicleName: '71C 04272', type: 'Xe', weightKg: 6770, customer: 'NAM HH', targetSheetName: 'NAM HOÀNG OANH', contractRow: getLastContractRow('NAM HOÀNG OANH'), note: 'HĐ' },
+      { id: '1', date: '2026-11-10', team: 'HẠNH', vehicleName: '76H 03803', type: 'Xe', weightKg: 7400, customer: 'TRANG BẾN TRE', targetSheetName: sheetTrangBT.sheetName, contractRow: sheetTrangBT.contracts[sheetTrangBT.contracts.length - 1].row, note: 'HĐ' },
+      { id: '2', date: '2026-11-10', team: 'HẠNH', vehicleName: '63H 05099', type: 'Xe', weightKg: 7230, customer: 'TRANG BẾN TRE', targetSheetName: sheetTrangBT.sheetName, contractRow: sheetTrangBT.contracts[sheetTrangBT.contracts.length - 1].row, note: 'HĐ' },
+      { id: '3', date: '2026-11-10', team: 'HẠNH', vehicleName: '63C 23620', type: 'Xe', weightKg: 7390, customer: 'CHỊ MAI (TBN)', targetSheetName: sheetMai.sheetName, contractRow: sheetMai.contracts[sheetMai.contracts.length - 1].row, note: 'HĐ' },
+      { id: '4', date: '2026-11-10', team: 'HẠNH', vehicleName: '62H 01966', type: 'Xe', weightKg: 6960, customer: 'CÔ LIỄU', targetSheetName: sheetCoLieu.sheetName, contractRow: sheetCoLieu.contracts[sheetCoLieu.contracts.length - 1].row, note: 'HĐ' },
+      { id: '5', date: '2026-11-10', team: 'HẠNH', vehicleName: '65E 00579', type: 'Xe', weightKg: 7400, customer: 'CÔ LIỄU', targetSheetName: sheetCoLieu.sheetName, contractRow: sheetCoLieu.contracts[sheetCoLieu.contracts.length - 1].row, note: 'HĐ' },
+      { id: '6', date: '2026-11-10', team: 'HẠNH', vehicleName: '63H 05144', type: 'Xe', weightKg: 7400, customer: 'PHAN TIẾN', targetSheetName: sheetTien.sheetName, contractRow: 3, note: 'HĐ' },
+      { id: '7', date: '2026-11-10', team: 'HẠNH', vehicleName: '71C 04272', type: 'Xe', weightKg: 7060, customer: 'NAM HH', targetSheetName: sheetNam.sheetName, contractRow: sheetNam.contracts[sheetNam.contracts.length - 1].row, note: 'HĐ' },
+      { id: '8', date: '2026-11-10', team: 'HẠNH', vehicleName: '71C 04272', type: 'Xe', weightKg: 6770, customer: 'NAM HH', targetSheetName: sheetNam.sheetName, contractRow: sheetNam.contracts[sheetNam.contracts.length - 1].row, note: 'HĐ' },
     ];
 
     const report = generateDailyReports(wb, batch1011, '2026-11-10', meta);
@@ -681,6 +709,75 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     expect(report.dailyShipmentText).toContain('1_Xuất xe: 8.500 kg (01 xe)');
     expect(report.dailyShipmentText).toContain('2_ Xuất ghe: 25.000 kg (01 ghe)');
     expect(report.dailyShipmentText).toContain('1_Chị 7 (CTC): 33.500 kg (01 xe, 01 ghe)');
+  });
+
+  describe('8. Quy tắc đặt tên tab khách hàng & số thứ tự hợp đồng (Naming Convention)', () => {
+    it('Phân tích đúng trường hợp có đuôi số HĐ (vd 12112601): ngày 12/11/2026, HĐ 01, sẽ có HĐ thứ 2 nữa', () => {
+      const res = parseTabName('12112601');
+      expect(res.dateStr).toBe('12/11/2026');
+      expect(res.contractSeq).toBe(1);
+      expect(res.contractSeqStr).toBe('01');
+      expect(res.hasMultipleContracts).toBe(true);
+      expect(res.summaryDescription).toContain('Có thể có thêm HĐ');
+    });
+
+    it('Phân tích đúng trường hợp chỉ có ngày 6 số (vd 121126): ngày 12/11/2026, chỉ có 1 hợp đồng', () => {
+      const res = parseTabName('121126');
+      expect(res.dateStr).toBe('12/11/2026');
+      expect(res.contractSeq).toBeUndefined();
+      expect(res.hasMultipleContracts).toBe(false);
+      expect(res.summaryDescription).toContain('Chỉ có 1 hợp đồng');
+    });
+
+    it('Phân tích chính xác tất cả các tab đã đổi tên thực tế trong file', () => {
+      // Đuôi 01, 02, 03
+      const beBa = parseTabName('CHỊ BÉ BA 27052601');
+      expect(beBa.baseCustomerName).toBe('CHỊ BÉ BA');
+      expect(beBa.dateStr).toBe('27/05/2026');
+      expect(beBa.contractSeq).toBe(1);
+      expect(beBa.hasMultipleContracts).toBe(true);
+
+      const giang2 = parseTabName('GIANG THANH BÌNH 27072602');
+      expect(giang2.baseCustomerName).toBe('GIANG THANH BÌNH');
+      expect(giang2.dateStr).toBe('27/07/2026');
+      expect(giang2.contractSeq).toBe(2);
+      expect(giang2.hasMultipleContracts).toBe(true);
+
+      const giang3 = parseTabName('GIANG THANH BÌNH 02112603');
+      expect(giang3.baseCustomerName).toBe('GIANG THANH BÌNH');
+      expect(giang3.dateStr).toBe('02/11/2026');
+      expect(giang3.contractSeq).toBe(3);
+      expect(giang3.hasMultipleContracts).toBe(true);
+
+      // Đuôi 6 số
+      const chi7 = parseTabName('CHỊ 7 150926');
+      expect(chi7.baseCustomerName).toBe('CHỊ 7');
+      expect(chi7.dateStr).toBe('15/09/2026');
+      expect(chi7.hasMultipleContracts).toBe(false);
+
+      const trangBT = parseTabName('TRANG BẾN TRE 021026');
+      expect(trangBT.baseCustomerName).toBe('TRANG BẾN TRE');
+      expect(trangBT.dateStr).toBe('02/10/2026');
+      expect(trangBT.hasMultipleContracts).toBe(false);
+    });
+
+    it('getCustomerSheetConfig tự động nhận diện cấu hình chính xác cho cả tab mới lẫn tab cũ', () => {
+      const cfgNew = getCustomerSheetConfig('TRANG BẾN TRE 021026');
+      expect(cfgNew).toBeDefined();
+      expect(cfgNew?.mainCustomerName).toBe('TRANG BẾN TRE');
+      expect(cfgNew?.headerRow).toBe(27);
+
+      const cfgLegacy = getCustomerSheetConfig('TRANG BẾN TRE');
+      expect(cfgLegacy).toBeDefined();
+      expect(cfgLegacy?.mainCustomerName).toBe('TRANG BẾN TRE');
+      expect(cfgLegacy?.headerRow).toBe(27);
+
+      // Tab tương lai cho hợp đồng 2
+      const cfgFuture = getCustomerSheetConfig('CHỊ BÉ BA 27052602');
+      expect(cfgFuture).toBeDefined();
+      expect(cfgFuture?.mainCustomerName).toBe('CHỊ BÉ BA (TTM)');
+      expect(cfgFuture?.headerRow).toBe(7);
+    });
   });
 });
 

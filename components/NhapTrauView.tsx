@@ -728,10 +728,23 @@ export default function NhapTrauView() {
                           <option value="">-- Chọn Tab Khách --</option>
                           {metadata?.customerSheets.map((sheet) => (
                             <option key={sheet.sheetName} value={sheet.sheetName}>
-                              {sheet.sheetName} ({sheet.contracts.length} HĐ)
+                              {sheet.sheetName} ({sheet.contracts.length} HĐ){sheet.parsedContractSeq ? ` [HĐ #${sheet.parsedContractSeq}]` : ''}{sheet.hasMultipleContracts ? ' • Có HĐ 2' : sheet.parsedContractDate ? ' • 1 HĐ' : ''}
                             </option>
                           ))}
                         </select>
+                        {selectedSheet?.tabSummary && (
+                          <div className="mt-1 text-[10px] text-slate-500">
+                            {selectedSheet.hasMultipleContracts ? (
+                              <span className="inline-block rounded bg-amber-50 px-1 py-0.5 text-amber-800 border border-amber-200 font-medium">
+                                HĐ #{selectedSheet.parsedContractSeq} (Ký {selectedSheet.parsedContractDate} - Sẽ có HĐ 2)
+                              </span>
+                            ) : selectedSheet.parsedContractDate ? (
+                              <span className="inline-block rounded bg-emerald-50 px-1 py-0.5 text-emerald-800 border border-emerald-200 font-medium">
+                                Ký {selectedSheet.parsedContractDate} (1 HĐ duy nhất)
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
                       </td>
 
                       {/* Hợp Đồng */}
@@ -983,6 +996,13 @@ export default function NhapTrauView() {
                                 {entry.targetSheetName}
                                 {targetTabRow ? ` • Dòng ${targetTabRow}` : ''}
                               </span>
+                              {sheetMeta?.parsedContractDate && (
+                                <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                                  {sheetMeta.hasMultipleContracts
+                                    ? `HĐ #${sheetMeta.parsedContractSeq} (Ký ${sheetMeta.parsedContractDate} - Sẽ có HĐ 2)`
+                                    : `Ký ${sheetMeta.parsedContractDate} (1 HĐ duy nhất)`}
+                                </div>
+                              )}
                               {contractMeta && (
                                 <div className="text-[10px] text-slate-400 mt-0.5">
                                   {contractMeta.label}

@@ -8,6 +8,8 @@ import {
   SHEET_NAMES,
   PROTECTED_SHEETS,
   PRECONFIGURED_CUSTOMER_SHEETS,
+  getCustomerSheetConfig,
+  parseTabName,
 } from './config'
 import { extractRangesFromFormula } from './formulaUpdater'
 
@@ -214,11 +216,13 @@ export function extractWorkbookMetadata(
 
   workbook.eachSheet((ws) => {
     const sheetName = ws.name
-    if (PROTECTED_SHEETS.includes(sheetName)) return
+    const normName = sheetName.normalize('NFC').trim().toLowerCase()
+    if (PROTECTED_SHEETS.some((p) => p.normalize('NFC').trim().toLowerCase() === normName)) return
 
     const isVisible = ws.state === 'visible'
-    // Ẩn các tab không visible khỏi danh sách chọn mặc định nếu muốn, nhưng vẫn đọc metadata
-    const preConfig = PRECONFIGURED_CUSTOMER_SHEETS[sheetName] || {}
+    // Phân tích tên tab theo định dạng: <Tên KH> <Ngày ký ddMMyy><Số HĐ NN>
+    const parsedTab = parseTabName(sheetName)
+    const preConfig = getCustomerSheetConfig(sheetName) || {}
     const colDate = preConfig.colDate || 'B'
     const colVehicle = preConfig.colVehicle || 'C'
     const contracts: ContractInfo[] = []
@@ -316,9 +320,13 @@ export function extractWorkbookMetadata(
       warnings.push('Vui lòng chọn đúng hợp đồng hiện tại của Trang Bến Tre.')
     }
 
+    const customerDisplayName =
+      preConfig.mainCustomerName ||
+      (parsedTab.baseCustomerName ? parsedTab.baseCustomerName : sheetName.replace(/\(.*?\)/g, '').trim())
+
     customerSheetsMeta.push({
       sheetName,
-      customerName: preConfig.mainCustomerName || sheetName.replace(/\(.*?\)/g, '').trim(),
+      customerName: customerDisplayName,
       mainCustomerName: preConfig.mainCustomerName,
       state: isVisible ? 'visible' : 'hidden',
       headerRow: preConfig.headerRow || 7,
@@ -330,6 +338,11 @@ export function extractWorkbookMetadata(
       colGhe: preConfig.colGhe || 'F',
       contracts,
       warnings,
+      parsedContractDate: parsedTab.dateStr,
+      parsedContractDateIso: parsedTab.dateIso,
+      parsedContractSeq: parsedTab.contractSeq,
+      hasMultipleContracts: parsedTab.hasMultipleContracts,
+      tabSummary: parsedTab.summaryDescription,
     })
   })
 

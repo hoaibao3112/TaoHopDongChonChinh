@@ -79,12 +79,16 @@ const REPORT_CUSTOMER_DISPLAY_MAP: Record<string, string> = {
   'CÔ LIỄU': 'Cô Liễu',
   'PHAN TIẾN': 'Phan Tiến',
   'NAM HH': 'Nam HH',
+  'NAM HOÀNG HOANH': 'Nam HH',
+  'NAM HOÀNG OANH': 'Nam HH',
   'CHỊ 7 (CTC)': 'Chị 7 (CTC)',
+  'CHỊ 7': 'Chị 7 (CTC)',
   'CẨM THANH XUÂN': 'Cẩm Thanh Xuân',
   'ĐĂNG THÀNH PHÁT': 'Đăng Thành Phát',
   'GIANG THANH BÌNH': 'Giang Thanh Bình',
   'CHỊ BÉ BA (LMA)': 'Chị Bé Ba (LMA)',
   'CHỊ BÉ BA (TTM)': 'Chị Bé Ba (TTM)',
+  'CHỊ BÉ BA': 'Chị Bé Ba (TTM)',
   'MY TÂM': 'My Tâm',
   'TRÂM ANH': 'Trâm Anh',
   'ĐƯỢC PHƯỜNG': 'Được Phường',
@@ -381,8 +385,22 @@ export function generateDailyReports(
       )
       const contractMeta = sheetMeta?.contracts.find((c) => c.row === entry.contractRow)
       if (contractMeta) {
-        const key = `${entry.targetSheetName.normalize('NFC').trim().toUpperCase()}!${contractMeta.sumCell.toUpperCase()}`
-        addedByTarget.set(key, (addedByTarget.get(key) || 0) + kg)
+        const cellUpper = contractMeta.sumCell.toUpperCase()
+        const key1 = `${entry.targetSheetName.normalize('NFC').trim().toUpperCase()}!${cellUpper}`
+        addedByTarget.set(key1, (addedByTarget.get(key1) || 0) + kg)
+
+        if (sheetMeta?.sheetName) {
+          const keySheet = `${sheetMeta.sheetName.normalize('NFC').trim().toUpperCase()}!${cellUpper}`
+          addedByTarget.set(keySheet, (addedByTarget.get(keySheet) || 0) + kg)
+        }
+        if (sheetMeta?.customerName) {
+          const keyCust = `${sheetMeta.customerName.normalize('NFC').trim().toUpperCase()}!${cellUpper}`
+          addedByTarget.set(keyCust, (addedByTarget.get(keyCust) || 0) + kg)
+        }
+        if (sheetMeta?.mainCustomerName) {
+          const keyMain = `${sheetMeta.mainCustomerName.normalize('NFC').trim().toUpperCase()}!${cellUpper}`
+          addedByTarget.set(keyMain, (addedByTarget.get(keyMain) || 0) + kg)
+        }
       }
     }
 
