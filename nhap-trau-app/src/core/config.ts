@@ -81,7 +81,7 @@ export function parseTabName(rawName: string): ParsedTabInfo {
       contractSeq,
       contractSeqStr: seqPart,
       hasMultipleContracts: true,
-      summaryDescription: `HĐ ngày ${dateStr} (HĐ #${seqPart} - Có thể có thêm HĐ)`,
+      summaryDescription: `HĐ ngày ${dateStr} (HĐ #${seqPart} - Có HĐ tiếp theo chưa nhận)`,
     }
   } else {
     return {

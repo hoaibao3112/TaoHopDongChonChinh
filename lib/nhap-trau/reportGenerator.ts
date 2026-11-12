@@ -16,11 +16,21 @@ export interface DailyReportResult {
   contractCount: number
 }
 
+interface DailyVehicleDetail {
+  vehicleName: string
+  type: 'Xe' | 'Ghe'
+  weightKg: number
+  team: string
+  note: string
+  customer: string
+}
+
 interface DailyCustomerAgg {
   displayName: string
   totalKg: number
   xeCount: number
   gheCount: number
+  vehicles: DailyVehicleDetail[]
 }
 
 interface ParsedQ3ContractMeta {
@@ -317,10 +327,31 @@ export function generateDailyReports(
       totalKg: 0,
       xeCount: 0,
       gheCount: 0,
+      vehicles: [] as DailyVehicleDetail[],
     }
     existing.totalKg += rowKg
-    if (item.kgXe > 0) existing.xeCount++
-    if (item.kgGhe > 0) existing.gheCount++
+    if (item.kgXe > 0) {
+      existing.xeCount++
+      existing.vehicles.push({
+        vehicleName: item.vehicleName,
+        type: 'Xe',
+        weightKg: item.kgXe,
+        team: item.team,
+        note: item.note,
+        customer: item.customer,
+      })
+    }
+    if (item.kgGhe > 0) {
+      existing.gheCount++
+      existing.vehicles.push({
+        vehicleName: item.vehicleName,
+        type: 'Ghe',
+        weightKg: item.kgGhe,
+        team: item.team,
+        note: item.note,
+        customer: item.customer,
+      })
+    }
     customerAggMap.set(key, existing)
   }
 
@@ -355,6 +386,11 @@ export function generateDailyReports(
     if (agg.gheCount > 0) vehicleParts.push(`${pad2(agg.gheCount)} ghe`)
     const vehText = vehicleParts.length > 0 ? ` (${vehicleParts.join(', ')})` : ''
     lines1.push(`${custIdx}_${agg.displayName}: ${formatViNumber(agg.totalKg)} kg${vehText}`)
+    // Chi tiết từng xe/ghe
+    for (const v of agg.vehicles) {
+      const prefix = v.type === 'Xe' ? '+ Xe' : '+ Ghe'
+      lines1.push(`  ${prefix} ${v.vehicleName}: ${formatViNumber(v.weightKg)} kg`)
+    }
     custIdx++
   })
   if (customerAggMap.size === 0) {
@@ -406,12 +442,20 @@ export function generateDailyReports(
 
     const unusedQ3 = [...parsedQ3]
     const contractDetailLines: string[] = []
+    let lastSeenCustomerName = ''
 
     for (let r = 4; r <= 50; r++) {
       const row = tongHdSheet.getRow(r)
-      const rawName = row.getCell('B').value
+      let rawName = row.getCell('B').value
       const qtyContract = Number(row.getCell('G').value) || 0
       const statusStr = String(row.getCell('J').value || '').trim()
+
+      if (rawName) {
+        lastSeenCustomerName = String(rawName).trim()
+      } else if (qtyContract > 0 && lastSeenCustomerName) {
+        rawName = lastSeenCustomerName
+      }
+
       if (!rawName || qtyContract <= 0 || /đã\s*xong|hết|hủy/i.test(statusStr)) continue
 
       const idx = contractDetailLines.length + 1

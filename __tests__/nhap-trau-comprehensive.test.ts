@@ -718,7 +718,7 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
       expect(res.contractSeq).toBe(1);
       expect(res.contractSeqStr).toBe('01');
       expect(res.hasMultipleContracts).toBe(true);
-      expect(res.summaryDescription).toContain('Có thể có thêm HĐ');
+      expect(res.summaryDescription).toContain('Có HĐ tiếp theo');
     });
 
     it('Phân tích đúng trường hợp chỉ có ngày 6 số (vd 121126): ngày 12/11/2026, chỉ có 1 hợp đồng', () => {
