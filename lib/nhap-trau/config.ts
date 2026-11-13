@@ -279,6 +279,9 @@ export const PRECONFIGURED_CUSTOMER_SHEETS: Record<string, Partial<CustomerSheet
     colVehicle: 'C',
     colXe: 'F',
     colGhe: 'F',
+    parsedContractDate: '28/09/2026',
+    parsedContractDateIso: '2026-09-28',
+    hasMultipleContracts: false,
   },
   'ĐĂNG THÀNH PHÁT ': {
     mainCustomerName: 'ĐĂNG THÀNH PHÁT',
@@ -306,6 +309,10 @@ export const PRECONFIGURED_CUSTOMER_SHEETS: Record<string, Partial<CustomerSheet
     colVehicle: 'C',
     colXe: 'E',
     colGhe: 'F',
+    parsedContractDate: '27/05/2026',
+    parsedContractDateIso: '2026-05-27',
+    parsedContractSeq: 1,
+    hasMultipleContracts: true,
   },
   'GIANG THANH BÌNH ': {
     mainCustomerName: 'GIANG THANH BÌNH',

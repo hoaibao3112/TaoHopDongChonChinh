@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
     });
 
     const lastDataRow1 = batches.length + 3;
-    const signRow1 = lastDataRow1 + 3;
+    const signRow1 = lastDataRow1 + 2;
     const nameRow1 = signRow1 + 4;
 
     setCell(ws1, `D${signRow1}`, 's', 'Người lập bảng', {

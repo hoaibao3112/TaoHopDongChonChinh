@@ -341,10 +341,12 @@ export function extractWorkbookMetadata(
       colGhe: preConfig.colGhe || 'F',
       contracts,
       warnings,
-      parsedContractDate: parsedTab.dateStr,
-      parsedContractDateIso: parsedTab.dateIso,
-      parsedContractSeq: parsedTab.contractSeq,
-      hasMultipleContracts: parsedTab.hasMultipleContracts,
+      parsedContractDate: parsedTab.dateStr ?? preConfig.parsedContractDate,
+      parsedContractDateIso: parsedTab.dateIso ?? preConfig.parsedContractDateIso,
+      parsedContractSeq: parsedTab.contractSeq ?? preConfig.parsedContractSeq,
+      hasMultipleContracts: parsedTab.dateStr != null
+        ? parsedTab.hasMultipleContracts
+        : (preConfig.hasMultipleContracts ?? false),
       tabSummary: parsedTab.summaryDescription,
     })
   })
