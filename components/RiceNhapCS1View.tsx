@@ -14,7 +14,7 @@
  * 5. Xuất Excel chuẩn 4 sheets theo đúng mẫu của công ty.
  */
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RiceBatch } from '@/lib/rice-payroll/types';
 import { isCoSo1 } from '@/lib/rice-payroll/facility-filter';
 import { roundRiceTons } from '@/lib/rice-payroll/rounding';
