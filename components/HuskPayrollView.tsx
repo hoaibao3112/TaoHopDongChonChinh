@@ -29,6 +29,44 @@ export default function HuskPayrollView() {
   const [scannedSlips, setScannedSlips] = useState<ScannedSlipItem[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+  // ─── Khôi phục danh sách phiếu cân đã quét từ localStorage (không mất khi chuyển tab) ─
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('husk_scanned_slips_cache');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setScannedSlips(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Lỗi đọc husk_scanned_slips_cache:', e);
+    }
+  }, []);
+
+  // ─── Tự động lưu cache mỗi khi danh sách phiếu cân thay đổi ────────────────
+  React.useEffect(() => {
+    try {
+      if (scannedSlips.length > 0) {
+        localStorage.setItem('husk_scanned_slips_cache', JSON.stringify(scannedSlips));
+      } else {
+        localStorage.removeItem('husk_scanned_slips_cache');
+      }
+    } catch (e) {
+      console.error('Lỗi lưu husk_scanned_slips_cache:', e);
+    }
+  }, [scannedSlips]);
+
+  // Xóa danh sách phiếu để quét lại đợt mới
+  const handleClearScannedSlips = () => {
+    if (window.confirm('Bạn có chắc muốn xóa danh sách phiếu cân đã quét này để quét đợt mới không?')) {
+      setScannedSlips([]);
+      localStorage.removeItem('husk_scanned_slips_cache');
+      setSuccessMessage('Đã làm mới danh sách phiếu cân!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    }
+  };
+
   const fileExcelInputRef = useRef<HTMLInputElement>(null);
   const imagesInputRef = useRef<HTMLInputElement>(null);
 
@@ -361,14 +399,26 @@ export default function HuskPayrollView() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowSettings(!showSettings)}
-            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-semibold backdrop-blur-md transition hover:bg-white/20 sm:self-start"
-          >
-            <span>⚙️</span>
-            <span>Cài Đặt Đơn Giá &amp; Sheet</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5 sm:self-start">
+            <Link
+              href="/nhap-say-tm"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300/40 bg-white/15 px-4 py-2.5 text-xs font-bold text-white shadow-2xs backdrop-blur-md transition hover:bg-white/25 active:scale-95"
+              title="Chuyển sang Bảng Kê Nhập Sấy NSX TM (Đội Đức & Đội Quý) - Dữ liệu luôn được lưu giữ an toàn"
+            >
+              <span>🏭</span>
+              <span>Sang Nhập Sấy NSX TM</span>
+              <span>&rarr;</span>
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setShowSettings(!showSettings)}
+              className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-semibold backdrop-blur-md transition hover:bg-white/20"
+            >
+              <span>⚙️</span>
+              <span>Cài Đặt Đơn Giá &amp; Sheet</span>
+            </button>
+          </div>
         </div>
 
         {/* Bảng Cài Đặt (Collapsible) */}
@@ -562,6 +612,16 @@ export default function HuskPayrollView() {
               >
                 <span>📋</span>
                 <span>Copy {previewRows.length} phiếu đã chọn</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearScannedSlips}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 transition shadow-2xs cursor-pointer"
+                title="Xóa danh sách phiếu cân đã quét để làm đợt mới"
+              >
+                <span>🗑️</span>
+                <span>Làm mới</span>
               </button>
 
               <div className="flex items-center rounded-xl bg-white p-1 border border-slate-200 shadow-2xs">

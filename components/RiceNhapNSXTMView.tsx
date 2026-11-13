@@ -118,6 +118,89 @@ export default function RiceNhapNSXTMView() {
     setTransferredSlips([]);
   };
 
+  // ─── Khôi phục bảng kê và trạng thái từ localStorage (không mất khi chuyển tab) ─
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('nsx_tm_payroll_entries');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAllEntries(parsed);
+        }
+      }
+      const savedMonth = localStorage.getItem('nsx_tm_selected_month');
+      if (savedMonth) setSelectedMonthKey(savedMonth);
+
+      const savedMode = localStorage.getItem('nsx_tm_view_mode');
+      if (savedMode === 'ALL' || savedMode === 'ĐỨC' || savedMode === 'QUÝ') {
+        setViewMode(savedMode as NSXTMViewMode);
+      }
+      const savedTuoiName = localStorage.getItem('nsx_tm_file_tuoi_name');
+      if (savedTuoiName) setFileTuoiName(savedTuoiName);
+      const savedKhoName = localStorage.getItem('nsx_tm_file_kho_name');
+      if (savedKhoName) setFileKhoName(savedKhoName);
+    } catch (e) {
+      console.error('Lỗi khôi phục nsx_tm_payroll_entries:', e);
+    }
+  }, []);
+
+  // ─── Tự động lưu bảng kê vào localStorage mỗi khi có thay đổi ─────────────
+  useEffect(() => {
+    try {
+      if (allEntries.length > 0) {
+        localStorage.setItem('nsx_tm_payroll_entries', JSON.stringify(allEntries));
+      } else {
+        localStorage.removeItem('nsx_tm_payroll_entries');
+      }
+    } catch (e) {
+      console.error('Lỗi lưu nsx_tm_payroll_entries:', e);
+    }
+  }, [allEntries]);
+
+  useEffect(() => {
+    if (selectedMonthKey) {
+      try {
+        localStorage.setItem('nsx_tm_selected_month', selectedMonthKey);
+      } catch {}
+    }
+  }, [selectedMonthKey]);
+
+  useEffect(() => {
+    if (viewMode) {
+      try {
+        localStorage.setItem('nsx_tm_view_mode', viewMode);
+      } catch {}
+    }
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (fileTuoiName) {
+      try {
+        localStorage.setItem('nsx_tm_file_tuoi_name', fileTuoiName);
+      } catch {}
+    }
+  }, [fileTuoiName]);
+
+  useEffect(() => {
+    if (fileKhoName) {
+      try {
+        localStorage.setItem('nsx_tm_file_kho_name', fileKhoName);
+      } catch {}
+    }
+  }, [fileKhoName]);
+
+  // Xóa toàn bộ dữ liệu bảng kê để nạp file mới từ đầu
+  const handleClearAllEntries = () => {
+    if (window.confirm('Bạn có chắc muốn xóa sạch toàn bộ bảng kê hiện tại để bắt đầu nạp lại file mới không?')) {
+      setAllEntries([]);
+      setFileTuoiName('');
+      setFileKhoName('');
+      localStorage.removeItem('nsx_tm_payroll_entries');
+      localStorage.removeItem('nsx_tm_file_tuoi_name');
+      localStorage.removeItem('nsx_tm_file_kho_name');
+    }
+  };
+
   // ─── Danh sách các tháng có dữ liệu ─────────────────────────────────────
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
@@ -622,13 +705,27 @@ export default function RiceNhapNSXTMView() {
 
             {/* Liên kết nhanh sang Quét Phiếu Cân AI */}
             <Link
-              href="/xuat-trau"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-900 shadow-2xs hover:bg-amber-100 transition-all"
-              title="Mở tab Quét Phiếu Cân AI để chụp & phân đội phiếu cân xuất trấu"
+              href="/xuat-trau?tab=quet-anh-cu"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-900 shadow-2xs hover:bg-amber-100 transition-all cursor-pointer"
+              title="Mở tab Quét Phiếu Cân AI để chụp & phân đội phiếu cân xuất trấu (Dữ liệu bảng kê được lưu an toàn)"
             >
               <span>📸</span>
-              <span>Quét Phiếu Cân AI</span>
+              <span>Sang Quét Phiếu Cân AI</span>
+              <span>&rarr;</span>
             </Link>
+
+            {/* Nút xóa làm mới dữ liệu nếu đã có dữ liệu */}
+            {allEntries.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearAllEntries}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-all shadow-2xs cursor-pointer"
+                title="Xóa toàn bộ dữ liệu bảng kê hiện tại để nạp lại file mới"
+              >
+                <span>🗑️</span>
+                <span>Làm mới</span>
+              </button>
+            )}
           </div>
         </div>
 
