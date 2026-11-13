@@ -76,7 +76,7 @@ export function parseLuaTuoiWorkbook(wb: XLSX.WorkBook): NSXTMEntry[] {
     const amount = tons * pricePerTon;
 
     // Câu mô tả công việc tự động:
-    // Phương tiện ghi Y CHANG nguyên văn theo Excel, không viết tắt
+    // Phương tiện ghi Y CHANG nguyên văn theo Excel, không viết tắt; Ghi rõ từ "lúa tươi" vào công việc
     const vUpper = vehicle.toUpperCase();
     let ptText = vehicle;
     if (vUpper.startsWith('TÀU') || vUpper.startsWith('GHE') || vUpper.startsWith('SALAN') || vUpper.startsWith('SÀ LAN') || vUpper.startsWith('XE')) {
@@ -87,7 +87,8 @@ export function parseLuaTuoiWorkbook(wb: XLSX.WorkBook): NSXTMEntry[] {
       ptText = `ghe ${vehicle}`;
     }
 
-    const workDesc = `Nhập ${ptText} ${riceType} của ${customer}`.replace(/\s+/g, ' ').trim();
+    const cleanRiceType = riceType.replace(/^lúa\s+/i, '').trim();
+    const workDesc = `Nhập ${ptText} lúa tươi ${cleanRiceType} của ${customer}`.replace(/\s+/g, ' ').trim();
 
     entries.push({
       id: `tuoi-${r}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -171,7 +172,8 @@ export function parseLuaKhoWorkbook(wb: XLSX.WorkBook): NSXTMEntry[] {
       ptText = `ghe ${vehicle}`;
     }
 
-    const workDesc = `Nhập ${ptText} Lúa khô ${riceType} của ${customer}`.replace(/\s+/g, ' ').trim();
+    const cleanRiceType = riceType.replace(/^lúa\s+/i, '').trim();
+    const workDesc = `Nhập ${ptText} lúa khô ${cleanRiceType} của ${customer}`.replace(/\s+/g, ' ').trim();
 
     entries.push({
       id: `kho-${r}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
