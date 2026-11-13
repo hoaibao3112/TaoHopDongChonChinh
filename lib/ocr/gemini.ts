@@ -2,17 +2,45 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { OcrProvider } from './types';
 import { WeighingSlipOcr, WeighingSlipOcrSchema } from '../husk/types';
 
+/**
+ * Thu thập toàn bộ danh sách API Keys có sẵn từ biến môi trường
+ * và danh sách dự phòng, loại bỏ trùng lặp.
+ */
+function getAvailableGeminiKeys(explicitKey?: string): string[] {
+  const keys: string[] = [];
+
+  if (explicitKey) {
+    keys.push(...explicitKey.split(/[,;\s]+/).filter(Boolean));
+  }
+  if (process.env.GEMINI_API_KEYS) {
+    keys.push(...process.env.GEMINI_API_KEYS.split(/[,;\s]+/).filter(Boolean));
+  }
+  if (process.env.GEMINI_API_KEY) {
+    keys.push(process.env.GEMINI_API_KEY.trim());
+  }
+  if (process.env.GEMINI_API_KEY_2) {
+    keys.push(process.env.GEMINI_API_KEY_2.trim());
+  }
+  if (process.env.GEMINI_API_KEY_3) {
+    keys.push(process.env.GEMINI_API_KEY_3.trim());
+  }
+  if (process.env.GEMINI_API_KEY_4) {
+    keys.push(process.env.GEMINI_API_KEY_4.trim());
+  }
+
+  return Array.from(new Set(keys.filter((k) => Boolean(k) && k.trim().length > 10)));
+}
+
 export class GeminiOcrProvider implements OcrProvider {
   name = 'Gemini';
-  private ai: GoogleGenAI;
+  private apiKeys: string[];
   private modelName: string;
 
   constructor(apiKey?: string, modelName?: string) {
-    const key = apiKey || process.env.GEMINI_API_KEY;
-    if (!key) {
-      throw new Error('GEMINI_API_KEY chưa được cấu hình trong biến môi trường');
+    this.apiKeys = getAvailableGeminiKeys(apiKey);
+    if (this.apiKeys.length === 0) {
+      throw new Error('Chưa cấu hình bất kỳ GEMINI_API_KEY nào trong biến môi trường');
     }
-    this.ai = new GoogleGenAI({ apiKey: key });
     this.modelName = modelName || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
   }
 
@@ -38,79 +66,125 @@ QUY TẮC QUAN TRỌNG:
 - Giá tiền / đơn giá / thành tiền in 0Đ bỏ qua.
 `;
 
-    // Ưu tiên model nhanh và ổn định nhất gemini-3.1-flash-lite, tiếp theo là gemini-3.5-flash và gemini-3.8-flash
-    const candidateModels = Array.from(new Set([this.modelName, 'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash']));
+    // Danh sách các model ứng viên để fallback
+    const candidateModels = Array.from(
+      new Set([this.modelName, 'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash'])
+    );
+
     let lastError: unknown = null;
 
-    for (const modelToTry of candidateModels) {
+    // Vòng lặp luân chuyển qua từng API Key nếu key trước hết quota/token
+    for (let kIdx = 0; kIdx < this.apiKeys.length; kIdx++) {
+      const currentKey = this.apiKeys[kIdx];
+      const maskedKey = currentKey.length > 8 ? `...${currentKey.slice(-6)}` : currentKey;
+      let aiClient: GoogleGenAI;
       try {
-        const response = await this.ai.models.generateContent({
-          model: modelToTry,
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    data: imageBuffer.toString('base64'),
-                    mimeType,
+        aiClient = new GoogleGenAI({ apiKey: currentKey });
+      } catch (clientErr) {
+        lastError = clientErr;
+        continue;
+      }
+
+      let keyExhausted = false;
+
+      for (const modelToTry of candidateModels) {
+        try {
+          const response = await aiClient.models.generateContent({
+            model: modelToTry,
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: prompt },
+                  {
+                    inlineData: {
+                      data: imageBuffer.toString('base64'),
+                      mimeType,
+                    },
                   },
+                ],
+              },
+            ],
+            config: {
+              temperature: 0,
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  so_phieu: { type: Type.STRING },
+                  khach_hang: { type: Type.STRING },
+                  loai_hang: { type: Type.STRING },
+                  so_xe: { type: Type.STRING },
+                  xuat_nhap: { type: Type.STRING },
+                  ngay_can: { type: Type.STRING },
+                  tl_xe_hang_kg: { type: Type.INTEGER },
+                  tl_xe_kg: { type: Type.INTEGER },
+                  tl_hang_kg: { type: Type.INTEGER },
+                  ghi_chu_viet_tay: { type: Type.STRING },
                 },
-              ],
-            },
-          ],
-          config: {
-            temperature: 0,
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                so_phieu: { type: Type.STRING },
-                khach_hang: { type: Type.STRING },
-                loai_hang: { type: Type.STRING },
-                so_xe: { type: Type.STRING },
-                xuat_nhap: { type: Type.STRING },
-                ngay_can: { type: Type.STRING },
-                tl_xe_hang_kg: { type: Type.INTEGER },
-                tl_xe_kg: { type: Type.INTEGER },
-                tl_hang_kg: { type: Type.INTEGER },
-                ghi_chu_viet_tay: { type: Type.STRING },
               },
             },
-          },
-        });
+          });
 
-        const text = response.text?.trim() || '{}';
-        let parsedJson: unknown;
-        try {
-          parsedJson = JSON.parse(text);
-        } catch {
-          throw new Error(`Gemini (${modelToTry}) trả về JSON không hợp lệ: ${text}`);
-        }
+          const text = response.text?.trim() || '{}';
+          let parsedJson: unknown;
+          try {
+            parsedJson = JSON.parse(text);
+          } catch {
+            throw new Error(`Gemini (${modelToTry}) trả về JSON không hợp lệ: ${text}`);
+          }
 
-        const validated = WeighingSlipOcrSchema.parse(parsedJson);
-        return validated;
-      } catch (err: unknown) {
-        lastError = err;
-        const errMsg = err instanceof Error ? err.message : String(err);
-        // Fallback khi gặp lỗi 404, 503 (quá tải), 429 hoặc model ngừng hỗ trợ
-        if (
-          errMsg.includes('404') ||
-          errMsg.includes('503') ||
-          errMsg.includes('429') ||
-          errMsg.includes('not found') ||
-          errMsg.includes('UNAVAILABLE') ||
-          errMsg.includes('no longer available') ||
-          errMsg.includes('high demand')
-        ) {
-          console.warn(`Model ${modelToTry} gặp sự cố (${errMsg.slice(0, 80)}...), chuyển sang model dự phòng tiếp theo...`);
-          continue;
+          const validated = WeighingSlipOcrSchema.parse(parsedJson);
+          return validated;
+        } catch (err: unknown) {
+          lastError = err;
+          const errMsg = err instanceof Error ? err.message : String(err);
+
+          // Phát hiện lỗi hết token, hết quota hoặc bị giới hạn tần suất
+          const isQuotaOrLimitError =
+            errMsg.includes('429') ||
+            errMsg.includes('403') ||
+            errMsg.includes('quota') ||
+            errMsg.includes('QUOTA_EXCEEDED') ||
+            errMsg.includes('RESOURCE_EXHAUSTED') ||
+            errMsg.includes('rate limit') ||
+            errMsg.includes('API key not valid') ||
+            errMsg.includes('PERMISSION_DENIED');
+
+          if (isQuotaOrLimitError) {
+            console.warn(
+              `API Key (${maskedKey}) hết token/quota hoặc bị giới hạn (${errMsg.slice(0, 90)}...). Tự động chuyển sang API Key tiếp theo (${kIdx + 2}/${this.apiKeys.length})...`
+            );
+            keyExhausted = true;
+            break; // Thoát vòng lặp model để đổi sang API Key tiếp theo
+          }
+
+          // Fallback model khi lỗi quá tải tạm thời hoặc model không tồn tại
+          if (
+            errMsg.includes('404') ||
+            errMsg.includes('503') ||
+            errMsg.includes('not found') ||
+            errMsg.includes('UNAVAILABLE') ||
+            errMsg.includes('no longer available') ||
+            errMsg.includes('high demand')
+          ) {
+            console.warn(`Model ${modelToTry} gặp sự cố (${errMsg.slice(0, 80)}...), thử model tiếp theo...`);
+            continue;
+          }
+
+          // Các lỗi khác: thử chuyển sang key tiếp theo
+          console.warn(`Lỗi OCR với key (${maskedKey}): ${errMsg.slice(0, 80)}...`);
+          keyExhausted = true;
+          break;
         }
-        throw err;
+      }
+
+      if (!keyExhausted) {
+        // Nếu không phải lỗi do key mà vẫn không return được (ví dụ tất cả model đều lỗi)
+        continue;
       }
     }
 
-    throw lastError || new Error('Không thể kết nối đến bất kỳ model Gemini nào');
+    throw lastError || new Error('Tất cả các API Key Google Gemini dự phòng đều đã hết token hoặc gặp sự cố.');
   }
 }

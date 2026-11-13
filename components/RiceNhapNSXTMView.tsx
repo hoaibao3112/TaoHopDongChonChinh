@@ -1118,17 +1118,17 @@ export default function RiceNhapNSXTMView() {
                             </td>
                             <td className="py-2 px-2 text-center">
                               <span
-                                className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                className={`inline-flex items-center justify-center rounded-md px-2 py-0.5 text-[11px] font-bold shadow-2xs ${
                                   e.source === 'LUA_TUOI'
-                                    ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                                    ? 'bg-cyan-100 text-cyan-900 border border-cyan-400'
                                     : e.source === 'LUA_KHO'
-                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-400'
                                     : e.riceType === 'Trấu'
-                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold'
-                                    : 'bg-slate-100 text-slate-600'
+                                    ? 'bg-purple-100 text-purple-900 border border-purple-300'
+                                    : 'bg-slate-100 text-slate-700 border border-slate-200'
                                 }`}
                               >
-                                {e.source === 'LUA_TUOI' ? 'Tươi' : e.source === 'LUA_KHO' ? 'Khô' : e.riceType === 'Trấu' ? '🌾 Trấu' : 'Khác'}
+                                {e.source === 'LUA_TUOI' ? 'Tươi' : e.source === 'LUA_KHO' ? 'Khô' : e.riceType === 'Trấu' ? 'Trấu' : 'Khác'}
                               </span>
                             </td>
                             <td className="py-2 px-3">

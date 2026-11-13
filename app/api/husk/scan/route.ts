@@ -55,15 +55,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Khởi tạo OCR Provider (Gemini)
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    // 2. Khởi tạo OCR Provider (Gemini với danh sách nhiều key dự phòng tự động luân chuyển)
+    let ocrProvider: GeminiOcrProvider;
+    try {
+      ocrProvider = new GeminiOcrProvider();
+    } catch (e) {
       return NextResponse.json(
-        { error: 'Chưa cấu hình GEMINI_API_KEY trên môi trường server. Vui lòng kiểm tra Vercel Environment Variables hoặc file .env.' },
+        { error: 'Chưa cấu hình GEMINI_API_KEY trên môi trường server: ' + (e instanceof Error ? e.message : String(e)) },
         { status: 500 }
       );
     }
-    const ocrProvider = new GeminiOcrProvider(apiKey);
 
     // 3. Xử lý từng ảnh phiếu cân
     const scannedItems: ScannedSlipItem[] = [];
