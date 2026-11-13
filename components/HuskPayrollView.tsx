@@ -799,24 +799,6 @@ export default function HuskPayrollView() {
               </tbody>
             </table>
           </div>
-                                className="inline-block rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-300"
-                              >
-                                ⚠️ {w}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
-                            ✓ Hợp lệ
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
 
           {/* ─── TỔNG KẾT & XUẤT FILE EXCEL ───────────────────────────────── */}
           <div className="mt-6 flex flex-col items-start justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4 sm:flex-row sm:items-center">
