@@ -20,7 +20,8 @@ export default function AppHeader() {
 
   const isContract = pathname === '/' || pathname.startsWith('/contracts');
   const isPayroll = pathname.startsWith('/tinh-luong');
-  const isNhapSay = pathname.startsWith('/nhap-say');
+  const isNhapSay = pathname === '/nhap-say';
+  const isNhapSayCS1 = pathname.startsWith('/nhap-say-cs1');
   const isChumLo = pathname.startsWith('/chum-lo');
   const isXuatTrau = pathname.startsWith('/xuat-trau');
 
@@ -82,11 +83,24 @@ export default function AppHeader() {
                 </Link>
 
                 <Link
+                  href="/nhap-say-cs1"
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                    isNhapSayCS1
+                      ? 'bg-white text-orange-800 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  }`}
+                >
+                  <span>🌾</span>
+                  <span>Nhập Sấy CS1</span>
+                </Link>
+
+                <Link
                   href="/nhap-say"
-                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${isNhapSay
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                    isNhapSay
                       ? 'bg-white text-orange-700 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                    }`}
+                  }`}
                 >
                   <span>🔥</span>
                   <span>Nhập Sấy CS2</span>

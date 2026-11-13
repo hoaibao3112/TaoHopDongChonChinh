@@ -53,6 +53,7 @@ export function middleware(request: NextRequest): NextResponse {
     if (
       pathname.startsWith('/tinh-luong') ||
       pathname.startsWith('/nhap-say') ||
+      pathname.startsWith('/nhap-say-cs1') ||
       pathname.startsWith('/chum-lo') ||
       pathname.startsWith('/xuat-trau')
     ) {
