@@ -225,11 +225,34 @@ export default function RiceChumLoView() {
   const netRemaining = totalThanhTien - totalAdvance;
 
   // ─── Quản lý công nhân ─────────────────────────────────────────────────
-  const handleUpdateAdvance = (id: string, val: string) => {
-    const num = Number(val.replace(/\D/g, '')) || 0;
+  const handleUpdateWorker = (
+    id: string,
+    field: keyof ChumLoWorker,
+    value: string | number
+  ) => {
     setWorkers((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, advanceSalary: num } : w))
+      prev.map((w) => {
+        if (w.id !== id) return w;
+        if (field === 'advanceSalary') {
+          const num = Number(String(value).replace(/\D/g, '')) || 0;
+          return { ...w, advanceSalary: num };
+        }
+        if (field === 'name') {
+          const strVal = String(value).toUpperCase();
+          return { ...w, name: strVal, accountHolder: strVal };
+        }
+        if (field === 'bankName') {
+          return { ...w, bankName: String(value).toUpperCase() };
+        }
+        return { ...w, [field]: value };
+      })
     );
+  };
+
+  const handleResetDefaultWorkers = () => {
+    if (window.confirm('Khôi phục danh sách công nhân về mặc định ban đầu?')) {
+      setWorkers(DEFAULT_CHUM_LO_WORKERS);
+    }
   };
 
   const handleRemoveWorker = (id: string) => {
@@ -654,23 +677,32 @@ export default function RiceChumLoView() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Cột trái 2/3: Danh sách công nhân & tạm ứng */}
           <div className="lg:col-span-2 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-            <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-3.5 flex items-center justify-between">
+            <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
                   <span>👥</span>
                   <span>Đội Công Nhân Chụm Lò — Cơ Sở 1</span>
                 </h2>
                 <p className="text-[11px] text-slate-500">
-                  Sheet: ỨL ĐỘI NGUYÊN T0{selectedMonthKey.replace('/', '.')}
+                  Sheet: ỨL ĐỘI NGUYÊN T0{selectedMonthKey.replace('/', '.')} • <span className="text-rose-600 font-semibold">✏️ Có thể sửa trực tiếp Họ tên, Tạm ứng, STK, Ngân hàng</span>
                 </p>
               </div>
 
-              <button
-                onClick={() => setShowAddWorker(!showAddWorker)}
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all"
-              >
-                {showAddWorker ? 'Đóng' : '+ Thêm công nhân'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleResetDefaultWorkers}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all shadow-2xs"
+                  title="Khôi phục danh sách 3 công nhân mặc định"
+                >
+                  ↺ Mặc định
+                </button>
+                <button
+                  onClick={() => setShowAddWorker(!showAddWorker)}
+                  className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-bold text-white hover:bg-rose-700 transition-all shadow-2xs"
+                >
+                  {showAddWorker ? 'Đóng' : '+ Thêm công nhân'}
+                </button>
+              </div>
             </div>
 
             {/* Form thêm công nhân */}
@@ -731,24 +763,54 @@ export default function RiceChumLoView() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {workers.map((w, idx) => (
-                    <tr key={w.id} className="hover:bg-slate-50/80">
-                      <td className="px-3 py-2 text-center text-slate-500">{idx + 1}</td>
-                      <td className="px-3 py-2 font-bold text-slate-900">{w.name}</td>
-                      <td className="px-3 py-2 text-right">
+                    <tr key={w.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-2 py-1.5 text-center text-slate-500 font-mono">{idx + 1}</td>
+                      <td className="px-2 py-1.5">
+                        <input
+                          type="text"
+                          value={w.name}
+                          onChange={(e) => handleUpdateWorker(w.id, 'name', e.target.value)}
+                          placeholder="Họ &amp; Tên công nhân"
+                          className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs font-bold uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500 hover:border-slate-300 transition-all"
+                          title="Sửa Họ & Tên công nhân"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5 text-right">
                         <input
                           type="text"
                           value={formatMoney(w.advanceSalary)}
-                          onChange={(e) => handleUpdateAdvance(w.id, e.target.value)}
-                          className="w-24 rounded border border-slate-200 px-1.5 py-0.5 text-right font-mono font-bold text-rose-700 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                          onChange={(e) => handleUpdateWorker(w.id, 'advanceSalary', e.target.value)}
+                          placeholder="0"
+                          className="w-28 rounded border border-slate-200 bg-white px-2 py-1 text-right font-mono text-xs font-bold text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 hover:border-slate-300 transition-all"
+                          title="Sửa số tiền tạm ứng"
                         />
                       </td>
-                      <td className="px-3 py-2 font-mono text-slate-600">{w.accountNumber || '-'}</td>
-                      <td className="px-3 py-2 text-slate-600">{w.bankName || '-'}</td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-2 py-1.5">
+                        <input
+                          type="text"
+                          value={w.accountNumber}
+                          onChange={(e) => handleUpdateWorker(w.id, 'accountNumber', e.target.value)}
+                          placeholder="Nhập số tài khoản"
+                          className="w-full rounded border border-slate-200 bg-white px-2 py-1 font-mono text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500 hover:border-slate-300 transition-all"
+                          title="Sửa số tài khoản ngân hàng"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <input
+                          type="text"
+                          value={w.bankName}
+                          onChange={(e) => handleUpdateWorker(w.id, 'bankName', e.target.value)}
+                          placeholder="Tên ngân hàng"
+                          className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs uppercase text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500 hover:border-slate-300 transition-all"
+                          title="Sửa tên ngân hàng"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
                         <button
+                          type="button"
                           onClick={() => handleRemoveWorker(w.id)}
-                          className="text-slate-400 hover:text-rose-600 transition-colors"
-                          title="Xóa công nhân"
+                          className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                          title="Xóa công nhân này"
                         >
                           ✕
                         </button>
