@@ -8,6 +8,21 @@ import { formatWorkDescription, parseVehicle } from '@/lib/husk/plate';
 import { groupSlipsIfEnabled } from '@/lib/husk/merger';
 import { NSXTMEntry, NSXTMTeamKey } from '@/lib/rice-payroll/nsx-tm-types';
 
+const POPULAR_CUSTOMERS = [
+  'CÔ LIỄU',
+  'TRANG BẾN TRE',
+  'CHỊ 7',
+  'PHAN TIẾN',
+  'NAM HH',
+  'CHỊ MAI (TBN)',
+  'CẨM THANH XUÂN',
+  'ĐĂNG THÀNH PHÁT',
+  'TRÂM ANH',
+  'CHỊ BÉ BA',
+  'MY TÂM',
+  'ĐƯỢC PHƯỜNG',
+];
+
 export default function HuskPayrollView() {
   // ─── File & Settings State ────────────────────────────────────────────────
   const [excelFile, setExcelFile] = useState<File | null>(null);
@@ -28,6 +43,114 @@ export default function HuskPayrollView() {
   // ─── Data State ───────────────────────────────────────────────────────────
   const [scannedSlips, setScannedSlips] = useState<ScannedSlipItem[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // ─── Modal Thêm Phiếu Cân Thủ Công (Ghe / Xe) ─────────────────────────────
+  const [showManualModal, setShowManualModal] = useState<boolean>(false);
+  const [manualType, setManualType] = useState<'GHE' | 'XE'>('GHE');
+  const [manualDate, setManualDate] = useState<string>('');
+  const [manualCustomer, setManualCustomer] = useState<string>('');
+  const [manualVehicle, setManualVehicle] = useState<string>('');
+  const [manualKg, setManualKg] = useState<string>('');
+  const [manualTeam, setManualTeam] = useState<'ĐỨC' | 'QUÝ'>('ĐỨC');
+  const [manualDesc, setManualDesc] = useState<string>('');
+  const [isDescCustomized, setIsDescCustomized] = useState<boolean>(false);
+
+  // Lấy ngày gợi ý: lấy từ phiếu gần nhất hoặc ngày hôm nay
+  const getDefaultDateStr = () => {
+    if (scannedSlips.length > 0 && scannedSlips[0].date) {
+      return scannedSlips[0].date;
+    }
+    const now = new Date();
+    const d = String(now.getDate()).padStart(2, '0');
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const y = now.getFullYear();
+    return `${d}/${m}/${y}`;
+  };
+
+  const updateAutoDescription = (vName: string, cust: string, type: 'GHE' | 'XE') => {
+    const vTrim = vName.trim();
+    const cTrim = cust.trim();
+    if (!vTrim && !cTrim) {
+      setManualDesc('');
+      return;
+    }
+    const defaultV = vTrim || (type === 'GHE' ? 'Ghe' : 'Xe');
+    const desc = formatWorkDescription(defaultV, cTrim || 'khách');
+    setManualDesc(desc);
+  };
+
+  const handleOpenManualModal = (type: 'GHE' | 'XE' = 'GHE') => {
+    setManualType(type);
+    const dateToUse = manualDate || getDefaultDateStr();
+    setManualDate(dateToUse);
+    setManualTeam(settings.defaultTeam === 'QUÝ' ? 'QUÝ' : 'ĐỨC');
+    setIsDescCustomized(false);
+    updateAutoDescription(manualVehicle, manualCustomer, type);
+    setShowManualModal(true);
+  };
+
+  const handleAddManualSlip = (continueAdding: boolean = false) => {
+    const kgNum = Number(manualKg) || 0;
+    if (kgNum <= 0) {
+      setErrorMessage('Vui lòng nhập khối lượng Kg hàng lớn hơn 0.');
+      return;
+    }
+
+    const vName = manualVehicle.trim();
+    const custName = manualCustomer.trim().toUpperCase();
+    const dateStr = manualDate.trim() || getDefaultDateStr();
+    const team = manualTeam;
+
+    const tons = calculateHuskTons(kgNum);
+    const unitPrice = settings.unitPrice || 11000;
+    const amount = Math.round(tons * unitPrice);
+
+    const finalDesc = manualDesc.trim() || formatWorkDescription(vName || (manualType === 'GHE' ? 'Ghe' : 'Xe'), custName);
+
+    const newSlip: ScannedSlipItem = {
+      id: `manual-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      fileName: `Nhập tay (${manualType === 'GHE' ? 'Ghe' : 'Xe'})`,
+      selected: true,
+      customer: custName || 'KHÁCH HÀNG',
+      vehicle: vName || (manualType === 'GHE' ? 'Ghe' : 'Xe'),
+      productType: 'Trấu',
+      direction: 'Xuất',
+      date: dateStr,
+      weightGrossKg: kgNum,
+      weightTareKg: 0,
+      weightNetKg: kgNum,
+      tons,
+      unitPrice,
+      amount,
+      description: finalDesc,
+      targetTeam: team,
+      warnings: [],
+      isDuplicateExisting: false,
+      isDuplicateInBatch: false,
+    };
+
+    setScannedSlips((prev) => [newSlip, ...prev]);
+    setErrorMessage(null);
+    setSuccessMessage(`✅ Đã thêm phiếu ${manualType === 'GHE' ? 'Ghe' : 'Xe'} (${vName || custName}) ${kgNum.toLocaleString()} kg vào danh sách!`);
+    setTimeout(() => setSuccessMessage(null), 3500);
+
+    if (continueAdding) {
+      setManualVehicle('');
+      setManualKg('');
+      setManualDesc('');
+      setIsDescCustomized(false);
+    } else {
+      setShowManualModal(false);
+      setManualVehicle('');
+      setManualKg('');
+      setManualDesc('');
+      setIsDescCustomized(false);
+    }
+  };
+
+  const handleDeleteSlip = (id: string) => {
+    setScannedSlips((prev) => prev.filter((s) => s.id !== id));
+  };
 
   // ─── Khôi phục danh sách phiếu cân đã quét từ localStorage (không mất khi chuyển tab) ─
   React.useEffect(() => {
@@ -135,7 +258,11 @@ export default function HuskPayrollView() {
         throw new Error(data.error || `Quá trình quét phiếu gặp sự cố (mã lỗi ${res.status}).`);
       }
 
-      setScannedSlips(data.slips || []);
+      setScannedSlips((prev) => {
+        // Giữ lại các phiếu nhập tay đã có sẵn trước đó
+        const existingManual = prev.filter((s) => !s.thumbnailBase64);
+        return [...(data.slips || []), ...existingManual];
+      });
       if (!isTeamManuallyEdited && data.detectedTeam) {
         setSettings((prev) => ({
           ...prev,
@@ -268,6 +395,9 @@ export default function HuskPayrollView() {
       const tons = s.tons || 0;
       const amount = s.amount || Math.round(tons * unitPrice);
 
+      const isTruck = parseVehicle(s.vehicle).isTruck;
+      const vType = isTruck ? 'XE' : 'GHE';
+
       return {
         id: `ocr-trau-${s.id}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         source: 'MANUAL',
@@ -276,8 +406,8 @@ export default function HuskPayrollView() {
         customerName: s.customer,
         riceType: 'Trấu',
         vehicleName: s.vehicle,
-        vehicleType: (s.vehicle || '').toUpperCase().includes('XE') ? 'XE' : 'GHE',
-        jobDescription: s.description || `Xuất trấu ghe ${s.customer}`,
+        vehicleType: vType,
+        jobDescription: s.description || (vType === 'GHE' ? `Xuất trấu ghe ${s.customer}` : `Xuất một xe trấu ${s.vehicle} của ${s.customer}`),
         weightKg: s.weightNetKg,
         roundedTons: tons,
         unitPriceXuatTrau: unitPrice,
@@ -286,7 +416,7 @@ export default function HuskPayrollView() {
         thanhTienLuaKho: 0,
         tongThanhTien: amount,
         facility: 'NSX TM',
-        note: `Phiếu cân xuất trấu AI (${team})`,
+        note: s.thumbnailBase64 ? `Phiếu cân xuất trấu AI (${team})` : `Phiếu cân xuất trấu nhập tay (${team})`,
       };
     });
 
@@ -551,7 +681,7 @@ export default function HuskPayrollView() {
             type="button"
             disabled={selectedImages.length === 0 || isScanning}
             onClick={handleScanSlips}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 py-3 text-sm font-bold text-white shadow-md shadow-amber-600/20 transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 py-3 text-sm font-bold text-white shadow-md shadow-amber-600/20 transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-slate-300 cursor-pointer"
           >
             {isScanning ? (
               <>
@@ -568,8 +698,57 @@ export default function HuskPayrollView() {
               </>
             )}
           </button>
+
+          {/* Thêm nhanh phương tiện bằng tay (thường dùng cho phiếu Ghe) */}
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-amber-50/70 border border-amber-200/80 p-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">⛵</span>
+              <div className="text-left">
+                <p className="text-xs font-bold text-amber-950">Không có ảnh hoặc phiếu Ghe?</p>
+                <p className="text-[11px] text-amber-800">Thêm phương tiện bằng tay nhanh chóng</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleOpenManualModal('GHE')}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-amber-700 transition cursor-pointer"
+            >
+              <span>+ Thêm phiếu Ghe / Xe</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* ─── KHI CHƯA CÓ PHIẾU CÂN: HƯỚNG DẪN & NÚT THÊM TAY NHANH ────────── */}
+      {scannedSlips.length === 0 && (
+        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white/70 p-8 text-center shadow-xs">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-2xl text-amber-700 border border-amber-200/70">
+            🌾
+          </div>
+          <h3 className="mt-3 text-sm font-bold text-slate-800">Chưa có phiếu cân nào trong đợt này</h3>
+          <p className="mt-1 text-xs text-slate-500 max-w-md mx-auto">
+            Bạn có thể tải ảnh chụp phiếu cân ở Bước 2 để AI quét tự động, hoặc bấm nút bên dưới để nhập nhanh phiếu Ghe/Xe bằng tay.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => handleOpenManualModal('GHE')}
+              className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-amber-600/20 hover:bg-amber-700 transition cursor-pointer"
+            >
+              <span>⛵</span>
+              <span>Thêm phiếu Ghe bằng tay</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenManualModal('XE')}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition cursor-pointer"
+            >
+              <span>🚛</span>
+              <span>Thêm phiếu Xe bằng tay</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ─── BƯỚC 3: BẢNG KIỂM TRA & DUYỆT PHIẾU CÂN ───────────────────────── */}
       {scannedSlips.length > 0 && (
@@ -622,6 +801,16 @@ export default function HuskPayrollView() {
               >
                 <span>🗑️</span>
                 <span>Làm mới</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleOpenManualModal('GHE')}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-400 bg-amber-500 text-white px-3.5 py-2 text-xs font-bold shadow-2xs hover:bg-amber-600 transition cursor-pointer"
+                title="Thêm phiếu cân bằng tay (thường dùng cho phiếu Ghe)"
+              >
+                <span>⛵</span>
+                <span>+ Thêm phiếu tay (Ghe/Xe)</span>
               </button>
 
               <div className="flex items-center rounded-xl bg-white p-1 border border-slate-200 shadow-2xs">
@@ -710,6 +899,7 @@ export default function HuskPayrollView() {
                   <th className="p-3">Mô tả dự kiến</th>
                   <th className="p-3 text-center w-20">Copy</th>
                   <th className="p-3 w-32">Cảnh báo</th>
+                  <th className="p-3 text-center w-12">Xóa</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white font-medium">
@@ -755,17 +945,22 @@ export default function HuskPayrollView() {
                         </button>
                       </td>
 
-                      {/* Ảnh Thumbnail */}
+                      {/* Ảnh Thumbnail hoặc Icon Phiếu Thêm Tay */}
                       <td className="p-3 text-center">
                         {slip.thumbnailBase64 ? (
                           <img
                             src={slip.thumbnailBase64}
                             alt="Phiếu cân"
                             onClick={() => setPreviewImage(slip.thumbnailBase64 || null)}
-                            className="h-10 w-10 cursor-pointer rounded-lg border border-slate-200 object-cover shadow-2xs transition hover:scale-110"
+                            className="h-10 w-10 cursor-pointer rounded-lg border border-slate-200 object-cover shadow-2xs transition hover:scale-110 mx-auto"
                           />
                         ) : (
-                          <span className="text-slate-300">—</span>
+                          <span
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-900 border border-amber-300/80 font-bold text-sm shadow-2xs mx-auto"
+                            title={`Phiếu ${slip.vehicle?.toUpperCase().includes('GHE') || !parseVehicle(slip.vehicle).isTruck ? 'Ghe' : 'Xe'} thêm thủ công bằng tay`}
+                          >
+                            {slip.vehicle?.toUpperCase().includes('GHE') || !parseVehicle(slip.vehicle).isTruck ? '⛵' : '🚛'}
+                          </span>
                         )}
                       </td>
 
@@ -853,6 +1048,18 @@ export default function HuskPayrollView() {
                           </span>
                         )}
                       </td>
+
+                      {/* Nút Xóa Dòng */}
+                      <td className="p-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSlip(slip.id)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition cursor-pointer"
+                          title="Xóa phiếu này khỏi danh sách"
+                        >
+                          ✕
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -900,6 +1107,275 @@ export default function HuskPayrollView() {
                 </>
               )}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modal Thêm Phiếu Cân Thủ Công (Ghe / Xe) ────────────────────── */}
+      {showManualModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="relative w-full max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900 p-5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">{manualType === 'GHE' ? '⛵' : '🚛'}</span>
+                <div>
+                  <h3 className="text-base font-bold">Thêm Phiếu Cân Thủ Công</h3>
+                  <p className="text-xs text-amber-200/90">
+                    {manualType === 'GHE' ? 'Nhập phiếu Ghe chở trấu (Mặc định)' : 'Nhập phiếu Xe tải chở trấu'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowManualModal(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* 1. Chọn loại phương tiện */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Loại phương tiện:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualType('GHE');
+                      if (!isDescCustomized) {
+                        updateAutoDescription(manualVehicle, manualCustomer, 'GHE');
+                      }
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-bold transition cursor-pointer ${
+                      manualType === 'GHE'
+                        ? 'border-amber-600 bg-amber-50 text-amber-900 ring-2 ring-amber-500/30'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>⛵</span>
+                    <span>Ghe (Mặc định)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualType('XE');
+                      if (!isDescCustomized) {
+                        updateAutoDescription(manualVehicle, manualCustomer, 'XE');
+                      }
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-bold transition cursor-pointer ${
+                      manualType === 'XE'
+                        ? 'border-amber-600 bg-amber-50 text-amber-900 ring-2 ring-amber-500/30'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>🚛</span>
+                    <span>Xe tải</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Ngày & Đội */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Ngày cân (DD/MM/YYYY): <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualDate}
+                    onChange={(e) => setManualDate(e.target.value)}
+                    placeholder="VD: 10/11/2026"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Phân Đội:</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setManualTeam('ĐỨC')}
+                      className={`py-2 px-2 rounded-xl border text-xs font-bold transition cursor-pointer ${
+                        manualTeam === 'ĐỨC'
+                          ? 'border-blue-500 bg-blue-50 text-blue-800 ring-2 ring-blue-400/30'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      🔵 Đội Đức
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualTeam('QUÝ')}
+                      className={`py-2 px-2 rounded-xl border text-xs font-bold transition cursor-pointer ${
+                        manualTeam === 'QUÝ'
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-400/30'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      🟢 Đội Quý
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Khách hàng */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Khách hàng: <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={manualCustomer}
+                  list="husk-popular-customers-list"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setManualCustomer(val);
+                    if (!isDescCustomized) {
+                      updateAutoDescription(manualVehicle, val, manualType);
+                    }
+                  }}
+                  placeholder="VD: CÔ LIỄU, TRANG BẾN TRE, CHỊ 7..."
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none uppercase"
+                />
+                <datalist id="husk-popular-customers-list">
+                  {POPULAR_CUSTOMERS.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+
+                {/* Gợi ý chọn nhanh khách quen */}
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {POPULAR_CUSTOMERS.slice(0, 7).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => {
+                        setManualCustomer(c);
+                        if (!isDescCustomized) {
+                          updateAutoDescription(manualVehicle, c, manualType);
+                        }
+                      }}
+                      className="rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 border border-slate-200 px-2 py-0.5 text-[10px] font-semibold transition cursor-pointer"
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4. Tên Ghe / Biển số Xe */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {manualType === 'GHE' ? 'Tên Ghe / Tàu:' : 'Biển số Xe tải:'}
+                </label>
+                <input
+                  type="text"
+                  value={manualVehicle}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setManualVehicle(val);
+                    if (!isDescCustomized) {
+                      updateAutoDescription(val, manualCustomer, manualType);
+                    }
+                  }}
+                  placeholder={manualType === 'GHE' ? 'VD: Ghe Út Em, Ghe An Giang, Ghe Cẩm...' : 'VD: 62H 01966, 63H 05099...'}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none"
+                />
+              </div>
+
+              {/* 5. Khối lượng Kg hàng */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Khối lượng hàng (Kg): <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  value={manualKg}
+                  onChange={(e) => setManualKg(e.target.value)}
+                  placeholder="VD: 25000 (cho ghe) hoặc 6960 (cho xe)"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none"
+                />
+
+                {/* Tính toán tự động hiển thị */}
+                {Number(manualKg) > 0 && (
+                  <div className="mt-2 rounded-xl bg-amber-50 border border-amber-200/80 p-2.5 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-slate-600">Quy đổi: </span>
+                      <strong className="text-amber-900 font-bold">
+                        {calculateHuskTons(Number(manualKg)).toFixed(1)} tấn
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-600">Thành tiền ({settings.unitPrice || 11000}đ): </span>
+                      <strong className="text-emerald-700 font-bold">
+                        {Math.round(calculateHuskTons(Number(manualKg)) * (settings.unitPrice || 11000)).toLocaleString()} VNĐ
+                      </strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 6. Mô tả công việc (Cột D) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-700">Mô tả công việc (Cột D Excel):</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDescCustomized(false);
+                      updateAutoDescription(manualVehicle, manualCustomer, manualType);
+                    }}
+                    className="text-[10px] text-amber-700 hover:underline cursor-pointer"
+                  >
+                    Tạo lại tự động
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={manualDesc}
+                  onChange={(e) => {
+                    setIsDescCustomized(true);
+                    setManualDesc(e.target.value);
+                  }}
+                  placeholder="Tự động sinh khi nhập khách và phương tiện..."
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="bg-slate-50 p-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowManualModal(false)}
+                className="w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Hủy
+              </button>
+
+              <div className="flex w-full sm:w-auto items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleAddManualSlip(true)}
+                  className="w-full sm:w-auto rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 transition cursor-pointer"
+                  title="Thêm phiếu này và tiếp tục giữ form để nhập thêm phiếu ghe tiếp theo"
+                >
+                  + Thêm &amp; Nhập tiếp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddManualSlip(false)}
+                  className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 px-4 py-2 text-xs font-bold text-white shadow-md shadow-amber-600/20 hover:from-amber-700 hover:to-amber-800 transition cursor-pointer"
+                >
+                  + Thêm vào danh sách
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
