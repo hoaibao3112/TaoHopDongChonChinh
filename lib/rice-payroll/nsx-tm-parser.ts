@@ -75,20 +75,22 @@ export function parseLuaTuoiWorkbook(wb: XLSX.WorkBook): NSXTMEntry[] {
 
     entries.push({
       id: `tuoi-${r}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      source: 'LUA_TUOI',
       date: dateStr,
-      sourceType: 'LUA_TUOI',
       team: 'ĐỨC', // Mặc định, sau đó hàm autoAssign sẽ chia xen kẽ
-      customer,
+      customerName: customer,
       riceType,
-      vehicle,
+      vehicleName: vehicle,
       vehicleType: vType,
-      workDesc,
-      kg,
-      tons,
-      pricePerTon,
-      amount,
+      jobDescription: workDesc,
+      weightKg: kg,
+      roundedTons: tons,
+      unitPriceSayXe: vType === 'XE' ? 25000 : 0,
+      unitPriceSayGhe: vType === 'GHE' ? 15000 : 0,
+      thanhTienSay: amount,
+      thanhTienLuaKho: 0,
+      tongThanhTien: amount,
       facility: fac || 'NSX TM',
-      dryRiceAmount: 0,
     });
   }
 
@@ -141,20 +143,21 @@ export function parseLuaKhoWorkbook(wb: XLSX.WorkBook): NSXTMEntry[] {
 
     entries.push({
       id: `kho-${r}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      source: 'LUA_KHO',
       date: dateStr,
-      sourceType: 'LUA_KHO',
       team: 'ĐỨC',
-      customer,
+      customerName: customer,
       riceType,
-      vehicle,
+      vehicleName: vehicle,
       vehicleType: vType,
-      workDesc,
-      kg,
-      tons,
-      pricePerTon,
-      amount,
+      jobDescription: workDesc,
+      weightKg: kg,
+      roundedTons: tons,
+      unitPriceLuaKho: 20000,
+      thanhTienSay: 0,
+      thanhTienLuaKho: amount,
+      tongThanhTien: amount,
       facility: 'NSX TM',
-      dryRiceAmount: amount, // Phân bổ vào cột THÀNH TIỀN LÚA KHÔ
     });
   }
 
