@@ -21,6 +21,7 @@ export default function AppHeader() {
   const isContract = pathname === '/' || pathname.startsWith('/contracts');
   const isPayroll = pathname.startsWith('/tinh-luong');
   const isNhapSay = pathname.startsWith('/nhap-say');
+  const isChumLo = pathname.startsWith('/chum-lo');
   const isXuatTrau = pathname.startsWith('/xuat-trau');
 
   // Quyền truy cập các tab
@@ -57,11 +58,10 @@ export default function AppHeader() {
             {canAccessContracts && (
               <Link
                 href="/"
-                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                  isContract
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${isContract
                     ? 'bg-white text-blue-700 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
+                  }`}
               >
                 <span>📄</span>
                 <span>Tạo Hợp Đồng</span>
@@ -72,11 +72,10 @@ export default function AppHeader() {
               <>
                 <Link
                   href="/tinh-luong"
-                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                    isPayroll
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${isPayroll
                       ? 'bg-white text-amber-700 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                  }`}
+                    }`}
                 >
                   <span>🌾</span>
                   <span>Xuất Lúa (CS1 & CS2)</span>
@@ -84,14 +83,24 @@ export default function AppHeader() {
 
                 <Link
                   href="/nhap-say"
-                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                    isNhapSay
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${isNhapSay
                       ? 'bg-white text-orange-700 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                  }`}
+                    }`}
                 >
                   <span>🔥</span>
                   <span>Nhập Sấy CS2</span>
+                </Link>
+
+                <Link
+                  href="/chum-lo"
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${isChumLo
+                      ? 'bg-white text-rose-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                    }`}
+                >
+                  <span>🏭</span>
+                  <span>Chụm Lò CS1</span>
                 </Link>
               </>
             )}
@@ -99,11 +108,10 @@ export default function AppHeader() {
             {canAccessHusk && (
               <Link
                 href="/xuat-trau"
-                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                  isXuatTrau
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${isXuatTrau
                     ? 'bg-white text-amber-900 shadow-xs ring-1 ring-amber-400'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
+                  }`}
               >
                 <span>🚛</span>
                 <span>Nhập Trấu (Xe &amp; Ghe)</span>

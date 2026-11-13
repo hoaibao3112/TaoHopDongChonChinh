@@ -49,10 +49,11 @@ export function middleware(request: NextRequest): NextResponse {
 
   // 2. Phân quyền cho Chơn Chính ('contracts'): Chỉ vào Tạo Hợp Đồng
   if (role === 'contracts') {
-    // Nếu cố vào /tinh-luong, /nhap-say hoặc /xuat-trau -> redirect về trang chủ /
+    // Nếu cố vào /tinh-luong, /nhap-say, /chum-lo hoặc /xuat-trau -> redirect về trang chủ /
     if (
       pathname.startsWith('/tinh-luong') ||
       pathname.startsWith('/nhap-say') ||
+      pathname.startsWith('/chum-lo') ||
       pathname.startsWith('/xuat-trau')
     ) {
       return NextResponse.redirect(new URL('/', request.url));
