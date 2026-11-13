@@ -208,40 +208,40 @@ export const DEFAULT_DOI_NGUYEN_WORKERS: CS1Worker[] = [
  * Danh sách chuyến trấu mẫu Tháng 10/2026 - Đội Nghị
  */
 export const DEFAULT_OCTOBER_TRAU_NGHI: NhapTrauItem[] = [
-  { id: 'tn-1', ngay: '02/10/2026', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
-  { id: 'tn-2', ngay: '04/10/2026', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
-  { id: 'tn-3', ngay: '06/10/2026', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
-  { id: 'tn-4', ngay: '10/10/2026', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
-  { id: 'tn-5', ngay: '20/10/2026', phuongTien: 'TÀU ĐÔ 49', soLuong: 19, donGia: 27000, thanhTien: 513_000 },
-  { id: 'tn-6', ngay: '28/10/2026', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
+  { id: 'tn-1', date: '02/10/2026', doiNhap: 'NGHỊ', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
+  { id: 'tn-2', date: '04/10/2026', doiNhap: 'NGHỊ', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
+  { id: 'tn-3', date: '06/10/2026', doiNhap: 'NGHỊ', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
+  { id: 'tn-4', date: '10/10/2026', doiNhap: 'NGHỊ', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
+  { id: 'tn-5', date: '20/10/2026', doiNhap: 'NGHỊ', phuongTien: 'TÀU ĐÔ 49', soLuong: 19, donGia: 27000, thanhTien: 513_000 },
+  { id: 'tn-6', date: '28/10/2026', doiNhap: 'NGHỊ', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
 ];
 
 /**
  * Danh sách chuyến trấu mẫu Tháng 10/2026 - Đội Nguyên
  */
 export const DEFAULT_OCTOBER_TRAU_NGUYEN: NhapTrauItem[] = [
-  { id: 'tng-1', ngay: '01/10/2026', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
-  { id: 'tng-2', ngay: '03/10/2026', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
-  { id: 'tng-3', ngay: '05/10/2026', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
-  { id: 'tng-4', ngay: '09/10/2026', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
-  { id: 'tng-5', ngay: '11/10/2026', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
-  { id: 'tng-6', ngay: '19/10/2026', phuongTien: 'ÔNG 5', soLuong: 15, donGia: 27000, thanhTien: 405_000 },
-  { id: 'tng-7', ngay: '27/10/2026', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
+  { id: 'tng-1', date: '01/10/2026', doiNhap: 'NGUYÊN', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
+  { id: 'tng-2', date: '03/10/2026', doiNhap: 'NGUYÊN', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
+  { id: 'tng-3', date: '05/10/2026', doiNhap: 'NGUYÊN', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
+  { id: 'tng-4', date: '09/10/2026', doiNhap: 'NGUYÊN', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
+  { id: 'tng-5', date: '11/10/2026', doiNhap: 'NGUYÊN', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
+  { id: 'tng-6', date: '19/10/2026', doiNhap: 'NGUYÊN', phuongTien: 'ÔNG 5', soLuong: 15, donGia: 27000, thanhTien: 405_000 },
+  { id: 'tng-7', date: '27/10/2026', doiNhap: 'NGUYÊN', phuongTien: 'ÔNG 5', soLuong: 11, donGia: 27273, thanhTien: 300_000 },
 ];
 
 /**
  * Bảng giá các loại lúa cơ sở 1 chuẩn
  */
 export const DEFAULT_CS1_RICE_PRICES: RiceTypePrice[] = [
-  { id: 'p1', riceType: 'OM18', pricePerTon: 20_000 },
-  { id: 'p2', riceType: 'JAPONICA', pricePerTon: 20_000 },
-  { id: 'p3', riceType: 'JAPONICA-DS1', pricePerTon: 20_000 },
-  { id: 'p4', riceType: 'THƠM LÀI', pricePerTon: 20_000 },
-  { id: 'p5', riceType: 'TL4T-LOẠI 1', pricePerTon: 20_000 },
-  { id: 'p6', riceType: 'TL4T-LOẠI 2', pricePerTon: 20_000 },
-  { id: 'p7', riceType: 'TL6T-LOẠI 2', pricePerTon: 20_000 },
-  { id: 'p8', riceType: 'ĐT8', pricePerTon: 20_000 },
-  { id: 'p9', riceType: 'ST25 ĐL', pricePerTon: 23_000 },
-  { id: 'p10', riceType: 'ST25 KDM', pricePerTon: 23_000 },
-  { id: 'p11', riceType: 'HP1', pricePerTon: 23_000 },
+  { riceType: 'OM18', pricePerTon: 20_000 },
+  { riceType: 'JAPONICA', pricePerTon: 20_000 },
+  { riceType: 'JAPONICA-DS1', pricePerTon: 20_000 },
+  { riceType: 'THƠM LÀI', pricePerTon: 20_000 },
+  { riceType: 'TL4T-LOẠI 1', pricePerTon: 20_000 },
+  { riceType: 'TL4T-LOẠI 2', pricePerTon: 20_000 },
+  { riceType: 'TL6T-LOẠI 2', pricePerTon: 20_000 },
+  { riceType: 'ĐT8', pricePerTon: 20_000 },
+  { riceType: 'ST25 ĐL', pricePerTon: 23_000 },
+  { riceType: 'ST25 KDM', pricePerTon: 23_000 },
+  { riceType: 'HP1', pricePerTon: 23_000 },
 ];
