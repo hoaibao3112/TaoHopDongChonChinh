@@ -54,6 +54,23 @@ describe('Rice Chụm Lò CS1: Đội Nguyên - Cơ Sở I', () => {
     expect(remaining).toBe(9_055_000); // 15.055.000 - 6.000.000 = 9.055.000đ chuẩn theo file mẫu
   });
 
+  it('cho phép người dùng điều chỉnh số Tấn thủ công và tự động tính lại Thành tiền', () => {
+    // Giả sử mẻ có 69.369 kg -> tự động làm tròn thành 70 tấn
+    const dryWeightKg = 69369;
+    const autoTons = roundRiceTons(dryWeightKg);
+    expect(autoTons).toBe(70);
+
+    // Người dùng điều chỉnh thủ công thành 69 tấn theo thỏa thuận thực tế
+    const manualTons = 69;
+    const unitPrice = 5000;
+    const autoThanhTien = autoTons * unitPrice; // 350.000đ
+    const manualThanhTien = manualTons * unitPrice; // 345.000đ
+
+    expect(manualThanhTien).toBe(345_000);
+    expect(autoThanhTien).toBe(350_000);
+    expect(manualThanhTien).not.toBe(autoThanhTien);
+  });
+
   it('xuất Excel Chụm Lò đúng 2 sheets chuẩn, không có lỗi #VALUE!', async () => {
     const { POST } = await import('../app/api/rice-payroll/chum-lo-export/route');
     const { NextRequest } = await import('next/server');

@@ -36,6 +36,9 @@ export default function RiceChumLoView() {
   // ── State: Đơn giá chụm lò (VNĐ/tấn) ────────────────────────────────────
   const [unitPrice, setUnitPrice] = useState<number>(DEFAULT_CHUM_LO_UNIT_PRICE);
 
+  // ── State: Điều chỉnh số Tấn thủ công theo từng mẻ (key = batch.id) ────
+  const [customTonsMap, setCustomTonsMap] = useState<Record<string, number>>({});
+
   // ── State: Danh sách công nhân đội chụm lò ─────────────────────────────
   const [workers, setWorkers] = useState<ChumLoWorker[]>(DEFAULT_CHUM_LO_WORKERS);
 
@@ -136,10 +139,12 @@ export default function RiceChumLoView() {
         return getMonthKeyFromDate(b.dryDate) === selectedMonthKey;
       })
       .map((b, idx) => {
-        const tons = roundRiceTons(b.dryWeightKg);
+        const batchId = b.id || `chum-lo-${idx}`;
+        const autoTons = roundRiceTons(b.dryWeightKg);
+        const tons = customTonsMap[batchId] !== undefined ? customTonsMap[batchId] : autoTons;
         const thanhTien = tons * unitPrice;
         return {
-          id: b.id || `chum-lo-${idx}`,
+          id: batchId,
           contractNo: String(idx + 1).padStart(2, '0'),
           weighDate: b.weighDate,
           doiNhap: b.purchaser || 'NGHỊ / NGUYÊN',
@@ -156,7 +161,49 @@ export default function RiceChumLoView() {
           thanhTien,
         };
       });
-  }, [allBatches, selectedMonthKey, unitPrice]);
+  }, [allBatches, selectedMonthKey, unitPrice, customTonsMap]);
+
+  // Đếm số mẻ đã được điều chỉnh Tấn thủ công trong tháng hiện tại
+  const customizedTonsCount = useMemo(() => {
+    return currentChumLoBatches.filter((b) => {
+      const originalBatch = allBatches.find((item) => item.id === b.id);
+      if (!originalBatch) return false;
+      const autoTons = roundRiceTons(originalBatch.dryWeightKg);
+      return b.roundedTons !== autoTons;
+    }).length;
+  }, [currentChumLoBatches, allBatches]);
+
+  // Cập nhật số tấn cho từng mẻ
+  const handleUpdateTons = (batchId: string, val: string) => {
+    const cleanStr = val.replace(/[^\d]/g, '');
+    const num = cleanStr === '' ? 0 : parseInt(cleanStr, 10);
+    setCustomTonsMap((prev) => ({
+      ...prev,
+      [batchId]: num,
+    }));
+  };
+
+  // Khôi phục 1 mẻ về số tấn tự động
+  const handleResetSingleTons = (batchId: string) => {
+    setCustomTonsMap((prev) => {
+      const next = { ...prev };
+      delete next[batchId];
+      return next;
+    });
+  };
+
+  // Khôi phục toàn bộ mẻ trong tháng về số tấn tự động
+  const handleResetAllTons = () => {
+    if (window.confirm('Khôi phục tất cả số tấn về giá trị làm tròn tự động ban đầu?')) {
+      setCustomTonsMap((prev) => {
+        const next = { ...prev };
+        for (const b of currentChumLoBatches) {
+          delete next[b.id];
+        }
+        return next;
+      });
+    }
+  };
 
   // ─── Tổng hợp số liệu KPI ────────────────────────────────────────────────
   const totalDryKg = useMemo(
@@ -451,16 +498,36 @@ export default function RiceChumLoView() {
       {/* ─── Bảng 1: Chi tiết các mẻ sấy Cơ Sở 1 ───────────────────────── */}
       {selectedMonthKey && (
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-          <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-3.5 flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-              <span>🌾</span>
-              <span>
-                Danh sách mẻ nhập sấy Cơ Sở I — Tháng {selectedMonthKey} ({currentChumLoBatches.length} mẻ)
+          <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                <span>🌾</span>
+                <span>
+                  Danh sách mẻ nhập sấy Cơ Sở I — Tháng {selectedMonthKey} ({currentChumLoBatches.length} mẻ)
+                </span>
+              </h2>
+              {customizedTonsCount > 0 && (
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-inset ring-amber-400">
+                  ✏️ Đã sửa {customizedTonsCount} mẻ
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {customizedTonsCount > 0 && (
+                <button
+                  onClick={handleResetAllTons}
+                  className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-all flex items-center gap-1 shadow-2xs"
+                  title="Khôi phục toàn bộ số tấn về giá trị làm tròn tự động"
+                >
+                  <span>↺</span>
+                  <span>Khôi phục Tấn tự động</span>
+                </button>
+              )}
+              <span className="rounded-md bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
+                Sheet: Chụm Lò
               </span>
-            </h2>
-            <span className="rounded-md bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
-              Sheet: Chụm Lò
-            </span>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -476,7 +543,12 @@ export default function RiceChumLoView() {
                   <th className="px-3 py-2.5 text-center">Ngày nhập sấy</th>
                   <th className="px-3 py-2.5 text-center">Cơ sở</th>
                   <th className="px-3 py-2.5 text-right">Cân sấy (kg)</th>
-                  <th className="px-3 py-2.5 text-center font-bold text-rose-700 bg-rose-50/50">Tấn</th>
+                  <th className="px-3 py-2 text-center font-bold text-rose-700 bg-rose-50/70 min-w-[85px]">
+                    <div className="flex flex-col items-center">
+                      <span>Tấn</span>
+                      <span className="text-[9px] font-normal text-rose-600">✏️ Sửa được</span>
+                    </div>
+                  </th>
                   <th className="px-3 py-2.5 text-right">Đơn giá</th>
                   <th className="px-3 py-2.5 text-right font-bold text-emerald-700 bg-emerald-50/40">Thành tiền</th>
                 </tr>
@@ -498,8 +570,42 @@ export default function RiceChumLoView() {
                       <td className="px-3 py-2 text-right font-mono text-slate-700">
                         {formatMoney(b.dryWeightKg)}
                       </td>
-                      <td className="px-3 py-2 text-center font-bold font-mono text-rose-700 bg-rose-50/30">
-                        {b.roundedTons}
+                      <td className="px-2 py-1 text-center bg-rose-50/20">
+                        {(() => {
+                          const originalBatch = allBatches.find((item) => item.id === b.id);
+                          const autoTons = originalBatch ? roundRiceTons(originalBatch.dryWeightKg) : b.roundedTons;
+                          const isCustomized = b.roundedTons !== autoTons;
+                          return (
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={b.roundedTons}
+                                onChange={(e) => handleUpdateTons(b.id, e.target.value)}
+                                className={`w-14 text-center font-bold font-mono rounded px-1 py-0.5 text-xs transition-all focus:outline-none focus:ring-2 focus:ring-rose-500 ${
+                                  isCustomized
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-400 shadow-2xs font-black ring-1 ring-amber-400'
+                                    : 'bg-white text-rose-700 border border-slate-200 hover:border-slate-300'
+                                }`}
+                                title={
+                                  isCustomized
+                                    ? `Đã điều chỉnh thủ công (tự động: ${autoTons} tấn)`
+                                    : 'Nhấp để điều chỉnh số tấn theo ý muốn'
+                                }
+                              />
+                              {isCustomized && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleResetSingleTons(b.id)}
+                                  className="text-[11px] text-slate-400 hover:text-rose-600 transition-colors p-0.5"
+                                  title={`Khôi phục về ${autoTons} tấn tự động`}
+                                >
+                                  ↺
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-3 py-2 text-right font-mono text-slate-600">
                         {formatMoney(b.unitPrice)}
