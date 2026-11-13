@@ -1,15 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 import XLSX from 'xlsx-js-style';
+import fs from 'fs';
+import path from 'path';
 import { isRequestAuthenticated } from '@/lib/auth';
 import {
   parseLuaTuoiWorkbook,
   parseLuaKhoWorkbook,
-  loadLocalSampleData,
-  autoAssignAlternating2Days,
 } from '@/lib/rice-payroll/nsx-tm-parser';
+import { autoAssignAlternating2Days } from '@/lib/rice-payroll/nsx-tm-utils';
 import { NSXTMEntry } from '@/lib/rice-payroll/nsx-tm-types';
 
 export const runtime = 'nodejs';
+
+/**
+ * Đọc dữ liệu mẫu từ các file có sẵn trên máy (chạy trên Node.js server)
+ */
+function loadLocalSampleData(): NSXTMEntry[] {
+  const filePathTuoi = path.join(process.cwd(), 'THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx');
+  const filePathKho = path.join(process.cwd(), 'THỊNH_TỔNG NHẬP LÚA KHÔ NĂM 2026.xlsx');
+
+  const entries: NSXTMEntry[] = [];
+
+  if (fs.existsSync(filePathTuoi)) {
+    try {
+      const buf = fs.readFileSync(filePathTuoi);
+      const wb = XLSX.read(buf, { type: 'buffer' });
+      const tuoi = parseLuaTuoiWorkbook(wb);
+      entries.push(...tuoi);
+    } catch (e) {
+      console.warn('Lỗi đọc file lúa tươi mẫu:', e);
+    }
+  }
+
+  if (fs.existsSync(filePathKho)) {
+    try {
+      const buf = fs.readFileSync(filePathKho);
+      const wb = XLSX.read(buf, { type: 'buffer' });
+      const kho = parseLuaKhoWorkbook(wb);
+      entries.push(...kho);
+    } catch (e) {
+      console.warn('Lỗi đọc file lúa khô mẫu:', e);
+    }
+  }
+
+  return autoAssignAlternating2Days(entries);
+}
 
 export async function POST(req: NextRequest) {
   if (!isRequestAuthenticated(req)) {
@@ -71,13 +106,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ error: 'Content-Type không hợp lệ' }, { status: 400 });
-  } catch (error) {
-    console.error('Lỗi phân tích file NSX TM:', error);
     return NextResponse.json(
-      { error: (error as Error).message || 'Không thể phân tích dữ liệu NSX TM' },
+      { error: 'Định dạng yêu cầu không hợp lệ' },
+      { status: 400 }
+    );
+  } catch (err: any) {
+    console.error('Lỗi khi phân tích file nhập sấy NSX TM:', err);
+    return NextResponse.json(
+      { error: err?.message || 'Không thể đọc file Excel. Vui lòng kiểm tra lại định dạng file.' },
       { status: 500 }
     );
   }
 }
-

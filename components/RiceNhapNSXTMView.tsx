@@ -28,7 +28,7 @@ import {
 import {
   autoAssignAlternating2Days,
   autoAssignAlternating1Day,
-} from '@/lib/rice-payroll/nsx-tm-parser';
+} from '@/lib/rice-payroll/nsx-tm-utils';
 
 function formatMoney(num: number): string {
   if (num === 0 || isNaN(num) || !num) return '0';
