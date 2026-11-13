@@ -48,6 +48,7 @@ export default function RiceNhapNSXTMView() {
 
   // Trạng thái xử lý
   const [isParsing, setIsParsing] = useState(false);
+  const [parsingType, setParsingType] = useState<'TUOI' | 'KHO' | 'SAMPLE' | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatusText, setExportStatusText] = useState<string>('');
@@ -300,6 +301,7 @@ export default function RiceNhapNSXTMView() {
   // ─── Nạp dữ liệu mẫu tháng 10 ──────────────────────────────────────────
   const handleLoadSampleData = async () => {
     setIsParsing(true);
+    setParsingType('SAMPLE');
     setParseError(null);
     try {
       const res = await fetch('/api/rice-payroll/nsx-tm-parse', {
@@ -308,8 +310,15 @@ export default function RiceNhapNSXTMView() {
         body: JSON.stringify({ useSample: true }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Không thể nạp dữ liệu mẫu');
+        const text = await res.text();
+        let errMsg = 'Không thể nạp dữ liệu mẫu';
+        try {
+          const json = JSON.parse(text);
+          errMsg = json.error || errMsg;
+        } catch {
+          errMsg = text || errMsg;
+        }
+        throw new Error(errMsg);
       }
       const data = await res.json();
       setAllEntries(data.entries || []);
@@ -319,6 +328,7 @@ export default function RiceNhapNSXTMView() {
       setParseError((err as Error).message);
     } finally {
       setIsParsing(false);
+      setParsingType(null);
     }
   };
 
@@ -330,6 +340,7 @@ export default function RiceNhapNSXTMView() {
     if (!fileTuoi && !fileKho) return;
 
     setIsParsing(true);
+    setParsingType(fileTuoi ? 'TUOI' : 'KHO');
     setParseError(null);
 
     const formData = new FormData();
@@ -348,15 +359,39 @@ export default function RiceNhapNSXTMView() {
         body: formData,
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Không thể xử lý file tải lên');
+        const text = await res.text();
+        let errMsg = 'Không thể xử lý file tải lên';
+        try {
+          const json = JSON.parse(text);
+          errMsg = json.error || errMsg;
+        } catch {
+          errMsg = text || errMsg;
+        }
+        throw new Error(errMsg);
       }
       const data = await res.json();
-      setAllEntries(data.entries || []);
+      const newItems: NSXTMEntry[] = data.entries || [];
+
+      setAllEntries((prev) => {
+        // Nếu upload Lúa Tươi: giữ lại Lúa Khô và Thủ công
+        // Nếu upload Lúa Khô: giữ lại Lúa Tươi và Thủ công
+        let remaining = prev;
+        if (fileTuoi) {
+          remaining = remaining.filter((e) => e.source !== 'LUA_TUOI');
+        }
+        if (fileKho) {
+          remaining = remaining.filter((e) => e.source !== 'LUA_KHO');
+        }
+        const merged = [...remaining, ...newItems];
+        return autoAssignAlternating2Days(merged);
+      });
     } catch (err) {
       setParseError((err as Error).message);
     } finally {
       setIsParsing(false);
+      setParsingType(null);
+      if (fileTuoiRef.current) fileTuoiRef.current.value = '';
+      if (fileKhoRef.current) fileKhoRef.current.value = '';
     }
   };
 
@@ -466,11 +501,21 @@ export default function RiceNhapNSXTMView() {
             <button
               onClick={() => fileTuoiRef.current?.click()}
               disabled={isParsing}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 disabled:opacity-50 transition-all"
+              className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold shadow-2xs transition-all ${
+                parsingType === 'TUOI'
+                  ? 'border-indigo-400 bg-indigo-50 text-indigo-700 animate-pulse'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50'
+              }`}
               title="Tải lên file THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx"
             >
-              <span>🌾</span>
-              <span>{fileTuoiName ? 'Đổi File Lúa Tươi' : 'Tải File Lúa Tươi'}</span>
+              <span>{parsingType === 'TUOI' ? '⏳' : '🌾'}</span>
+              <span>
+                {parsingType === 'TUOI'
+                  ? 'Đang đọc Lúa Tươi...'
+                  : fileTuoiName
+                  ? 'Đổi File Lúa Tươi'
+                  : 'Tải File Lúa Tươi'}
+              </span>
             </button>
 
             {/* Input File Lúa Khô */}
@@ -487,22 +532,36 @@ export default function RiceNhapNSXTMView() {
             <button
               onClick={() => fileKhoRef.current?.click()}
               disabled={isParsing}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 disabled:opacity-50 transition-all"
+              className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold shadow-2xs transition-all ${
+                parsingType === 'KHO'
+                  ? 'border-amber-400 bg-amber-50 text-amber-700 animate-pulse'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50'
+              }`}
               title="Tải lên file THỊNH_TỔNG NHẬP LÚA KHÔ NĂM 2026.xlsx"
             >
-              <span>🌾</span>
-              <span>{fileKhoName ? 'Đổi File Lúa Khô' : 'Tải File Lúa Khô'}</span>
+              <span>{parsingType === 'KHO' ? '⏳' : '🌾'}</span>
+              <span>
+                {parsingType === 'KHO'
+                  ? 'Đang đọc Lúa Khô...'
+                  : fileKhoName
+                  ? 'Đổi File Lúa Khô'
+                  : 'Tải File Lúa Khô'}
+              </span>
             </button>
 
             {/* Nút nạp dữ liệu mẫu */}
             <button
               onClick={handleLoadSampleData}
               disabled={isParsing}
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-50 border border-indigo-200 px-3.5 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-all"
+              className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all ${
+                parsingType === 'SAMPLE'
+                  ? 'border-indigo-400 bg-indigo-100 text-indigo-800 animate-pulse'
+                  : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50'
+              }`}
               title="Nạp dữ liệu mẫu từ các file có sẵn trên máy (Tháng 10/2026)"
             >
-              <span>⚡</span>
-              <span>{isParsing ? 'Đang đọc file...' : 'Nạp Dữ Liệu Mẫu'}</span>
+              <span>{parsingType === 'SAMPLE' ? '⏳' : '⚡'}</span>
+              <span>{parsingType === 'SAMPLE' ? 'Đang nạp dữ liệu mẫu...' : 'Nạp Dữ Liệu Mẫu'}</span>
             </button>
           </div>
         </div>

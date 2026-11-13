@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import XLSX from 'xlsx-js-style';
+import * as XLSX from 'xlsx';
 import fs from 'fs';
 import path from 'path';
 import { isRequestAuthenticated } from '@/lib/auth';
@@ -24,7 +24,13 @@ function loadLocalSampleData(): NSXTMEntry[] {
   if (fs.existsSync(filePathTuoi)) {
     try {
       const buf = fs.readFileSync(filePathTuoi);
-      const wb = XLSX.read(buf, { type: 'buffer' });
+      const wb = XLSX.read(buf, {
+        type: 'buffer',
+        dense: true,
+        cellFormula: false,
+        cellHTML: false,
+        cellText: false,
+      });
       const tuoi = parseLuaTuoiWorkbook(wb);
       entries.push(...tuoi);
     } catch (e) {
@@ -35,7 +41,13 @@ function loadLocalSampleData(): NSXTMEntry[] {
   if (fs.existsSync(filePathKho)) {
     try {
       const buf = fs.readFileSync(filePathKho);
-      const wb = XLSX.read(buf, { type: 'buffer' });
+      const wb = XLSX.read(buf, {
+        type: 'buffer',
+        dense: true,
+        cellFormula: false,
+        cellHTML: false,
+        cellText: false,
+      });
       const kho = parseLuaKhoWorkbook(wb);
       entries.push(...kho);
     } catch (e) {
@@ -84,14 +96,26 @@ export async function POST(req: NextRequest) {
 
       if (fileTuoi) {
         const buf = Buffer.from(await fileTuoi.arrayBuffer());
-        const wbTuoi = XLSX.read(buf, { type: 'buffer' });
+        const wbTuoi = XLSX.read(buf, {
+          type: 'buffer',
+          dense: true,
+          cellFormula: false,
+          cellHTML: false,
+          cellText: false,
+        });
         const entriesTuoi = parseLuaTuoiWorkbook(wbTuoi);
         allEntries.push(...entriesTuoi);
       }
 
       if (fileKho) {
         const buf = Buffer.from(await fileKho.arrayBuffer());
-        const wbKho = XLSX.read(buf, { type: 'buffer' });
+        const wbKho = XLSX.read(buf, {
+          type: 'buffer',
+          dense: true,
+          cellFormula: false,
+          cellHTML: false,
+          cellText: false,
+        });
         const entriesKho = parseLuaKhoWorkbook(wbKho);
         allEntries.push(...entriesKho);
       }
