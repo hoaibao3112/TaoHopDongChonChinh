@@ -103,11 +103,7 @@ function buildTeamSheets(
   const isNghi = teamName === 'NGHỊ';
   const teamLabel = isNghi ? 'ĐỘI NGHỊ' : 'ĐỘI NGUYÊN';
 
-  // Thống kê lúa theo nhóm giá (ST25 / Phổ thông)
-  let tonsPhoThong = 0;
-  let moneyPhoThong = 0;
-  let tonsST25 = 0;
-  let moneyST25 = 0;
+  // Thống kê lúa theo nhóm giá động từ dữ liệu mẻ sấy
   let totalFreshKg = 0;
   let totalDryKg = 0;
   let totalTons = 0;
@@ -118,15 +114,6 @@ function buildTeamSheets(
     totalDryKg += b.dryWeightKg;
     totalTons += b.roundedTons;
     totalMoneyLua += b.thanhTien;
-
-    const rt = (b.riceType || '').toUpperCase();
-    if (rt.includes('ST25') || rt.includes('HP1')) {
-      tonsST25 += b.roundedTons;
-      moneyST25 += b.thanhTien;
-    } else {
-      tonsPhoThong += b.roundedTons;
-      moneyPhoThong += b.thanhTien;
-    }
   });
 
   // Thống kê Trấu
@@ -451,65 +438,82 @@ function buildTeamSheets(
   setCell(ws4, `D${rHead}`, 's', 'ĐƠN GIÁ (ĐỒNG/TẤN)', styleHeader());
   setCell(ws4, `E${rHead}`, 's', 'THÀNH TIỀN', styleHeader());
 
-  // Dòng 1: Lúa phổ thông
-  const r1 = rHead + 1;
-  setCell(ws4, `B${r1}`, 's', 'NHẬP LÚA (OM18, JAPO, THƠM LÀI, TL4T...)', styleData('left'));
-  setCell(ws4, `C${r1}`, 'n', tonsPhoThong, styleNumber(true));
-  setCell(ws4, `D${r1}`, 'n', 20_000, styleMoney());
-  setCell(ws4, `E${r1}`, 'n', moneyPhoThong, styleMoney(true));
+  // Nhóm các mẻ lúa theo đơn giá thực tế đã tính
+  const priceGroupMap = new Map<number, { types: Set<string>; tons: number; money: number }>();
+  teamBatches.forEach((b) => {
+    const price = b.pricePerTon || 20000;
+    const grp = priceGroupMap.get(price) || { types: new Set<string>(), tons: 0, money: 0 };
+    if (b.riceType) grp.types.add(b.riceType.trim());
+    grp.tons += b.roundedTons;
+    grp.money += b.thanhTien;
+    priceGroupMap.set(price, grp);
+  });
+  const sortedPriceGroups = Array.from(priceGroupMap.entries()).sort((a, b) => a[0] - b[0]);
 
-  // Dòng 2: Lúa ST25
-  const r2 = r1 + 1;
-  setCell(ws4, `B${r2}`, 's', 'NHẬP LÚA ST25 ĐL, HP1', styleData('left'));
-  setCell(ws4, `C${r2}`, 'n', tonsST25, styleNumber(true));
-  setCell(ws4, `D${r2}`, 'n', 23_000, styleMoney());
-  setCell(ws4, `E${r2}`, 'n', moneyST25, styleMoney(true));
+  let currentR = rHead;
+  if (sortedPriceGroups.length > 0) {
+    sortedPriceGroups.forEach(([price, grp]) => {
+      currentR++;
+      const typeListStr = Array.from(grp.types).slice(0, 6).join(', ');
+      const label = `NHẬP LÚA ${typeListStr ? `(${typeListStr})` : ''}`;
+      setCell(ws4, `B${currentR}`, 's', label, styleData('left'));
+      setCell(ws4, `C${currentR}`, 'n', grp.tons, styleNumber(true));
+      setCell(ws4, `D${currentR}`, 'n', price, styleMoney());
+      setCell(ws4, `E${currentR}`, 'n', grp.money, styleMoney(true));
+    });
+  } else {
+    currentR++;
+    setCell(ws4, `B${currentR}`, 's', 'NHẬP LÚA (OM18, JAPO, THƠM LÀI...)', styleData('left'));
+    setCell(ws4, `C${currentR}`, 'n', 0, styleNumber(true));
+    setCell(ws4, `D${currentR}`, 'n', 20000, styleMoney());
+    setCell(ws4, `E${currentR}`, 'n', 0, styleMoney(true));
+  }
 
-  // Dòng 3: Trấu Ông 5
-  const r3 = r2 + 1;
-  setCell(ws4, `B${r3}`, 's', 'NHẬP TRẤU ÔNG 5', styleData('left'));
-  setCell(ws4, `C${r3}`, 'n', tonsTrauOng5, styleNumber(true));
-  setCell(ws4, `D${r3}`, 'n', unitPriceOng5, styleMoney());
-  setCell(ws4, `E${r3}`, 'n', moneyTrauOng5, styleMoney(true));
+  // Dòng: Trấu Ông 5
+  currentR++;
+  setCell(ws4, `B${currentR}`, 's', 'NHẬP TRẤU ÔNG 5', styleData('left'));
+  setCell(ws4, `C${currentR}`, 'n', tonsTrauOng5, styleNumber(true));
+  setCell(ws4, `D${currentR}`, 'n', unitPriceOng5, styleMoney());
+  setCell(ws4, `E${currentR}`, 'n', moneyTrauOng5, styleMoney(true));
 
-  // Dòng 4: Trấu ghe ngoài
-  const r4 = r3 + 1;
-  setCell(ws4, `B${r4}`, 's', 'NHẬP TRẤU GHE NGOÀI', styleData('left'));
-  setCell(ws4, `C${r4}`, 'n', tonsTrauNgoai, styleNumber(true));
-  setCell(ws4, `D${r4}`, 'n', unitPriceNgoai, styleMoney());
-  setCell(ws4, `E${r4}`, 'n', moneyTrauNgoai, styleMoney(true));
+  // Dòng: Trấu ghe ngoài
+  currentR++;
+  setCell(ws4, `B${currentR}`, 's', 'NHẬP TRẤU GHE NGOÀI', styleData('left'));
+  setCell(ws4, `C${currentR}`, 'n', tonsTrauNgoai, styleNumber(true));
+  setCell(ws4, `D${currentR}`, 'n', unitPriceNgoai, styleMoney());
+  setCell(ws4, `E${currentR}`, 'n', moneyTrauNgoai, styleMoney(true));
 
-  // Dòng 5: Nước đá
-  const r5 = r4 + 1;
-  setCell(ws4, `B${r5}`, 's', 'NƯỚC ĐÁ (10.000Đ/ngày làm việc)', styleData('left'));
-  setCell(ws4, `C${r5}`, 'n', waterDays, styleNumber(true));
-  setCell(ws4, `D${r5}`, 'n', 10_000, styleMoney());
-  setCell(ws4, `E${r5}`, 'n', tienNuocDa, styleMoney(true));
+  // Dòng: Nước đá
+  currentR++;
+  setCell(ws4, `B${currentR}`, 's', 'NƯỚC ĐÁ (10.000Đ/ngày làm việc)', styleData('left'));
+  setCell(ws4, `C${currentR}`, 'n', waterDays, styleNumber(true));
+  setCell(ws4, `D${currentR}`, 'n', 10_000, styleMoney());
+  setCell(ws4, `E${currentR}`, 'n', tienNuocDa, styleMoney(true));
 
   // Tổng cộng
-  const rTot = r5 + 1;
-  setCell(ws4, `B${rTot}`, 's', 'TỔNG CỘNG :', styleData('left', true));
-  setCell(ws4, `C${rTot}`, 's', '', styleData());
-  setCell(ws4, `D${rTot}`, 's', '', styleData());
-  setCell(ws4, `E${rTot}`, 'n', tongQuyetToan, styleMoney(true));
+  currentR++;
+  setCell(ws4, `B${currentR}`, 's', 'TỔNG CỘNG :', styleData('left', true));
+  setCell(ws4, `C${currentR}`, 's', '', styleData());
+  setCell(ws4, `D${currentR}`, 's', '', styleData());
+  setCell(ws4, `E${currentR}`, 'n', tongQuyetToan, styleMoney(true));
 
   // Trừ ứng
-  const rAdv = rTot + 1;
-  setCell(ws4, `B${rAdv}`, 's', 'TRỪ ỨNG :', styleData('left', true));
-  setCell(ws4, `C${rAdv}`, 's', '', styleData());
-  setCell(ws4, `D${rAdv}`, 's', '', styleData());
-  setCell(ws4, `E${rAdv}`, 'n', totalAdvance, styleMoney());
+  currentR++;
+  setCell(ws4, `B${currentR}`, 's', 'TRỪ ỨNG :', styleData('left', true));
+  setCell(ws4, `C${currentR}`, 's', '', styleData());
+  setCell(ws4, `D${currentR}`, 's', '', styleData());
+  setCell(ws4, `E${currentR}`, 'n', totalAdvance, styleMoney());
 
   // Còn lại
-  const rRem = rAdv + 1;
-  setCell(ws4, `B${rRem}`, 's', 'CÒN LẠI :', {
+  currentR++;
+  setCell(ws4, `B${currentR}`, 's', 'CÒN LẠI :', {
     ...styleData('left', true),
     font: { name: FONT_NAME, bold: true, sz: 11, color: { rgb: 'CC0000' } },
     fill: { fgColor: { rgb: 'FFF2CC' }, patternType: 'solid' },
   });
-  setCell(ws4, `C${rRem}`, 's', '', { fill: { fgColor: { rgb: 'FFF2CC' }, patternType: 'solid' }, border: BORDER_THIN });
-  setCell(ws4, `D${rRem}`, 's', '', { fill: { fgColor: { rgb: 'FFF2CC' }, patternType: 'solid' }, border: BORDER_THIN });
-  setCell(ws4, `E${rRem}`, 'n', netRemaining, {
+  setCell(ws4, `C${currentR}`, 's', '', { fill: { fgColor: { rgb: 'FFF2CC' }, patternType: 'solid' }, border: BORDER_THIN });
+  setCell(ws4, `D${currentR}`, 's', '', { fill: { fgColor: { rgb: 'FFF2CC' }, patternType: 'solid' }, border: BORDER_THIN });
+  setCell(ws4, `E${currentR}`, 'n', netRemaining, {
     ...styleMoney(true),
     font: { name: FONT_NAME, bold: true, sz: 11, color: { rgb: 'CC0000' } },
     fill: { fgColor: { rgb: 'FFF2CC' }, patternType: 'solid' },
@@ -519,7 +523,7 @@ function buildTeamSheets(
     { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
     { s: { r: sumHeaderRow - 1, c: 1 }, e: { r: sumHeaderRow - 1, c: 4 } },
   ];
-  ws4['!ref'] = `A1:H${rRem + 1}`;
+  ws4['!ref'] = `A1:H${currentR + 1}`;
   const sheet4Name = `CL ${teamLabel} T${mm}.${yyyy}`;
   XLSX.utils.book_append_sheet(wb, ws4, sheet4Name);
 }

@@ -82,7 +82,76 @@ export default function RiceNhapCS1View() {
 
   // ── State: Xuất Excel ───────────────────────────────────────────────────
   const [isExporting, setIsExporting] = useState(false);
+  const [exportStatusText, setExportStatusText] = useState<string>('');
   const [exportError, setExportError] = useState<string | null>(null);
+
+  // Đọc bảng giá đã lưu từ localStorage khi mở trang
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('cs1_rice_prices');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRicePrices(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn('Lỗi đọc bảng giá lúa từ localStorage:', e);
+    }
+  }, []);
+
+  // ─── Xử lý Bảng Giá Loại Lúa ──────────────────────────────────────────
+  const handleUpdateRicePrice = (riceType: string, price: number) => {
+    setRicePrices((prev) => {
+      const next = prev.map((p) => (p.riceType === riceType ? { ...p, pricePerTon: price } : p));
+      try {
+        localStorage.setItem('cs1_rice_prices', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleAddRicePrice = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanType = newRiceType.trim().toUpperCase();
+    const price = parseFloat(newRicePrice) || 20000;
+    if (!cleanType) return;
+
+    setRicePrices((prev) => {
+      const exists = prev.some((p) => p.riceType.toUpperCase() === cleanType);
+      let next: RiceTypePrice[];
+      if (exists) {
+        next = prev.map((p) => (p.riceType.toUpperCase() === cleanType ? { ...p, pricePerTon: price } : p));
+      } else {
+        next = [...prev, { riceType: cleanType, pricePerTon: price }];
+      }
+      try {
+        localStorage.setItem('cs1_rice_prices', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    setNewRiceType('');
+    setNewRicePrice('20000');
+  };
+
+  const handleRemoveRicePrice = (riceType: string) => {
+    setRicePrices((prev) => {
+      const next = prev.filter((p) => p.riceType !== riceType);
+      try {
+        localStorage.setItem('cs1_rice_prices', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleResetRicePrices = () => {
+    if (confirm('Khôi phục toàn bộ bảng giá các loại lúa về cấu hình mặc định?')) {
+      setRicePrices(DEFAULT_CS1_RICE_PRICES);
+      try {
+        localStorage.removeItem('cs1_rice_prices');
+      } catch {}
+    }
+  };
 
   // ─── Lấy giá cho loại lúa ────────────────────────────────────────────────
   const getPriceForRice = useCallback(
@@ -91,6 +160,11 @@ export default function RiceNhapCS1View() {
       if (!rt) return 20_000;
       const found = ricePrices.find((p) => p.riceType.toUpperCase().trim() === rt);
       if (found) return found.pricePerTon;
+      const partial = ricePrices.find((p) => {
+        const conf = p.riceType.toUpperCase().trim();
+        return conf && (rt.includes(conf) || conf.includes(rt));
+      });
+      if (partial) return partial.pricePerTon;
       if (rt.includes('ST25') || rt.includes('HP1')) return 23_000;
       return 20_000;
     },
@@ -397,57 +471,103 @@ export default function RiceNhapCS1View() {
     else setTrauNguyen((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // ─── Xuất file Excel ────────────────────────────────────────────────────
-  const handleExportExcel = async () => {
+  // ─── Hàm xuất file Excel cho 1 đội đơn lẻ ──────────────────────────────
+  const exportSingleTeamExcel = async (team: 'NGHỊ' | 'NGUYÊN') => {
+    const [mStr, yStr] = selectedMonthKey.split('/');
+    const month = parseInt(mStr, 10);
+    const year = parseInt(yStr, 10);
+
+    const payload = {
+      month,
+      year,
+      targetTeam: team,
+      batches: rawMonthBatches,
+      workersNghi,
+      workersNguyen,
+      trauNghi,
+      trauNguyen,
+      waterDaysNghi,
+      waterDaysNguyen,
+      preparerName: 'Võ Hoàng Cẩm Tiên',
+      approverName: 'Huỳnh Hải Long Hồ',
+    };
+
+    const res = await fetch('/api/rice-payroll/cs1-export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || `Xuất file Excel Đội ${team} thất bại`);
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const mm = String(month).padStart(2, '0');
+    const filePrefix = team === 'NGHỊ' ? 'LUONG_THANG_DOI_NGHI' : 'LUONG_THANG_NGUYEN';
+    a.download = `${filePrefix}_T${mm}_${year}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // ─── Tải đồng thời 2 file Excel: 1 file Đội Nghị, 1 file Đội Nguyên ────────
+  const handleExportBothTeams = async () => {
     if (rawMonthBatches.length === 0) {
       alert('Không có mẻ nhập sấy nào trong tháng này để xuất file.');
       return;
     }
 
-    const [mStr, yStr] = selectedMonthKey.split('/');
-    const month = parseInt(mStr, 10);
-    const year = parseInt(yStr, 10);
+    setIsExporting(true);
+    setExportError(null);
+    setExportStatusText('Đang tạo file Đội Nghị...');
+
+    try {
+      // 1. Tải file Đội Nghị
+      await exportSingleTeamExcel('NGHỊ');
+
+      setExportStatusText('Đang tạo file Đội Nguyên...');
+      // Chờ 600ms để trình duyệt xử lý file 1
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      // 2. Tải file Đội Nguyên
+      await exportSingleTeamExcel('NGUYÊN');
+
+      setExportStatusText('✅ Đã tải xong 2 file Excel (Nghị + Nguyên)');
+      setTimeout(() => setExportStatusText(''), 4000);
+    } catch (err) {
+      setExportError((err as Error).message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // ─── Xuất file Excel linh hoạt ──────────────────────────────────────────
+  const handleExportExcel = async (specificTeam?: 'NGHỊ' | 'NGUYÊN') => {
+    if (rawMonthBatches.length === 0) {
+      alert('Không có mẻ nhập sấy nào trong tháng này để xuất file.');
+      return;
+    }
+
+    const target = specificTeam || (viewMode === 'ALL' ? null : viewMode);
+    if (!target) {
+      // Nếu đang xem Toàn bộ CS1 -> Xuất luôn 2 file Excel riêng biệt
+      await handleExportBothTeams();
+      return;
+    }
 
     setIsExporting(true);
     setExportError(null);
-
+    setExportStatusText(`Đang xuất file Đội ${target}...`);
     try {
-      const payload = {
-        month,
-        year,
-        targetTeam: viewMode,
-        batches: rawMonthBatches,
-        workersNghi,
-        workersNguyen,
-        trauNghi,
-        trauNguyen,
-        waterDaysNghi,
-        waterDaysNguyen,
-        preparerName: 'Võ Hoàng Cẩm Tiên',
-        approverName: 'Huỳnh Hải Long Hồ',
-      };
-
-      const res = await fetch('/api/rice-payroll/cs1-export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Xuất file Excel thất bại');
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const filePrefix = viewMode === 'NGHỊ' ? 'LUONG_THANG_DOI_NGHI' : viewMode === 'NGUYÊN' ? 'LUONG_THANG_NGUYEN' : 'TONG_HOP_NHAP_SAY_CS1';
-      a.download = `${filePrefix}_T${String(month).padStart(2, '0')}_${year}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      await exportSingleTeamExcel(target);
+      setExportStatusText(`✅ Đã tải xong file Đội ${target}`);
+      setTimeout(() => setExportStatusText(''), 3000);
     } catch (err) {
       setExportError((err as Error).message);
     } finally {
@@ -564,24 +684,54 @@ export default function RiceNhapCS1View() {
               </button>
             </div>
 
-            {/* Nút Xuất Excel */}
-            <button
-              onClick={handleExportExcel}
-              disabled={isExporting || rawMonthBatches.length === 0}
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 transition-all self-end lg:self-auto"
-            >
-              <span>📥</span>
-              <span>
-                {isExporting
-                  ? 'Đang xuất...'
-                  : viewMode === 'NGHỊ'
-                  ? 'Xuất Excel Đội Nghị'
-                  : viewMode === 'NGUYÊN'
-                  ? 'Xuất Excel Đội Nguyên'
-                  : 'Xuất Excel Toàn Bộ CS1'}
-              </span>
-            </button>
+            {/* Nút Xuất Excel: Xuất 2 file riêng biệt hoặc xuất theo đội */}
+            <div className="flex flex-wrap items-center gap-1.5 self-end lg:self-auto">
+              <button
+                onClick={() => handleExportBothTeams()}
+                disabled={isExporting || rawMonthBatches.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 transition-all"
+                title="Tải về đồng thời 2 file Excel riêng biệt: 1 file Đội Nghị & 1 file Đội Nguyên"
+              >
+                <span>📥</span>
+                <span>
+                  {isExporting ? (exportStatusText || 'Đang xuất...') : 'Xuất 2 File Excel (Nghị + Nguyên)'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleExportExcel('NGHỊ')}
+                disabled={isExporting || rawMonthBatches.length === 0}
+                className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-all"
+                title="Tải riêng file Excel Đội Nghị"
+              >
+                <span>📄</span>
+                <span>File Nghị</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleExportExcel('NGUYÊN')}
+                disabled={isExporting || rawMonthBatches.length === 0}
+                className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-all"
+                title="Tải riêng file Excel Đội Nguyên"
+              >
+                <span>📄</span>
+                <span>File Nguyên</span>
+              </button>
+            </div>
           </div>
+
+          {/* Thông báo tiến trình xuất Excel */}
+          {exportStatusText && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/90 p-2.5 text-xs font-semibold text-emerald-800 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <span className="animate-spin">⏳</span>
+                <span>{exportStatusText}</span>
+              </span>
+              <span className="text-[10px] text-emerald-600 font-normal">Trình duyệt sẽ tự động tải file về máy</span>
+            </div>
+          )}
 
           {/* Công cụ hỗ trợ gán nhanh */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 text-xs">
@@ -603,9 +753,14 @@ export default function RiceNhapCS1View() {
               </button>
               <button
                 onClick={() => setShowPricePanel(!showPricePanel)}
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all"
+                className={`rounded-lg border px-3 py-1 text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  showPricePanel
+                    ? 'border-orange-500 bg-orange-50 text-orange-700 shadow-2xs'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
               >
-                {showPricePanel ? 'Ẩn bảng giá lúa' : '⚙️ Bảng giá loại lúa'}
+                <span>⚙️</span>
+                <span>{showPricePanel ? 'Đóng form giá lúa' : 'Cập nhật giá loại lúa'}</span>
               </button>
             </div>
           </div>
@@ -618,28 +773,143 @@ export default function RiceNhapCS1View() {
         </div>
       )}
 
-      {/* ─── Bảng giá loại lúa (Mở rộng) ─────────────────────────────────── */}
+      {/* ─── Bảng giá loại lúa & Form Cập Nhật Giá Tự Động ────────────────── */}
       {showPricePanel && (
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-              Cấu hình đơn giá theo loại lúa (Cơ Sở I)
-            </h3>
-            <span className="text-xs text-slate-500">OM18/Japo: 20.000đ • ST25/HP1: 23.000đ</span>
+        <div className="rounded-2xl border-2 border-orange-300 bg-white p-5 shadow-lg space-y-4 animate-in fade-in duration-200">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-100 text-orange-700 text-sm font-bold">
+                  🌾
+                </span>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">
+                  Form Cập Nhật Đơn Giá Theo Loại Lúa (Cơ Sở I)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                💡 Khi cập nhật đơn giá, hệ thống <strong className="text-emerald-700">tự động tính lại toàn bộ mẻ sấy</strong> và đồng bộ vào <strong className="text-emerald-700">2 file Excel khi xuất ra</strong>.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleResetRicePrices}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-all"
+                title="Khôi phục về bảng giá gốc mặc định"
+              >
+                🔄 Khôi phục mặc định
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPricePanel(false)}
+                className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200 transition-all"
+              >
+                ✕ Đóng
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6">
-            {ricePrices.map((p) => (
-              <div key={p.riceType} className="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs">
-                <div className="font-bold text-slate-800 truncate" title={p.riceType}>
-                  {p.riceType}
-                </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="font-mono font-bold text-orange-700">{formatMoney(p.pricePerTon)}</span>
-                  <span className="text-[10px] text-slate-400">đ/tấn</span>
-                </div>
+          {/* Form thêm loại lúa mới */}
+          <form
+            onSubmit={handleAddRicePrice}
+            className="flex flex-wrap items-end gap-3 rounded-xl border border-orange-100 bg-orange-50/70 p-3.5 text-xs"
+          >
+            <div className="flex-1 min-w-[200px]">
+              <label className="block font-bold text-slate-700 mb-1">
+                Tên Loại Lúa Mới:
+              </label>
+              <input
+                type="text"
+                placeholder="VD: OM5451, ST24, ĐÀI THƠM..."
+                value={newRiceType}
+                onChange={(e) => setNewRiceType(e.target.value)}
+                className="w-full rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-xs font-bold uppercase text-slate-800 focus:border-orange-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="w-48 min-w-[150px]">
+              <label className="block font-bold text-slate-700 mb-1">
+                Đơn Giá (VNĐ/tấn):
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="500"
+                  placeholder="VD: 20000"
+                  value={newRicePrice}
+                  onChange={(e) => setNewRicePrice(e.target.value)}
+                  className="w-full rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-xs font-black text-orange-800 focus:border-orange-500 focus:outline-none"
+                />
+                <span className="absolute right-2.5 top-1.5 text-[10px] font-bold text-slate-400 pointer-events-none">
+                  đ/tấn
+                </span>
               </div>
-            ))}
+            </div>
+
+            <button
+              type="submit"
+              disabled={!newRiceType.trim()}
+              className="rounded-lg bg-orange-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-orange-700 disabled:opacity-50 transition-all"
+            >
+              + Thêm Loại Lúa
+            </button>
+          </form>
+
+          {/* Danh sách các loại lúa cho phép chỉnh sửa giá trực tiếp */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span className="font-bold text-slate-700">
+                Bảng giá hiện tại ({ricePrices.length} loại lúa) — Nhập giá mới vào ô bên dưới:
+              </span>
+              <span className="text-[11px] text-slate-400">
+                Phổ thông: 20.000đ • ST25/HP1: 23.000đ
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[340px] overflow-y-auto pr-1">
+              {ricePrices.map((p) => (
+                <div
+                  key={p.riceType}
+                  className="rounded-xl border border-slate-200 bg-slate-50/40 p-3 shadow-2xs hover:border-orange-300 transition-all space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="inline-block rounded-md bg-white border border-slate-200 px-2 py-0.5 text-xs font-bold text-slate-800 truncate" title={p.riceType}>
+                      🌾 {p.riceType}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRicePrice(p.riceType)}
+                      className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all text-xs"
+                      title="Xóa loại lúa này"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        step="500"
+                        value={p.pricePerTon}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          handleUpdateRicePrice(p.riceType, val);
+                        }}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-black text-orange-700 text-right focus:border-orange-500 focus:outline-none"
+                      />
+                      <span className="absolute left-2 top-1 text-[10px] text-slate-400 font-medium">
+                        Giá:
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-500 shrink-0">
+                      đ/tấn
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -1055,23 +1325,39 @@ export default function RiceNhapCS1View() {
               </div>
             </div>
 
-            <div className="pt-2">
+            <div className="pt-2 space-y-2">
               <button
-                onClick={handleExportExcel}
+                onClick={() => handleExportBothTeams()}
                 disabled={isExporting || rawMonthBatches.length === 0}
                 className="w-full rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                title="Tải về cả 2 file Excel riêng biệt: 1 file Đội Nghị & 1 file Đội Nguyên"
               >
                 <span>📥</span>
                 <span>
-                  {isExporting
-                    ? 'Đang tạo Excel...'
-                    : viewMode === 'NGHỊ'
-                    ? 'Xuất File Excel Đội Nghị'
-                    : viewMode === 'NGUYÊN'
-                    ? 'Xuất File Excel Đội Nguyên'
-                    : 'Xuất File Excel Toàn Bộ CS1'}
+                  {isExporting ? (exportStatusText || 'Đang tạo Excel...') : 'Xuất 2 File Excel (Nghị + Nguyên)'}
                 </span>
               </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleExportExcel('NGHỊ')}
+                  disabled={isExporting || rawMonthBatches.length === 0}
+                  className="rounded-lg border border-blue-200 bg-blue-50 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-all"
+                  title="Tải riêng file Excel Đội Nghị"
+                >
+                  📄 File Đội Nghị
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExportExcel('NGUYÊN')}
+                  disabled={isExporting || rawMonthBatches.length === 0}
+                  className="rounded-lg border border-emerald-200 bg-emerald-50 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-all"
+                  title="Tải riêng file Excel Đội Nguyên"
+                >
+                  📄 File Đội Nguyên
+                </button>
+              </div>
             </div>
           </div>
         </div>
