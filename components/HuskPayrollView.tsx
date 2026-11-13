@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useRef, useMemo, ChangeEvent } from 'react';
+import Link from 'next/link';
 import { ScannedSlipItem, HuskSettings, DEFAULT_HUSK_SETTINGS } from '@/lib/husk/types';
 import { calculateHuskTons } from '@/lib/husk/tonnage';
 import { formatWorkDescription, parseVehicle } from '@/lib/husk/plate';
 import { groupSlipsIfEnabled } from '@/lib/husk/merger';
+import { NSXTMEntry, NSXTMTeamKey } from '@/lib/rice-payroll/nsx-tm-types';
 
 export default function HuskPayrollView() {
   // ─── File & Settings State ────────────────────────────────────────────────
@@ -20,6 +22,8 @@ export default function HuskPayrollView() {
   const [scanProgress, setScanProgress] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [transferredInfo, setTransferredInfo] = useState<{ count: number; ducCount: number; quyCount: number } | null>(null);
 
   // ─── Data State ───────────────────────────────────────────────────────────
   const [scannedSlips, setScannedSlips] = useState<ScannedSlipItem[]>([]);
@@ -145,6 +149,127 @@ export default function HuskPayrollView() {
 
   const handleToggleSelectAll = (checked: boolean) => {
     setScannedSlips((prev) => prev.map((s) => ({ ...s, selected: checked })));
+  };
+
+  // ─── Đổi đội cho từng phiếu cân (Click trực tiếp) ─────────────────────────
+  const handleToggleSlipTeam = (slipId: string) => {
+    const defaultTeamKey = settings.defaultTeam === 'QUÝ' ? 'QUÝ' : 'ĐỨC';
+    setScannedSlips((prev) =>
+      prev.map((s) => {
+        if (s.id !== slipId) return s;
+        const current = s.targetTeam || defaultTeamKey;
+        const nextTeam: 'ĐỨC' | 'QUÝ' = current === 'ĐỨC' ? 'QUÝ' : 'ĐỨC';
+        return { ...s, targetTeam: nextTeam };
+      })
+    );
+  };
+
+  // ─── Gán toàn bộ phiếu cân đã chọn cho 1 đội ─────────────────────────────
+  const handleAssignSelectedTeam = (team: 'ĐỨC' | 'QUÝ') => {
+    setScannedSlips((prev) =>
+      prev.map((s) => (s.selected ? { ...s, targetTeam: team } : s))
+    );
+    setCopyFeedback(`Đã chuyển toàn bộ các phiếu đã chọn sang Đội ${team}!`);
+    setTimeout(() => setCopyFeedback(null), 3000);
+  };
+
+  // ─── Copy 1 dòng phiếu cân vào Clipboard ──────────────────────────────────
+  const handleCopySingleSlip = async (slip: ScannedSlipItem) => {
+    const defaultTeamKey = settings.defaultTeam === 'QUÝ' ? 'QUÝ' : 'ĐỨC';
+    const team = slip.targetTeam || defaultTeamKey;
+    const text = `${slip.date}\t${team}\t${slip.description}\t${slip.customer}\t${slip.vehicle}\t${slip.weightNetKg}\t${slip.tons}\t${slip.unitPrice}\t${slip.amount}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyFeedback(`Đã sao chép phiếu ${slip.vehicle || slip.customer}!`);
+      setTimeout(() => setCopyFeedback(null), 2500);
+    } catch {
+      prompt('Sao chép dòng phiếu cân:', text);
+    }
+  };
+
+  // ─── Copy toàn bộ phiếu cân đã chọn ───────────────────────────────────────
+  const handleCopyAllSelected = async () => {
+    if (previewRows.length === 0) {
+      setErrorMessage('Chưa có phiếu cân nào được chọn để sao chép.');
+      return;
+    }
+    const defaultTeamKey = settings.defaultTeam === 'QUÝ' ? 'QUÝ' : 'ĐỨC';
+    const headers = 'Ngày\tĐội\tCông Việc\tKhách Hàng\tPhương Tiện\tSố Kg\tTấn\tĐơn Giá\tThành Tiền';
+    const lines = previewRows.map((s) => {
+      const team = s.targetTeam || defaultTeamKey;
+      return `${s.date}\t${team}\t${s.description}\t${s.customer}\t${s.vehicle}\t${s.weightNetKg}\t${s.tons}\t${s.unitPrice}\t${s.amount}`;
+    });
+    const fullText = `${headers}\n${lines.join('\n')}`;
+
+    try {
+      await navigator.clipboard.writeText(fullText);
+      setCopyFeedback(`✅ Đã sao chép ${previewRows.length} dòng phiếu cân vào bộ nhớ tạm (dán trực tiếp vào Excel hoặc Zalo)!`);
+      setTimeout(() => setCopyFeedback(null), 4000);
+    } catch {
+      prompt('Sao chép danh sách phiếu cân:', fullText);
+    }
+  };
+
+  // ─── Đưa sang Nhập Sấy Nông Sản Xanh (NSX TM) ────────────────────────────
+  const handleTransferToNSXTM = (teamOverride?: 'ĐỨC' | 'QUÝ') => {
+    if (previewRows.length === 0) {
+      setErrorMessage('Chưa có phiếu cân nào được chọn để đưa sang Nhập Sấy NSX TM.');
+      return;
+    }
+
+    const defaultTeamKey: NSXTMTeamKey = settings.defaultTeam === 'QUÝ' ? 'QUÝ' : 'ĐỨC';
+    let countDuc = 0;
+    let countQuy = 0;
+
+    const newEntries: NSXTMEntry[] = previewRows.map((s) => {
+      const team: NSXTMTeamKey = teamOverride || s.targetTeam || defaultTeamKey;
+      if (team === 'ĐỨC') countDuc++;
+      else countQuy++;
+
+      const unitPrice = s.unitPrice || 11000;
+      const tons = s.tons || 0;
+      const amount = s.amount || Math.round(tons * unitPrice);
+
+      return {
+        id: `ocr-trau-${s.id}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        source: 'MANUAL',
+        date: s.date || '01/10/2026',
+        team,
+        customerName: s.customer,
+        riceType: 'Trấu',
+        vehicleName: s.vehicle,
+        vehicleType: (s.vehicle || '').toUpperCase().includes('XE') ? 'XE' : 'GHE',
+        jobDescription: s.description || `Xuất trấu ghe ${s.customer}`,
+        weightKg: s.weightNetKg,
+        roundedTons: tons,
+        unitPriceXuatTrau: unitPrice,
+        thanhTienXuatTrau: amount,
+        thanhTienSay: 0,
+        thanhTienLuaKho: 0,
+        tongThanhTien: amount,
+        facility: 'NSX TM',
+        note: `Phiếu cân xuất trấu AI (${team})`,
+      };
+    });
+
+    try {
+      const stored = localStorage.getItem('nsx_tm_transferred_entries');
+      let current: NSXTMEntry[] = [];
+      if (stored) {
+        current = JSON.parse(stored);
+      }
+      localStorage.setItem('nsx_tm_transferred_entries', JSON.stringify([...newEntries, ...current]));
+      setTransferredInfo({
+        count: newEntries.length,
+        ducCount: countDuc,
+        quyCount: countQuy,
+      });
+      setSuccessMessage(
+        `✅ Đã đưa thành công ${newEntries.length} phiếu cân sang Nhập Sấy NSX TM (Đức: ${countDuc} phiếu, Quý: ${countQuy} phiếu)!`
+      );
+    } catch (e) {
+      setErrorMessage('Không thể lưu vào bộ nhớ trình duyệt: ' + String(e));
+    }
   };
 
   // ─── Danh Sách Dòng Dự Kiến Ghi (Sau Khi Áp Dụng Tùy Chọn Gộp) ─────────────
@@ -398,61 +523,141 @@ export default function HuskPayrollView() {
 
       {/* ─── BƯỚC 3: BẢNG KIỂM TRA & DUYỆT PHIẾU CÂN ───────────────────────── */}
       {scannedSlips.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="flex items-center gap-3">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-sm font-black text-amber-900">
                   3
                 </span>
                 <h2 className="text-lg font-bold text-slate-900">
-                  Kiểm tra &amp; Chỉnh sửa thông tin phiếu cân ({scannedSlips.length} phiếu)
+                  Kiểm tra &amp; Phân Đội phiếu cân ({scannedSlips.length} phiếu)
                 </h2>
               </div>
               <p className="mt-1 text-xs text-slate-500">
-                Các ô có cảnh báo nghi ngờ được tô màu viền cam/đỏ. Bạn có thể sửa trực tiếp vào ô trước khi ghi.
+                Bạn có thể chọn đội cho từng phiếu, sao chép nội dung hoặc đưa trực tiếp sang phân hệ Nhập Sấy NSX TM.
               </p>
             </div>
 
             {/* Checkbox gộp chuyến */}
-            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100">
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 self-start lg:self-auto">
               <input
                 type="checkbox"
                 checked={settings.mergeTrips}
                 onChange={(e) => setSettings({ ...settings, mergeTrips: e.target.checked })}
                 className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500"
               />
-              <span>Gộp phiếu cùng ngày + xe + khách thành 1 dòng</span>
+              <span>Gộp phiếu cùng ngày + xe + khách</span>
             </label>
           </div>
 
+          {/* Thanh công cụ: Copy & Chuyển sang Nhập Sấy NSX TM */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50/60 via-blue-50/40 to-slate-50 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyAllSelected}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition cursor-pointer"
+                title="Sao chép toàn bộ các phiếu đã chọn để dán vào Excel hoặc Zalo"
+              >
+                <span>📋</span>
+                <span>Copy {previewRows.length} phiếu đã chọn</span>
+              </button>
+
+              <div className="flex items-center rounded-xl bg-white p-1 border border-slate-200 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 px-2">Gán nhanh:</span>
+                <button
+                  type="button"
+                  onClick={() => handleAssignSelectedTeam('ĐỨC')}
+                  className="rounded-lg bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100 transition shadow-2xs cursor-pointer"
+                >
+                  🔵 Cho Đội Đức
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAssignSelectedTeam('QUÝ')}
+                  className="ml-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
+                >
+                  🟢 Cho Đội Quý
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleTransferToNSXTM()}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-700 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-600/25 hover:from-indigo-700 hover:to-blue-800 transition cursor-pointer"
+              title="Đưa các phiếu đã chọn vào bảng tính lương Nhập Sấy NSX TM (tự động phân bổ đúng theo Đội Đức hoặc Quý)"
+            >
+              <span>🌾</span>
+              <span>Đưa sang Nhập Sấy NSX TM ({previewRows.length} phiếu)</span>
+              <span>&rarr;</span>
+            </button>
+          </div>
+
+          {/* Toast thông báo đã Copy */}
+          {copyFeedback && (
+            <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2 text-xs font-semibold text-emerald-800 shadow-2xs animate-in fade-in">
+              {copyFeedback}
+            </div>
+          )}
+
+          {/* Banner thông báo đã chuyển sang NSX TM thành công */}
+          {transferredInfo && (
+            <div className="rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-in fade-in">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🌾</span>
+                <div>
+                  <h4 className="text-sm font-bold text-emerald-950">
+                    Đã đưa thành công {transferredInfo.count} phiếu cân vào Nhập Sấy NSX TM!
+                  </h4>
+                  <p className="text-xs text-emerald-800">
+                    Phân bổ: <strong>Đội Đức ({transferredInfo.ducCount} phiếu)</strong> • <strong>Đội Quý ({transferredInfo.quyCount} phiếu)</strong>
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/nhap-say-tm"
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-emerald-800 transition self-start sm:self-auto"
+              >
+                <span>🌾 Mở Nhập Sấy NSX TM</span>
+                <span>&rarr;</span>
+              </Link>
+            </div>
+          )}
+
           {/* Bảng Dữ Liệu Chi Tiết */}
           <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
-            <table className="w-full min-w-[900px] border-collapse text-left text-xs">
+            <table className="w-full min-w-[950px] border-collapse text-left text-xs">
               <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600">
                 <tr>
-                  <th className="p-3 text-center">
+                  <th className="p-3 text-center w-12">
                     <input
                       type="checkbox"
                       checked={scannedSlips.length > 0 && scannedSlips.every((s) => s.selected)}
                       onChange={(e) => handleToggleSelectAll(e.target.checked)}
-                      className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500"
+                      className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
                     />
                     <span className="ml-1">Ghi?</span>
                   </th>
-                  <th className="p-3 text-center">Ảnh</th>
-                  <th className="p-3">Ngày</th>
-                  <th className="p-3">Khách hàng</th>
-                  <th className="p-3">Số xe / Ghe</th>
-                  <th className="p-3 text-right">Kg Hàng</th>
-                  <th className="p-3 text-right">Tấn (cắt 1 số lẻ)</th>
-                  <th className="p-3">Mô tả dự kiến (Cột D)</th>
-                  <th className="p-3">Tình trạng / Cảnh báo</th>
+                  <th className="p-3 text-center w-28">Đội (Click đổi)</th>
+                  <th className="p-3 text-center w-14">Ảnh</th>
+                  <th className="p-3 w-28">Ngày</th>
+                  <th className="p-3 w-32">Khách hàng</th>
+                  <th className="p-3 w-32">Số xe / Ghe</th>
+                  <th className="p-3 text-right w-24">Kg Hàng</th>
+                  <th className="p-3 text-right w-20">Tấn</th>
+                  <th className="p-3">Mô tả dự kiến</th>
+                  <th className="p-3 text-center w-20">Copy</th>
+                  <th className="p-3 w-32">Cảnh báo</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white font-medium">
                 {scannedSlips.map((slip) => {
                   const hasWarning = slip.warnings.length > 0;
+                  const currentTeam = slip.targetTeam || (settings.defaultTeam === 'QUÝ' ? 'QUÝ' : 'ĐỨC');
+                  const isDuc = currentTeam === 'ĐỨC';
+
                   return (
                     <tr
                       key={slip.id}
@@ -470,8 +675,24 @@ export default function HuskPayrollView() {
                           type="checkbox"
                           checked={slip.selected}
                           onChange={(e) => handleFieldChange(slip.id, 'selected', e.target.checked)}
-                          className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500"
+                          className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
                         />
+                      </td>
+
+                      {/* Phân Đội (Click Đổi) */}
+                      <td className="p-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSlipTeam(slip.id)}
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold shadow-2xs transition-all cursor-pointer ${
+                            isDuc
+                              ? 'bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200'
+                          }`}
+                          title="Nhấp để đổi giữa Đội Đức và Đội Quý"
+                        >
+                          <span>{isDuc ? '🔵 ĐỨC' : '🟢 QUÝ'}</span>
+                        </button>
                       </td>
 
                       {/* Ảnh Thumbnail */}
@@ -537,8 +758,20 @@ export default function HuskPayrollView() {
                           type="text"
                           value={slip.description}
                           onChange={(e) => handleFieldChange(slip.id, 'description', e.target.value)}
-                          className="w-full min-w-[220px] rounded border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-amber-500 focus:outline-none"
+                          className="w-full min-w-[200px] rounded border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-amber-500 focus:outline-none"
                         />
+                      </td>
+
+                      {/* Nút Copy Dòng */}
+                      <td className="p-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleCopySingleSlip(slip)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 transition shadow-2xs cursor-pointer"
+                          title="Sao chép phiếu này vào clipboard"
+                        >
+                          📋
+                        </button>
                       </td>
 
                       {/* Cảnh báo */}
@@ -548,6 +781,24 @@ export default function HuskPayrollView() {
                             {slip.warnings.map((w, idx) => (
                               <span
                                 key={idx}
+                                className="inline-block rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-300"
+                              >
+                                ⚠️ {w}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                            ✓ Hợp lệ
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
                                 className="inline-block rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-300"
                               >
                                 ⚠️ {w}

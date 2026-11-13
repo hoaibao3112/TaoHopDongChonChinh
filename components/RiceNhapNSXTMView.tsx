@@ -20,6 +20,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   NSXTMEntry,
   NSXTMTeamKey,
@@ -61,6 +62,61 @@ export default function RiceNhapNSXTMView() {
   const [manualDesc, setManualDesc] = useState('');
   const [manualKg, setManualKg] = useState('');
   const [manualType, setManualType] = useState<'TRAU' | 'GAO' | 'VO_BON' | 'SAY'>('TRAU');
+
+  // Nhận dữ liệu phiếu cân chuyển từ tab "Quét Phiếu Cân AI"
+  const [transferredSlips, setTransferredSlips] = useState<NSXTMEntry[]>([]);
+  const [transferredToast, setTransferredToast] = useState<string | null>(null);
+
+  // Lắng nghe dữ liệu chuyển từ tab Quét Phiếu Cân AI (Xuất trấu)
+  useEffect(() => {
+    const checkTransferred = () => {
+      try {
+        const raw = localStorage.getItem('nsx_tm_transferred_entries');
+        if (raw) {
+          const list: NSXTMEntry[] = JSON.parse(raw);
+          if (Array.isArray(list) && list.length > 0) {
+            setTransferredSlips(list);
+          } else {
+            setTransferredSlips([]);
+          }
+        } else {
+          setTransferredSlips([]);
+        }
+      } catch (e) {
+        console.error('Lỗi đọc nsx_tm_transferred_entries:', e);
+      }
+    };
+
+    checkTransferred();
+    window.addEventListener('storage', checkTransferred);
+    window.addEventListener('focus', checkTransferred);
+    return () => {
+      window.removeEventListener('storage', checkTransferred);
+      window.removeEventListener('focus', checkTransferred);
+    };
+  }, []);
+
+  // Nạp các phiếu cân đã chuyển vào bảng kê
+  const handleAcceptTransferredSlips = () => {
+    if (transferredSlips.length === 0) return;
+    setAllEntries((prev) => {
+      // Giữ nguyên đội mà người dùng đã chỉ định khi phân đội ở tab Quét Phiếu Cân AI
+      return [...transferredSlips, ...prev];
+    });
+    const count = transferredSlips.length;
+    const ducC = transferredSlips.filter((s) => s.team === 'ĐỨC').length;
+    const quyC = transferredSlips.filter((s) => s.team === 'QUÝ').length;
+    localStorage.removeItem('nsx_tm_transferred_entries');
+    setTransferredToast(`✅ Đã nạp thành công ${count} phiếu cân vào bảng kê (Đội Đức: ${ducC} mẻ, Đội Quý: ${quyC} mẻ)!`);
+    setTransferredSlips([]);
+    setTimeout(() => setTransferredToast(null), 5000);
+  };
+
+  // Bỏ qua / xóa các phiếu đã chuyển
+  const handleDismissTransferredSlips = () => {
+    localStorage.removeItem('nsx_tm_transferred_entries');
+    setTransferredSlips([]);
+  };
 
   // ─── Danh sách các tháng có dữ liệu ─────────────────────────────────────
   const availableMonths = useMemo(() => {
@@ -563,6 +619,16 @@ export default function RiceNhapNSXTMView() {
               <span>{parsingType === 'SAMPLE' ? '⏳' : '⚡'}</span>
               <span>{parsingType === 'SAMPLE' ? 'Đang nạp dữ liệu mẫu...' : 'Nạp Dữ Liệu Mẫu'}</span>
             </button>
+
+            {/* Liên kết nhanh sang Quét Phiếu Cân AI */}
+            <Link
+              href="/xuat-trau"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-900 shadow-2xs hover:bg-amber-100 transition-all"
+              title="Mở tab Quét Phiếu Cân AI để chụp & phân đội phiếu cân xuất trấu"
+            >
+              <span>📸</span>
+              <span>Quét Phiếu Cân AI</span>
+            </Link>
           </div>
         </div>
 
@@ -572,6 +638,66 @@ export default function RiceNhapNSXTMView() {
           </div>
         )}
       </div>
+
+      {/* ─── Banner Nhận Phiếu Cân từ Tab Quét Phiếu Cân AI ─────────────────── */}
+      {transferredSlips.length > 0 && (
+        <div className="rounded-2xl border-2 border-emerald-400 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100 p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-xl text-white shadow-xs">
+                📥
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-emerald-900">
+                    Có dữ liệu chuyển từ tab Quét Phiếu Cân AI
+                  </span>
+                  <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-2xs">
+                    {transferredSlips.length} phiếu cân
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-emerald-900">
+                  Các phiếu cân đã được bạn chọn sẵn đội:
+                  <span className="ml-1.5 font-bold text-blue-700">
+                    🔵 {transferredSlips.filter((s) => s.team === 'ĐỨC').length} mẻ Đội Đức
+                  </span>
+                  <span className="mx-1.5 text-slate-400">•</span>
+                  <span className="font-bold text-emerald-700">
+                    🟢 {transferredSlips.filter((s) => s.team === 'QUÝ').length} mẻ Đội Quý
+                  </span>
+                  . Bạn có muốn nạp vào bảng lương NSX TM ngay không?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 sm:self-center">
+              <button
+                type="button"
+                onClick={handleAcceptTransferredSlips}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-emerald-700 active:scale-95 transition-all"
+              >
+                <span>📥</span>
+                <span>Nạp Ngay Vào Bảng Kê</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDismissTransferredSlips}
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-all"
+                title="Bỏ qua và không nạp các phiếu này"
+              >
+                Bỏ qua
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Thông báo nạp thành công */}
+      {transferredToast && (
+        <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800 shadow-2xs">
+          {transferredToast}
+        </div>
+      )}
 
       {/* ─── Thanh điều khiển Tháng & Phân chia Đội ────────────────────────── */}
       {allEntries.length > 0 && (
@@ -963,7 +1089,9 @@ export default function RiceNhapNSXTMView() {
                           ? (e.vehicleType === 'XE' ? '25.000 (Xe)' : '15.000 (Ghe)')
                           : e.source === 'LUA_KHO'
                           ? '20.000 (Khô)'
-                          : formatMoney(e.unitPriceXuatTrau || e.unitPriceVoBon || e.unitPriceXuatGao || 0);
+                          : e.unitPriceXuatTrau
+                          ? '11.000 (Trấu)'
+                          : formatMoney(e.unitPriceVoBon || e.unitPriceXuatGao || 0);
 
                         return (
                           <tr key={e.id} className="hover:bg-slate-50/70 transition-colors">
@@ -995,10 +1123,12 @@ export default function RiceNhapNSXTMView() {
                                     ? 'bg-orange-50 text-orange-700 border border-orange-200'
                                     : e.source === 'LUA_KHO'
                                     ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    : e.riceType === 'Trấu'
+                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold'
                                     : 'bg-slate-100 text-slate-600'
                                 }`}
                               >
-                                {e.source === 'LUA_TUOI' ? 'Tươi' : e.source === 'LUA_KHO' ? 'Khô' : 'Khác'}
+                                {e.source === 'LUA_TUOI' ? 'Tươi' : e.source === 'LUA_KHO' ? 'Khô' : e.riceType === 'Trấu' ? '🌾 Trấu' : 'Khác'}
                               </span>
                             </td>
                             <td className="py-2 px-3">

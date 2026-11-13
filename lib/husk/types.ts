@@ -46,6 +46,7 @@ export interface ScannedSlipItem {
   unitPrice: number;  // Đơn giá xuất trấu (mặc định 11000)
   amount: number;     // tons * unitPrice
   description: string;// Cột D format
+  targetTeam?: 'ĐỨC' | 'QUÝ'; // Đội được phân công: ĐỨC hoặc QUÝ
 
   // Cảnh báo & Trạng thái
   warnings: string[];
