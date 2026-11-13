@@ -87,7 +87,7 @@ function setCell(
 
 // ─── Tạo 4 Sheet chuẩn cho 1 đội (Nghị hoặc Nguyên) ─────────────────────────
 function buildTeamSheets(
-  wb: XLSX.Workbook,
+  wb: XLSX.WorkBook,
   teamName: 'NGHỊ' | 'NGUYÊN',
   month: number,
   year: number,
@@ -300,7 +300,7 @@ function buildTeamSheets(
     const r = idx + 4;
     ws2['!rows']!.push({ hpt: 20 });
     setCell(ws2, `A${r}`, 'n', idx + 1, styleData('center'));
-    setCell(ws2, `B${r}`, 's', t.ngay, styleData('center'));
+    setCell(ws2, `B${r}`, 's', t.date, styleData('center'));
     setCell(ws2, `C${r}`, 's', teamName, styleData('center'));
     setCell(ws2, `D${r}`, 's', t.phuongTien, styleData('left'));
     setCell(ws2, `E${r}`, 'n', t.soLuong, styleNumber(true));

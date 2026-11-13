@@ -381,7 +381,8 @@ export default function RiceNhapCS1View() {
     if (qty <= 0) return;
     const item: NhapTrauItem = {
       id: `trau-${Date.now()}`,
-      ngay: newTrauDate || '01/10/2026',
+      date: newTrauDate || '01/10/2026',
+      doiNhap: team,
       phuongTien: newTrauVehicle,
       soLuong: qty,
       donGia: price,
@@ -629,7 +630,7 @@ export default function RiceNhapCS1View() {
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6">
             {ricePrices.map((p) => (
-              <div key={p.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs">
+              <div key={p.riceType} className="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs">
                 <div className="font-bold text-slate-800 truncate" title={p.riceType}>
                   {p.riceType}
                 </div>
