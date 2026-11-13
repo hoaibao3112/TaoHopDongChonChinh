@@ -220,6 +220,9 @@ export function extractWorkbookMetadata(
     if (PROTECTED_SHEETS.some((p) => p.normalize('NFC').trim().toLowerCase() === normName)) return
 
     const isVisible = ws.state === 'visible'
+    // Chỉ lấy các tab hợp đồng đang hiển thị thực tế (bỏ qua sheet ẩn cũ như HIẾU CẦN THƠ, TIẾN CÁI BÈ...)
+    if (!isVisible) return
+
     // Phân tích tên tab theo định dạng: <Tên KH> <Ngày ký ddMMyy><Số HĐ NN>
     const parsedTab = parseTabName(sheetName)
     const preConfig = getCustomerSheetConfig(sheetName) || {}

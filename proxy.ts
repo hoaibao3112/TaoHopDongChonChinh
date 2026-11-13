@@ -3,7 +3,7 @@ import { isRequestAuthenticated, getRequestUserRole } from '@/lib/auth';
 
 const PUBLIC_ROUTES = ['/login', '/api/auth/login'];
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
   // Bỏ qua các đường dẫn công khai
