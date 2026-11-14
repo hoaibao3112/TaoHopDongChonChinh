@@ -4,307 +4,485 @@
  * RiceXuatNSXTMView — Quản lý & Tính Lương Xuống Lúa / Xuất Lúa NSX Tân Mỹ (Đội Nam)
  * Chuẩn mẫu theo: LƯƠNG_ĐỘI_NAM-XUẤT_NSX_ĐTM_T10_2026_IN_CHUANMAU.xlsx
  *
- * Tính năng chính:
- * 1. Phân loại đơn giá tự động theo giống lúa:
- *    - Japonica / DS1: Xuất Có Trở 17.000 đ/tấn, Chụm lò 8.000 đ/tấn
- *    - Nếp / Nếp CPC: Xuất Không Trở 11.000 đ/tấn, Chụm lò 11.000 đ/tấn
- *    - Các loại lúa khác: Xuất Không Trở 11.000 đ/tấn, Chụm lò 8.000 đ/tấn
- *    - Vô bồn: 3.000 đ/tấn
- * 2. Bảng tổng hợp KPI (Sheet 2) thời gian thực: Tấn có trở, không trở, chụm lúa, chụm nếp, vô bồn, tổng tiền, tạm ứng, còn lại.
- * 3. Chỉnh sửa số tấn trực tiếp trên từng dòng, tự động tính lại toàn bộ thành tiền.
- * 4. Thêm mẻ thủ công, xóa mẻ, tìm kiếm theo tên khách hàng / loại lúa / số HĐ.
- * 5. Lưu trữ liên tục vào localStorage để không bao giờ mất dữ liệu.
+ * Kiến trúc đồng bộ chuẩn 100% với phân hệ Xuất Lúa CS1 (RicePayrollView):
+ * 1. Tự động đọc dữ liệu nền từ File Lúa Master (2.902 mẻ lúa 2026) hoặc tải file mới lên.
+ * 2. Tự động lọc tất cả mẻ xuất tại Nhà Máy NSX Tân Mỹ (NSX TM / NSX ĐTM / CCĐTM).
+ * 3. Hỗ trợ tính lương ĐẦY ĐỦ CHO TẤT CẢ CÁC THÁNG (Tháng 10, Tháng 11, Tháng 12, ...).
+ * 4. 2 Chế độ xem:
+ *    - Tab 1: 📝 Bảng Lương Ngày • Đội Nam (Gom theo từng ngày có mẻ xuống lúa, chọn Có trở 17k / Không trở 11k / Cả hai).
+ *             Fix triệt để lỗi nhập Cả hai: các ô nhập số lượng độc lập, không tự xóa và không biến mất!
+ *    - Tab 2: 🌾 Chi Tiết Mẻ Lúa Từ File (Liệt kê tất cả mẻ trong tháng, toggle Có trở / Không trở, sửa số tấn).
+ * 5. Bảng tổng hợp KPI (Sheet 2): Xuất có trở (17k), Xuất không trở (11k), Chụm lò lúa (8k), Chụm lò nếp (11k), Vô bồn (3k), Tổng cộng, Tạm ứng, Còn lại.
  * 6. Xuất file Excel chuẩn 2 Sheet có công thức SUBTOTAL và SUM chính xác.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
-import { XuatNSXTMEntry, XuatNSXTMSummary, XuatNSXTMExportPayload } from '@/lib/rice-payroll/xuat-nsx-tm-types';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { RiceBatch } from '@/lib/rice-payroll/types';
+import { isNSXTM } from '@/lib/rice-payroll/facility-filter';
+import { roundRiceTons } from '@/lib/rice-payroll/rounding';
 import {
-  calculateXuatNSXTMRow,
-  calculateXuatNSXTMTotal,
+  XuatNSXTMEntry,
+  XuatNSXTMSummary,
+  XuatNSXTMExportPayload,
+} from '@/lib/rice-payroll/xuat-nsx-tm-types';
+import {
   isJaponica,
   isNep,
+  batchToXuatNSXTMEntry,
 } from '@/lib/rice-payroll/xuat-nsx-tm-parser';
-import sampleOctoberDataRaw from '@/lib/rice-payroll/sample-october-xuat-nsx-tm.json';
+import {
+  getMonthKeyFromDate,
+  getSortedMonthKeysFromDates,
+} from '@/lib/rice-payroll/month-utils';
 
-const sampleOctoberData: XuatNSXTMEntry[] = sampleOctoberDataRaw as XuatNSXTMEntry[];
-
-function formatMoney(num: number): string {
-  if (!num || isNaN(num)) return '0';
-  return Math.round(num).toLocaleString('vi-VN');
+function formatVND(val: number | null | undefined): string {
+  if (val === null || val === undefined || isNaN(val)) return '0';
+  return Math.round(val)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
-function extractMonthKey(dateStr?: string): string {
-  if (!dateStr) return '';
-  const parts = dateStr.trim().split('/');
-  if (parts.length === 3) {
-    return `${parts[1].padStart(2, '0')}/${parts[2]}`;
-  }
-  return '';
+interface NSXTMDayRow {
+  id: string;
+  date: string; // "01/10/2026"
+  tonsCoTro: number;
+  priceCoTro: number;
+  tonsKhongTro: number;
+  priceKhongTro: number;
+  mode?: 'coTro' | 'khongTro' | 'caHai';
+}
+
+function newDayRow(date = ''): NSXTMDayRow {
+  return {
+    id: Math.random().toString(36).slice(2),
+    date,
+    tonsCoTro: 0,
+    priceCoTro: 17000,
+    tonsKhongTro: 0,
+    priceKhongTro: 11000,
+    mode: 'coTro',
+  };
 }
 
 export default function RiceXuatNSXTMView() {
-  // ─── State Dữ liệu & Tháng chọn ───────────────────────────────────────────
-  const [allEntries, setAllEntries] = useState<XuatNSXTMEntry[]>([]);
-  const [selectedMonthKey, setSelectedMonthKey] = useState<string>('10/2026');
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [filterType, setFilterType] = useState<'ALL' | 'JAPONICA' | 'NEP' | 'OTHER'>('ALL');
+  // ─── Dữ liệu nền từ File Lúa Master ───────────────────────────────────────
+  const [isLoadingFile, setIsLoadingFile] = useState(true);
+  const [loadedFileName, setLoadedFileName] = useState<string>('');
+  const [allBatches, setAllBatches] = useState<RiceBatch[]>([]);
+  const [fileError, setFileError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Cấu hình người ký & Tạm ứng
+  // ─── Tháng chọn & Tab xem ────────────────────────────────────────────────
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>('10/2026');
+  const [activeTab, setActiveTab] = useState<'notebook' | 'batches'>('notebook');
+
+  // Đơn giá chuẩn Đội Nam NSX TM
+  const masterPriceCoTro = 17000;
+  const masterPriceKhongTro = 11000;
+
+  // ─── Danh sách ngày lương (Sổ tay Đội Nam) ────────────────────────────────
+  const [rows, setRows] = useState<NSXTMDayRow[]>([newDayRow('01/10/2026')]);
+
+  // Overrides riêng cho từng mẻ lúa (key = batch.id)
+  const [batchOverrides, setBatchOverrides] = useState<
+    Record<string, { isCoTro: boolean; tons?: number }>
+  >({});
+
+  // Xem chi tiết mẻ của 1 ngày (Modal)
+  const [detailRow, setDetailRow] = useState<NSXTMDayRow | null>(null);
+
+  // Cấu hình chữ ký & Tạm ứng
   const [nguoiLapBang, setNguoiLapBang] = useState<string>('Võ Hoàng Cẩm Tiên');
   const [nguoiXacNhan, setNguoiXacNhan] = useState<string>('Huỳnh Anh Phát Thịnh');
   const [tamUng, setTamUng] = useState<number>(0);
   const [showConfigModal, setShowConfigModal] = useState<boolean>(false);
 
-  // Trạng thái File & Upload
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isParsing, setIsParsing] = useState<boolean>(false);
-  const [parseError, setParseError] = useState<string | null>(null);
-  const [loadedFileName, setLoadedFileName] = useState<string>('');
-
-  // Trạng thái Xuất Excel
+  // Trạng thái xuất file
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportError, setExportError] = useState<string | null>(null);
-
-  // Form Thêm mẻ thủ công
-  const [showAddModal, setShowAddModal] = useState<boolean>(false);
-  const [manualSoHD, setManualSoHD] = useState<string>('');
-  const [manualNgayXuong, setManualNgayXuong] = useState<string>('01/10/2026');
-  const [manualKhachHang, setManualKhachHang] = useState<string>('');
-  const [manualLoaiLua, setManualLoaiLua] = useState<string>('NẾP CPC');
-  const [manualKg, setManualKg] = useState<string>('');
-  const [manualTan, setManualTan] = useState<string>('');
-  const [manualPhuongTien, setManualPhuongTien] = useState<string>('VÔ BỒN');
-  const [manualGhiChu, setManualGhiChu] = useState<string>('');
-
-  // Toast thông báo
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // ─── Khởi tạo từ localStorage hoặc Sample Data ───────────────────────────
+  // ─── TỰ ĐỘNG NẠP CÁC NGÀY XUỐNG LÚA TRONG THÁNG TỪ FILE MASTER ───────────
+  const populateMonthDays = useCallback(
+    (monthKey: string, batches: RiceBatch[]) => {
+      const tmBatchesInMonth = batches.filter(
+        (b) =>
+          isNSXTM(b.dryFacility) &&
+          getMonthKeyFromDate(b.dischargeDate || b.dryDate || b.weighDate) === monthKey
+      );
+
+      // Danh sách các ngày duy nhất có mẻ xuống lúa
+      const validDates: string[] = Array.from(
+        new Set(
+          tmBatchesInMonth
+            .map((b) => b.dischargeDate || b.dryDate || b.weighDate)
+            .filter((d): d is string => Boolean(d))
+        )
+      ).sort((a: string, b: string) => {
+        const [d1 = 1, m1 = 1, y1 = 2026] = (a || '').split('/').map(Number);
+        const [d2 = 1, m2 = 1, y2 = 2026] = (b || '').split('/').map(Number);
+        const dt1 = new Date(y1, m1 - 1, d1).getTime();
+        const dt2 = new Date(y2, m2 - 1, d2).getTime();
+        return dt1 - dt2;
+      });
+
+      if (validDates.length === 0) {
+        setRows([
+          {
+            ...newDayRow(monthKey ? `01/${monthKey}` : ''),
+            priceCoTro: masterPriceCoTro,
+            priceKhongTro: masterPriceKhongTro,
+          },
+        ]);
+        setDetailRow(null);
+        return;
+      }
+
+      const newRows: NSXTMDayRow[] = validDates.map((d) => {
+        const dayBatches = tmBatchesInMonth.filter(
+          (b) => (b.dischargeDate || b.dryDate || b.weighDate) === d
+        );
+
+        let tonsCo = 0;
+        let tonsKhong = 0;
+
+        dayBatches.forEach((b) => {
+          const t = b.roundedTons || roundRiceTons(b.dryWeightKg);
+          const isCo = isJaponica(b.riceType);
+          if (isCo) tonsCo += t;
+          else tonsKhong += t;
+        });
+
+        const initialMode: 'coTro' | 'khongTro' | 'caHai' =
+          tonsCo > 0 && tonsKhong > 0
+            ? 'caHai'
+            : tonsKhong > 0
+            ? 'khongTro'
+            : 'coTro';
+
+        return {
+          ...newDayRow(d),
+          tonsCoTro: tonsCo,
+          tonsKhongTro: tonsKhong,
+          mode: initialMode,
+          priceCoTro: masterPriceCoTro,
+          priceKhongTro: masterPriceKhongTro,
+        };
+      });
+
+      setRows(newRows);
+      setDetailRow(null);
+    },
+    [masterPriceCoTro, masterPriceKhongTro]
+  );
+
+  // ─── 1. TỰ ĐỘNG NẠP DỮ LIỆU NỀN TỪ MASTER EXCEL FILE ─────────────────────
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('xuat_nsx_tm_entries');
-      if (saved) {
-        const parsed: XuatNSXTMEntry[] = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setAllEntries(parsed);
-          setLoadedFileName('Đã khôi phục phiên làm việc trước');
-          return;
+    let isMounted = true;
+    async function loadMasterData() {
+      setIsLoadingFile(true);
+      setFileError('');
+      try {
+        const res = await fetch('/api/rice-payroll/parse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ useSample: true }),
+        });
+
+        if (!res.ok) {
+          throw new Error(`Máy chủ phản hồi mã lỗi ${res.status}`);
         }
+
+        const data = await res.json();
+        if (!isMounted) return;
+
+        const loadedBatches: RiceBatch[] = data.batches || [];
+        setLoadedFileName(data.fileName || 'THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026');
+        setAllBatches(loadedBatches);
+
+        // Lấy danh sách tháng có mẻ tại NSX TM
+        const tmMonths = getSortedMonthKeysFromDates(
+          loadedBatches
+            .filter((b) => isNSXTM(b.dryFacility) && (b.dischargeDate || b.dryDate || b.weighDate))
+            .map((b) => b.dischargeDate || b.dryDate || b.weighDate)
+        );
+
+        const initialMonth = tmMonths.includes('10/2026')
+          ? '10/2026'
+          : tmMonths[0] || '10/2026';
+
+        setSelectedMonthKey(initialMonth);
+        populateMonthDays(initialMonth, loadedBatches);
+      } catch (err: unknown) {
+        if (!isMounted) return;
+        setFileError((err as Error).message || 'Không thể tải dữ liệu mẻ lúa');
+      } finally {
+        if (isMounted) setIsLoadingFile(false);
       }
-      // Nếu chưa có, nạp dữ liệu mẫu Tháng 10/2026
-      setAllEntries(sampleOctoberData);
-      setLoadedFileName('Mẫu chuẩn Đội Nam Tháng 10/2026 (32 mẻ)');
-    } catch (e) {
-      console.warn('Lỗi đọc localStorage:', e);
-      setAllEntries(sampleOctoberData);
     }
-  }, []);
 
-  // Tự động lưu vào localStorage mỗi khi allEntries thay đổi
-  const saveToLocalStorage = useCallback((entries: XuatNSXTMEntry[]) => {
-    try {
-      localStorage.setItem('xuat_nsx_tm_entries', JSON.stringify(entries));
-    } catch (e) {
-      console.warn('Không thể lưu localStorage:', e);
-    }
-  }, []);
+    loadMasterData();
+    return () => {
+      isMounted = false;
+    };
+  }, [populateMonthDays]);
 
-  // ─── Lọc danh sách tháng có sẵn ───────────────────────────────────────────
+  // ─── 2. DANH SÁCH CÁC THÁNG CÓ MẺ XUẤT TẠI NSX TM ────────────────────────
   const availableMonths = useMemo(() => {
-    const set = new Set<string>();
-    allEntries.forEach((entry) => {
-      const m =
-        extractMonthKey(entry.ngayXuongLuaKho) ||
-        extractMonthKey(entry.ngayNhapSay) ||
-        extractMonthKey(entry.ngayCan);
-      if (m) set.add(m);
+    const dates = allBatches
+      .filter((b) => isNSXTM(b.dryFacility) && (b.dischargeDate || b.dryDate || b.weighDate))
+      .map((b) => b.dischargeDate || b.dryDate || b.weighDate);
+
+    const list = getSortedMonthKeysFromDates(dates);
+    if (!list.includes('10/2026')) list.unshift('10/2026');
+    return list;
+  }, [allBatches]);
+
+  // ─── 3. LỌC TOÀN BỘ MẺ LÚA TRONG THÁNG CHỌN CHO NSX TM ───────────────────
+  const monthBatches = useMemo(() => {
+    return allBatches.filter((b) => {
+      if (!isNSXTM(b.dryFacility)) return false;
+      const date = b.dischargeDate || b.dryDate || b.weighDate;
+      return getMonthKeyFromDate(date) === selectedMonthKey;
     });
-    // Đảm bảo luôn có 10/2026
-    set.add('10/2026');
-    const sorted = Array.from(set).sort((a, b) => {
-      const [m1, y1] = a.split('/').map(Number);
-      const [m2, y2] = b.split('/').map(Number);
-      return y2 !== y1 ? y2 - y1 : m2 - m1;
-    });
-    return sorted;
-  }, [allEntries]);
+  }, [allBatches, selectedMonthKey]);
 
-  // ─── Lọc dữ liệu theo tháng và từ khóa tìm kiếm ───────────────────────────
-  const filteredEntries = useMemo(() => {
-    return allEntries.filter((entry) => {
-      // Lọc theo tháng
-      if (selectedMonthKey !== 'ALL') {
-        const entryMonth =
-          extractMonthKey(entry.ngayXuongLuaKho) ||
-          extractMonthKey(entry.ngayNhapSay) ||
-          extractMonthKey(entry.ngayCan);
-        if (entryMonth !== selectedMonthKey) return false;
-      }
-
-      // Lọc theo phân loại lúa
-      if (filterType === 'JAPONICA' && !isJaponica(entry.loaiLua)) return false;
-      if (filterType === 'NEP' && !isNep(entry.loaiLua)) return false;
-      if (filterType === 'OTHER' && (isJaponica(entry.loaiLua) || isNep(entry.loaiLua))) return false;
-
-      // Lọc theo từ khóa tìm kiếm
-      if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase();
-        const matchCustomer = entry.khachHang.toLowerCase().includes(q);
-        const matchRice = entry.loaiLua.toLowerCase().includes(q);
-        const matchHD = (entry.soHD || '').toLowerCase().includes(q);
-        const matchDate = (entry.ngayXuongLuaKho || '').toLowerCase().includes(q);
-        if (!matchCustomer && !matchRice && !matchHD && !matchDate) return false;
-      }
-
-      return true;
-    });
-  }, [allEntries, selectedMonthKey, filterType, searchTerm]);
-
-  // ─── Tính toán KPI Tổng hợp Khớp Sheet 2 ──────────────────────────────────
-  const summary: XuatNSXTMSummary = useMemo(() => {
-    return calculateXuatNSXTMTotal(filteredEntries, selectedMonthKey, tamUng);
-  }, [filteredEntries, selectedMonthKey, tamUng]);
-
-  // ─── Nạp lại Mẫu Chuẩn Tháng 10/2026 ──────────────────────────────────────
-  const handleReloadSampleData = () => {
-    if (confirm('Khôi phục lại dữ liệu mẫu Tháng 10/2026 (32 mẻ, 1.589 tấn, 38.183.000 đ)? Dữ liệu chỉnh sửa sẽ được đặt lại theo file mẫu công ty.')) {
-      setAllEntries(sampleOctoberData);
-      setSelectedMonthKey('10/2026');
-      setLoadedFileName('Mẫu chuẩn Đội Nam Tháng 10/2026 (32 mẻ)');
-      saveToLocalStorage(sampleOctoberData);
-      showToast('Đã khôi phục dữ liệu mẫu Tháng 10/2026 chuẩn 100%!');
-    }
+  // Chuyển tháng
+  const handleSelectMonth = (newMonth: string) => {
+    setSelectedMonthKey(newMonth);
+    setBatchOverrides({});
+    populateMonthDays(newMonth, allBatches);
   };
 
-  // ─── Xử lý Tải File Excel lên ─────────────────────────────────────────────
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // ─── 5. SỬA SỐ TẤN TRỰC TIẾP TRÊN DÒNG NGÀY (FIX BUG CẢ HAI) ──────────────
+  const handleTonsChange = useCallback(
+    (rowId: string, field: 'coTro' | 'khongTro', valStr: string) => {
+      const val = valStr === '' ? 0 : Math.max(0, Number(valStr));
+      const targetRow = rows.find((r) => r.id === rowId);
+      if (!targetRow) return;
 
-    setIsParsing(true);
-    setParseError(null);
+      // Ưu tiên mode đã lưu trong targetRow.mode (không để bị reset khi sửa số)
+      const currentMode: 'coTro' | 'khongTro' | 'caHai' =
+        targetRow.mode ??
+        (targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro > 0
+          ? 'caHai'
+          : targetRow.tonsKhongTro > 0 && targetRow.tonsCoTro === 0
+          ? 'khongTro'
+          : targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro === 0
+          ? 'coTro'
+          : field === 'coTro'
+          ? 'coTro'
+          : 'khongTro');
 
-    const formData = new FormData();
-    formData.append('file', file);
+      let newCo = targetRow.tonsCoTro;
+      let newKhong = targetRow.tonsKhongTro;
 
-    try {
-      const res = await fetch('/api/rice-payroll/xuat-nsx-tm-parse', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Lỗi khi phân tích file Excel');
-      }
-
-      if (!data.entries || data.entries.length === 0) {
-        throw new Error('Không tìm thấy dữ liệu xuất lúa NSX TM hợp lệ trong file');
-      }
-
-      setAllEntries(data.entries);
-      setLoadedFileName(file.name);
-      saveToLocalStorage(data.entries);
-
-      // Tự động chuyển về tháng đầu tiên tìm thấy
-      const firstMonth =
-        extractMonthKey(data.entries[0]?.ngayXuongLuaKho) ||
-        extractMonthKey(data.entries[0]?.ngayNhapSay) ||
-        '10/2026';
-      setSelectedMonthKey(firstMonth);
-
-      showToast(`Tải file thành công! Đã trích xuất ${data.entries.length} mẻ xuất lúa NSX TM.`);
-    } catch (err: any) {
-      console.error(err);
-      setParseError(err.message || 'Lỗi đọc file Excel');
-    } finally {
-      setIsParsing(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  // ─── Cập nhật nhanh trực tiếp trên dòng ──────────────────────────────────
-  const handleUpdateEntry = (id: string, field: keyof XuatNSXTMEntry, value: any) => {
-    setAllEntries((prev) => {
-      const updated = prev.map((item) => {
-        if (item.id !== id) return item;
-
-        const updatedItem = { ...item, [field]: value };
-
-        // Nếu sửa số tấn hoặc loại lúa, tính lại toàn bộ đơn giá và thành tiền
-        if (field === 'soLuongTan' || field === 'loaiLua' || field === 'canNhapSayKg') {
-          return calculateXuatNSXTMRow(updatedItem);
+      if (currentMode === 'coTro') {
+        newCo = val;
+        newKhong = 0;
+      } else if (currentMode === 'khongTro') {
+        newKhong = val;
+        newCo = 0;
+      } else {
+        // 'caHai': Cho phép người dùng sửa độc lập từng ô, KHÔNG BAO GIỜ xóa ô còn lại!
+        if (field === 'coTro') {
+          newCo = val;
+        } else {
+          newKhong = val;
         }
+      }
 
-        return updatedItem;
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === rowId
+            ? {
+                ...r,
+                tonsCoTro: newCo,
+                tonsKhongTro: newKhong,
+                mode: currentMode,
+              }
+            : r
+        )
+      );
+    },
+    [rows]
+  );
+
+  // Đổi mode Có trở / Không trở / Cả hai cho 1 ngày
+  const handleSetRowMode = useCallback(
+    (rowId: string, newMode: 'coTro' | 'khongTro' | 'caHai', dayFileTons: number) => {
+      const targetRow = rows.find((r) => r.id === rowId);
+      const total =
+        (targetRow ? targetRow.tonsCoTro + targetRow.tonsKhongTro : 0) ||
+        (dayFileTons > 0 ? dayFileTons : 0);
+
+      let newCo = 0;
+      let newKhong = 0;
+
+      if (newMode === 'coTro') {
+        newCo = total;
+        newKhong = 0;
+      } else if (newMode === 'khongTro') {
+        newCo = 0;
+        newKhong = total;
+      } else {
+        // 'caHai': Giữ nguyên cả 2 ô hoặc chia đôi
+        if (targetRow && targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro > 0) {
+          newCo = targetRow.tonsCoTro;
+          newKhong = targetRow.tonsKhongTro;
+        } else if (targetRow && targetRow.tonsCoTro > 0) {
+          newCo = targetRow.tonsCoTro;
+          newKhong = 0;
+        } else if (targetRow && targetRow.tonsKhongTro > 0) {
+          newCo = 0;
+          newKhong = targetRow.tonsKhongTro;
+        } else {
+          newCo = Math.round(total / 2);
+          newKhong = Math.max(0, total - newCo);
+        }
+      }
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === rowId
+            ? {
+                ...r,
+                tonsCoTro: newCo,
+                tonsKhongTro: newKhong,
+                mode: newMode,
+              }
+            : r
+        )
+      );
+    },
+    [rows]
+  );
+
+  // ─── 6. CHỈNH SỬA TỪNG MẺ LÚA TRONG TAB 2 (CHI TIẾT MẺ TỪ FILE) ───────────
+  const handleBatchToggleCoTro = (batchId: string, currentIsCoTro: boolean) => {
+    const nextIsCo = !currentIsCoTro;
+    setBatchOverrides((prev) => ({
+      ...prev,
+      [batchId]: {
+        isCoTro: nextIsCo,
+        tons: prev[batchId]?.tons,
+      },
+    }));
+  };
+
+  const handleBatchTonsChange = (batchId: string, tonsVal: number) => {
+    const safeTons = Math.max(0, tonsVal);
+    setBatchOverrides((prev) => ({
+      ...prev,
+      [batchId]: {
+        isCoTro: prev[batchId]?.isCoTro ?? false,
+        tons: safeTons,
+      },
+    }));
+  };
+
+  // Tự động gán toàn bộ mẻ theo giống lúa (Japonica 17k, Nếp/Lúa khác 11k)
+  const handleAutoClassifyByRiceType = () => {
+    const next: Record<string, { isCoTro: boolean; tons?: number }> = {};
+    monthBatches.forEach((b) => {
+      next[b.id] = {
+        isCoTro: isJaponica(b.riceType),
+        tons: batchOverrides[b.id]?.tons ?? (b.roundedTons || roundRiceTons(b.dryWeightKg)),
+      };
+    });
+    setBatchOverrides(next);
+    populateMonthDays(selectedMonthKey, allBatches);
+    showToast('Đã tự động gán toàn bộ mẻ theo giống lúa chuẩn!');
+  };
+
+  // ─── 7. CHUYỂN ĐỔI MẺ TRONG THÁNG THÀNH XuatNSXTMEntry ĐẦY ĐỦ ─────────────
+  const fullMonthEntries: XuatNSXTMEntry[] = useMemo(() => {
+    return monthBatches.map((b) => {
+      const ov = batchOverrides[b.id];
+      return batchToXuatNSXTMEntry(b, ov);
+    });
+  }, [monthBatches, batchOverrides]);
+
+  // ─── 8. TÍNH BẢNG TỔNG HỢP KPI KHỚP SHEET 2 ──────────────────────────────
+  const summary: XuatNSXTMSummary = useMemo(() => {
+    let totalTonsCo = 0;
+    let totalTonsKhong = 0;
+
+    rows.forEach((r) => {
+      totalTonsCo += r.tonsCoTro || 0;
+      totalTonsKhong += r.tonsKhongTro || 0;
+    });
+
+    let tonsChumLua = 0;
+    let tonsChumNep = 0;
+    const tonsVoBon = totalTonsCo + totalTonsKhong;
+
+    if (fullMonthEntries.length > 0) {
+      fullMonthEntries.forEach((e) => {
+        if (isNep(e.loaiLua)) {
+          tonsChumNep += e.soLuongTan;
+        } else {
+          tonsChumLua += e.soLuongTan;
+        }
       });
-
-      saveToLocalStorage(updated);
-      return updated;
-    });
-  };
-
-  // ─── Xóa một dòng ────────────────────────────────────────────────────────
-  const handleDeleteEntry = (id: string) => {
-    if (confirm('Bạn có chắc muốn xóa mẻ xuất lúa này?')) {
-      setAllEntries((prev) => {
-        const next = prev.filter((item) => item.id !== id);
-        saveToLocalStorage(next);
-        return next;
-      });
-      showToast('Đã xóa mẻ thành công');
-    }
-  };
-
-  // ─── Thêm mẻ thủ công ────────────────────────────────────────────────────
-  const handleAddManualEntry = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualKhachHang.trim()) {
-      alert('Vui lòng nhập tên khách hàng');
-      return;
+      const batchTotal = fullMonthEntries.reduce((s, e) => s + e.soLuongTan, 0);
+      if (batchTotal > 0 && tonsVoBon > 0 && tonsVoBon !== batchTotal) {
+        const ratio = tonsVoBon / batchTotal;
+        tonsChumLua = Math.round(tonsChumLua * ratio);
+        tonsChumNep = Math.max(0, tonsVoBon - tonsChumLua);
+      }
+    } else {
+      tonsChumLua = totalTonsCo;
+      tonsChumNep = totalTonsKhong;
     }
 
-    const kg = parseFloat(manualKg) || 0;
-    const tan = manualTan ? parseFloat(manualTan) : Math.round(kg / 1000);
+    const thanhTienCoTro = totalTonsCo * masterPriceCoTro;
+    const thanhTienKhongTro = totalTonsKhong * masterPriceKhongTro;
+    const thanhTienChumLua = tonsChumLua * 8000;
+    const thanhTienChumNep = tonsChumNep * 11000;
+    const thanhTienVoBon = tonsVoBon * 3000;
 
-    const newEntry = calculateXuatNSXTMRow({
-      id: `manual-tm-${Date.now()}`,
-      soHD: manualSoHD.trim(),
-      ngayCan: manualNgayXuong,
-      khachHang: manualKhachHang.trim(),
-      loaiLua: manualLoaiLua.trim(),
-      canNhapSayKg: kg,
-      ngayXuongLuaKho: manualNgayXuong,
-      phuongTienChoLuaKho: manualPhuongTien || 'VÔ BỒN',
-      soLuongTan: tan,
-      ghiChu: manualGhiChu.trim(),
-    });
+    const tongCong =
+      thanhTienCoTro + thanhTienKhongTro + thanhTienChumLua + thanhTienChumNep + thanhTienVoBon;
+    const conLai = Math.max(0, tongCong - tamUng);
 
-    setAllEntries((prev) => {
-      const next = [newEntry, ...prev];
-      saveToLocalStorage(next);
-      return next;
-    });
+    const totalKg = fullMonthEntries.reduce((s, e) => s + (e.canNhapSayKg || 0), 0);
 
-    setShowAddModal(false);
-    // Reset form
-    setManualKhachHang('');
-    setManualKg('');
-    setManualTan('');
-    setManualGhiChu('');
-    showToast('Đã thêm mẻ xuống lúa mới vào bảng kê!');
-  };
+    return {
+      monthKey: selectedMonthKey,
+      totalRows: fullMonthEntries.length,
+      totalKg,
+      totalTons: tonsVoBon,
+      tonsCoTro: totalTonsCo,
+      priceCoTro: masterPriceCoTro,
+      thanhTienCoTro,
+      tonsKhongTro: totalTonsKhong,
+      priceKhongTro: masterPriceKhongTro,
+      thanhTienKhongTro,
+      tonsChumLua,
+      priceChumLua: 8000,
+      thanhTienChumLua,
+      tonsChumNep,
+      priceChumNep: 11000,
+      thanhTienChumNep,
+      tonsVoBon,
+      priceVoBon: 3000,
+      thanhTienVoBon,
+      tongCong,
+      tamUng,
+      conLai,
+    };
+  }, [rows, fullMonthEntries, selectedMonthKey, masterPriceCoTro, masterPriceKhongTro, tamUng]);
 
-  // ─── Xuất File Excel ─────────────────────────────────────────────────────
+  // ─── 9. XUẤT FILE EXCEL CHUẨN 2 SHEET ─────────────────────────────────────
   const handleExportExcel = async () => {
-    if (filteredEntries.length === 0) {
-      alert('Không có dữ liệu trong tháng này để xuất file');
+    if (fullMonthEntries.length === 0) {
+      alert(`Không có mẻ lúa NSX TM nào trong tháng ${selectedMonthKey} để xuất file`);
       return;
     }
 
@@ -312,8 +490,8 @@ export default function RiceXuatNSXTMView() {
     setExportError(null);
 
     const payload: XuatNSXTMExportPayload = {
-      monthKey: selectedMonthKey === 'ALL' ? '10/2026' : selectedMonthKey,
-      entries: filteredEntries,
+      monthKey: selectedMonthKey,
+      entries: fullMonthEntries,
       summary,
       nguoiLapBang,
       nguoiXacNhan,
@@ -329,26 +507,71 @@ export default function RiceXuatNSXTMView() {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Lỗi máy chủ khi tạo file Excel');
+        throw new Error(data.error || 'Lỗi khi tạo file Excel');
       }
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const [m, y] = (selectedMonthKey === 'ALL' ? '10/2026' : selectedMonthKey).split('/');
+      const [m, y] = selectedMonthKey.split('/');
       a.download = `LUONG_DOI_NAM-XUAT_NSX_DTM_T${m.padStart(2, '0')}_${y}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
 
-      showToast('Đã tải xuống file Excel chuẩn 2 Sheet thành công!');
-    } catch (err: any) {
+      showToast(`Đã xuất file Excel Tháng ${selectedMonthKey} thành công!`);
+    } catch (err: unknown) {
       console.error(err);
-      setExportError(err.message || 'Lỗi xuất file Excel');
+      setExportError((err as Error).message || 'Lỗi xuất file Excel');
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  // ─── 10. TẢI FILE EXCEL MỚI LÊN ──────────────────────────────────────────
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsLoadingFile(true);
+    setFileError('');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/rice-payroll/parse', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Lỗi khi phân tích file');
+      }
+
+      const loadedBatches: RiceBatch[] = data.batches || [];
+      setLoadedFileName(file.name);
+      setAllBatches(loadedBatches);
+
+      const tmMonths = getSortedMonthKeysFromDates(
+        loadedBatches
+          .filter((b) => isNSXTM(b.dryFacility) && (b.dischargeDate || b.dryDate || b.weighDate))
+          .map((b) => b.dischargeDate || b.dryDate || b.weighDate)
+      );
+
+      const nextMonth = tmMonths[0] || '10/2026';
+      setSelectedMonthKey(nextMonth);
+      populateMonthDays(nextMonth, loadedBatches);
+      showToast(`Tải file ${file.name} thành công! Có ${loadedBatches.length} mẻ.`);
+    } catch (err: unknown) {
+      console.error(err);
+      setFileError((err as Error).message || 'Lỗi đọc file Excel');
+    } finally {
+      setIsLoadingFile(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -362,7 +585,7 @@ export default function RiceXuatNSXTMView() {
         </div>
       )}
 
-      {/* ─── Hero Banner & Toolbar ─────────────────────────────────────────── */}
+      {/* ─── Hero Header & Công Cụ ─────────────────────────────────────────── */}
       <div className="rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
@@ -377,8 +600,8 @@ export default function RiceXuatNSXTMView() {
             </div>
             <p className="text-xs sm:text-sm text-slate-500 max-w-3xl">
               Hệ thống theo dõi chi tiết từng mẻ xuống lúa khô, phân loại tự động <strong>Japonica (17k)</strong>,{' '}
-              <strong>Nếp / Lúa thường (11k)</strong>, <strong>Chụm lò (8k - 11k)</strong> và <strong>Vô bồn (3k)</strong>{' '}
-              theo đúng biểu mẫu chuẩn của Công ty.
+              <strong>Nếp / Lúa thường (11k)</strong>, <strong>Chụm lò (8k & 11k)</strong> và <strong>Vô bồn (3k)</strong>{' '}
+              khớp 100% biểu mẫu công ty, tính được mọi tháng trong năm.
             </p>
           </div>
 
@@ -395,37 +618,27 @@ export default function RiceXuatNSXTMView() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isParsing}
+              disabled={isLoadingFile}
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition active:scale-95 cursor-pointer disabled:opacity-50"
             >
               <span>📁</span>
-              <span>{isParsing ? 'Đang đọc...' : 'Tải File Excel'}</span>
+              <span>{isLoadingFile ? 'Đang đọc...' : 'Tải File Excel Mới'}</span>
             </button>
 
             <button
               type="button"
-              onClick={handleReloadSampleData}
+              onClick={handleAutoClassifyByRiceType}
               className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 px-3.5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 transition active:scale-95 cursor-pointer"
-              title="Khôi phục nguyên bản 32 mẻ Tháng 10/2026 từ file chuẩn mẫu công ty"
+              title="Tự động phân loại mẻ theo giống lúa: Japonica -> 17k, Nếp/Khác -> 11k"
             >
               <span>⚡</span>
-              <span>Nạp Mẫu T10/2026</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition active:scale-95 cursor-pointer"
-            >
-              <span>➕</span>
-              <span>Thêm Mẻ Xuất</span>
+              <span>Tự Động Tính Theo File Lúa</span>
             </button>
 
             <button
               type="button"
               onClick={() => setShowConfigModal(true)}
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition active:scale-95 cursor-pointer"
-              title="Người lập bảng, duyệt ký và tạm ứng"
             >
               <span>⚙️</span>
               <span>Chữ Ký & Tạm Ứng</span>
@@ -434,38 +647,54 @@ export default function RiceXuatNSXTMView() {
             <button
               type="button"
               onClick={handleExportExcel}
-              disabled={isExporting || filteredEntries.length === 0}
+              disabled={isExporting || fullMonthEntries.length === 0}
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:from-emerald-700 hover:to-teal-700 transition active:scale-95 cursor-pointer disabled:opacity-50"
             >
               <span>📥</span>
-              <span>{isExporting ? 'Đang xuất...' : 'Xuất File Excel (2 Sheet)'}</span>
+              <span>{isExporting ? 'Đang xuất...' : `Xuất File Excel T${selectedMonthKey}`}</span>
             </button>
           </div>
         </div>
 
-        {/* Nguồn file & Cảnh báo lỗi */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
+        {/* Nguồn file & Thanh chọn tháng */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-700">Nguồn dữ liệu:</span>
+            <span className="font-semibold text-slate-700">File nguồn:</span>
             <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-slate-700 border border-slate-200">
-              {loadedFileName || 'Chưa tải file'}
+              {loadedFileName || 'Đang tải file mẫu...'}
             </span>
-            <span className="text-slate-400">• Tổng cộng: {allEntries.length} mẻ trong bộ nhớ</span>
+            <span className="text-slate-400">
+              • Tổng cộng: {allBatches.length} mẻ • NSX TM: {monthBatches.length} mẻ trong tháng {selectedMonthKey}
+            </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Link
-              href="/nhap-say-tm"
-              className="text-xs font-bold text-emerald-700 hover:text-emerald-900 underline flex items-center gap-1"
+          {/* Month Selector Dropdown */}
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-700">Chọn Tháng:</span>
+            <select
+              value={selectedMonthKey}
+              onChange={(e) => handleSelectMonth(e.target.value)}
+              className="rounded-xl border-2 border-amber-500 bg-amber-50/60 px-3 py-1.5 text-xs font-extrabold text-amber-900 focus:outline-hidden cursor-pointer"
             >
-              <span>🌾 Xem Tab Nhập Sấy NSX TM (Đội Đức & Quý) →</span>
-            </Link>
+              {availableMonths.map((m) => {
+                const count = allBatches.filter(
+                  (b) =>
+                    isNSXTM(b.dryFacility) &&
+                    getMonthKeyFromDate(b.dischargeDate || b.dryDate || b.weighDate) === m
+                ).length;
+                return (
+                  <option key={m} value={m}>
+                    Tháng {m} ({count} mẻ)
+                  </option>
+                );
+              })}
+            </select>
           </div>
         </div>
 
-        {parseError && (
+        {fileError && (
           <div className="mt-3 rounded-xl bg-rose-50 p-3 text-xs font-medium text-rose-700 border border-rose-200">
-            ⚠️ {parseError}
+            ⚠️ {fileError}
           </div>
         )}
         {exportError && (
@@ -475,114 +704,18 @@ export default function RiceXuatNSXTMView() {
         )}
       </div>
 
-      {/* ─── Bộ Lọc Tháng & Phân Loại Lúa ──────────────────────────────────── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl bg-white p-3.5 border border-slate-200 shadow-2xs">
-        {/* Month Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          <span className="text-xs font-bold text-slate-500 px-2">Tháng:</span>
-          {availableMonths.map((mKey) => (
-            <button
-              key={mKey}
-              type="button"
-              onClick={() => setSelectedMonthKey(mKey)}
-              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-                selectedMonthKey === mKey
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Tháng {mKey}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setSelectedMonthKey('ALL')}
-            className={`rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-              selectedMonthKey === 'ALL'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Tất cả các tháng
-          </button>
-        </div>
-
-        {/* Search & Rice Category filter */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Lọc loại lúa */}
-          <div className="flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200 text-xs">
-            <button
-              type="button"
-              onClick={() => setFilterType('ALL')}
-              className={`rounded-lg px-2.5 py-1 font-bold cursor-pointer ${
-                filterType === 'ALL' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600'
-              }`}
-            >
-              Tất cả
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType('JAPONICA')}
-              className={`rounded-lg px-2.5 py-1 font-bold cursor-pointer ${
-                filterType === 'JAPONICA' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600'
-              }`}
-            >
-              Japonica (17k)
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType('NEP')}
-              className={`rounded-lg px-2.5 py-1 font-bold cursor-pointer ${
-                filterType === 'NEP' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600'
-              }`}
-            >
-              Nếp (11k)
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType('OTHER')}
-              className={`rounded-lg px-2.5 py-1 font-bold cursor-pointer ${
-                filterType === 'OTHER' ? 'bg-teal-600 text-white shadow-2xs' : 'text-slate-600'
-              }`}
-            >
-              Lúa khác
-            </button>
-          </div>
-
-          {/* Ô tìm kiếm */}
-          <div className="relative">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Tìm khách hàng, số HĐ, loại lúa..."
-              className="w-56 sm:w-64 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1.5 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* ─── BẢNG TỔNG HỢP KPI (KHỚP SHEET 2 CHI LƯƠNG ĐỘI NAM) ───────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {/* Card 1: Tổng tấn */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-            Tổng Số Tấn Xuống
+            Tổng Tấn Xuống
           </div>
           <div className="mt-1 text-2xl font-black text-slate-900">
-            {formatMoney(summary.totalTons)} <span className="text-xs font-bold text-slate-500">tấn</span>
+            {formatVND(summary.totalTons)} <span className="text-xs font-bold text-slate-500">tấn</span>
           </div>
           <div className="mt-1 text-[11px] text-slate-400">
-            {formatMoney(summary.totalKg)} kg • {summary.totalRows} mẻ
+            {formatVND(summary.totalKg)} kg • {summary.totalRows} mẻ
           </div>
         </div>
 
@@ -592,10 +725,10 @@ export default function RiceXuatNSXTMView() {
             Xuất Có Trở (17k)
           </div>
           <div className="mt-1 text-2xl font-black text-blue-900">
-            {formatMoney(summary.tonsCoTro)} <span className="text-xs font-bold text-blue-700">tấn</span>
+            {formatVND(summary.tonsCoTro)} <span className="text-xs font-bold text-blue-700">tấn</span>
           </div>
           <div className="mt-1 text-xs font-bold text-blue-700">
-            = {formatMoney(summary.thanhTienCoTro)} đ
+            = {formatVND(summary.thanhTienCoTro)} đ
           </div>
         </div>
 
@@ -605,10 +738,10 @@ export default function RiceXuatNSXTMView() {
             Xuất Không Trở (11k)
           </div>
           <div className="mt-1 text-2xl font-black text-amber-900">
-            {formatMoney(summary.tonsKhongTro)} <span className="text-xs font-bold text-amber-800">tấn</span>
+            {formatVND(summary.tonsKhongTro)} <span className="text-xs font-bold text-amber-800">tấn</span>
           </div>
           <div className="mt-1 text-xs font-bold text-amber-800">
-            = {formatMoney(summary.thanhTienKhongTro)} đ
+            = {formatVND(summary.thanhTienKhongTro)} đ
           </div>
         </div>
 
@@ -618,10 +751,10 @@ export default function RiceXuatNSXTMView() {
             Chụm Lò (8k & 11k)
           </div>
           <div className="mt-1 text-lg font-black text-rose-900">
-            {formatMoney(summary.tonsChumLua)}t <span className="text-xs font-semibold text-rose-600">(Lúa)</span> + {formatMoney(summary.tonsChumNep)}t <span className="text-xs font-semibold text-rose-600">(Nếp)</span>
+            {formatVND(summary.tonsChumLua)}t <span className="text-xs font-semibold text-rose-600">(Lúa)</span> + {formatVND(summary.tonsChumNep)}t <span className="text-xs font-semibold text-rose-600">(Nếp)</span>
           </div>
           <div className="mt-1 text-xs font-bold text-rose-800">
-            = {formatMoney(summary.thanhTienChumLua + summary.thanhTienChumNep)} đ
+            = {formatVND(summary.thanhTienChumLua + summary.thanhTienChumNep)} đ
           </div>
         </div>
 
@@ -631,10 +764,10 @@ export default function RiceXuatNSXTMView() {
             Vô Bồn (3k)
           </div>
           <div className="mt-1 text-2xl font-black text-purple-900">
-            {formatMoney(summary.tonsVoBon)} <span className="text-xs font-bold text-purple-800">tấn</span>
+            {formatVND(summary.tonsVoBon)} <span className="text-xs font-bold text-purple-800">tấn</span>
           </div>
           <div className="mt-1 text-xs font-bold text-purple-800">
-            = {formatMoney(summary.thanhTienVoBon)} đ
+            = {formatVND(summary.thanhTienVoBon)} đ
           </div>
         </div>
 
@@ -642,252 +775,520 @@ export default function RiceXuatNSXTMView() {
         <div className="rounded-2xl border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 shadow-md">
           <div className="text-[11px] font-black text-emerald-800 uppercase tracking-wider flex items-center justify-between">
             <span>TỔNG CỘNG LƯƠNG</span>
-            {tamUng > 0 && <span className="text-rose-600 text-[10px]">Đã ứng {formatMoney(tamUng)}</span>}
+            {tamUng > 0 && <span className="text-rose-600 text-[10px]">Đã ứng {formatVND(tamUng)}</span>}
           </div>
           <div className="mt-1 text-2xl font-black text-emerald-900">
-            {formatMoney(summary.tongCong)} <span className="text-xs font-bold text-emerald-700">đ</span>
+            {formatVND(summary.tongCong)} <span className="text-xs font-bold text-emerald-700">đ</span>
           </div>
           <div className="mt-1 text-xs font-bold text-emerald-800 flex items-center justify-between">
             <span>Còn lại:</span>
-            <span className="text-sm font-extrabold text-emerald-950 underline">{formatMoney(summary.conLai)} đ</span>
+            <span className="text-sm font-extrabold text-emerald-950 underline">{formatVND(summary.conLai)} đ</span>
           </div>
         </div>
       </div>
 
-      {/* ─── BẢNG KÊ CHI TIẾT (KHỚP SHEET 1) ─────────────────────────────────── */}
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5 bg-slate-50/70">
-          <div className="flex items-center gap-2">
-            <span className="text-base">📋</span>
-            <h2 className="text-sm sm:text-base font-extrabold text-slate-800">
-              Bảng Kê Chi Tiết Xuất Lúa Đội Nam (Tháng {selectedMonthKey})
-            </h2>
-            <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-bold text-slate-700">
-              {filteredEntries.length} mẻ
-            </span>
+      {/* ─── 2 TABS CHUYỂN ĐỔI CHẾ ĐỘ XEM ─────────────────────────────────── */}
+      <div className="flex items-center gap-2 rounded-2xl bg-slate-200/70 p-1.5 w-fit border border-slate-300">
+        <button
+          type="button"
+          onClick={() => setActiveTab('notebook')}
+          className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'notebook'
+              ? 'bg-white text-amber-900 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span>📝</span>
+          <span>Bảng Lương Ngày • Đội Nam ({rows.length} ngày)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('batches')}
+          className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'batches'
+              ? 'bg-white text-blue-900 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span>🌾</span>
+          <span>Chi Tiết Mẻ Lúa Từ File ({monthBatches.length} mẻ • NSX TM)</span>
+        </button>
+      </div>
+
+      {/* ─── TAB 1: BẢNG LƯƠNG NGÀY (SỔ TAY ĐỘI NAM) ───────────────────────── */}
+      {activeTab === 'notebook' && (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5 bg-slate-50/70">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📅</span>
+              <h2 className="text-sm sm:text-base font-extrabold text-slate-800">
+                Sổ Tay Bảng Lương Ngày Đội Nam • Tháng {selectedMonthKey}
+              </h2>
+              <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-bold text-slate-700">
+                {rows.length} ngày
+              </span>
+            </div>
+
+            <div className="text-xs text-slate-500">
+              💡 Bấm nút <strong className="text-amber-800">Cả hai</strong> để nhập đồng thời số tấn Có trở &amp; Không trở mà không bị mất ô nhập!
+            </div>
           </div>
 
-          <div className="text-xs text-slate-500">
-            💡 Có thể nhấp trực tiếp vào ô <strong className="text-slate-800">Số Tấn</strong> để sửa số liệu
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-100/80 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  <th className="py-2.5 px-3 text-center w-12">STT</th>
+                  <th className="py-2.5 px-3">Ngày Xuống Lúa</th>
+                  <th className="py-2.5 px-3 text-center">Số Mẻ &amp; Tấn Gốc</th>
+                  <th className="py-2.5 px-3 text-center w-64">Chế Độ Xuất</th>
+                  <th className="py-2.5 px-3 text-center bg-amber-50/60 text-amber-900 border-x border-amber-200/60">
+                    Tấn Có Trở (17k)
+                  </th>
+                  <th className="py-2.5 px-3 text-center bg-indigo-50/60 text-indigo-900 border-x border-indigo-200/60">
+                    Tấn K.Trở (11k)
+                  </th>
+                  <th className="py-2.5 px-3 text-right">Thành Tiền Xuất</th>
+                  <th className="py-2.5 px-3 text-right text-rose-900">Chụm Lò</th>
+                  <th className="py-2.5 px-3 text-right text-purple-900">Vô Bồn</th>
+                  <th className="py-2.5 px-3 text-right font-black text-slate-900 bg-slate-100">Tổng Ngày</th>
+                  <th className="py-2.5 px-3 text-center w-24">Chi Tiết</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="py-12 text-center text-slate-400">
+                      Không có ngày nào trong tháng này.
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((row, idx) => {
+                    const dayBatches = monthBatches.filter(
+                      (b) => (b.dischargeDate || b.dryDate || b.weighDate) === row.date
+                    );
+                    const originalTons = dayBatches.reduce(
+                      (s, b) => s + (b.roundedTons || roundRiceTons(b.dryWeightKg)),
+                      0
+                    );
+
+                    const rowMode =
+                      row.mode ??
+                      (row.tonsCoTro > 0 && row.tonsKhongTro > 0
+                        ? 'caHai'
+                        : row.tonsKhongTro > 0 && row.tonsCoTro === 0
+                        ? 'khongTro'
+                        : 'coTro');
+
+                    const tienXuat =
+                      row.tonsCoTro * row.priceCoTro + row.tonsKhongTro * row.priceKhongTro;
+
+                    // Tính Chụm lò ngày
+                    let dayChumLua = 0;
+                    let dayChumNep = 0;
+                    dayBatches.forEach((b) => {
+                      const t = b.roundedTons || roundRiceTons(b.dryWeightKg);
+                      if (isNep(b.riceType)) dayChumNep += t;
+                      else dayChumLua += t;
+                    });
+                    const totalTonsRow = row.tonsCoTro + row.tonsKhongTro;
+                    const tienChum = dayChumLua * 8000 + dayChumNep * 11000;
+                    const tienVoBon = totalTonsRow * 3000;
+                    const tongNgay = tienXuat + tienChum + tienVoBon;
+
+                    return (
+                      <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">
+                          {String(idx + 1).padStart(2, '0')}
+                        </td>
+
+                        <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
+                          {row.date || 'Chưa chọn'}
+                        </td>
+
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700">
+                            🌾 {dayBatches.length} mẻ • {originalTons}t gốc
+                          </span>
+                        </td>
+
+                        {/* 3 Nút Chế độ xuất: Có trở | Không trở | Cả hai */}
+                        <td className="py-2 px-3">
+                          <div className="flex items-center p-0.5 rounded-lg bg-slate-100 border border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => handleSetRowMode(row.id, 'coTro', originalTons)}
+                              className={`flex-1 py-1 text-[10px] font-bold rounded-md transition cursor-pointer ${
+                                rowMode === 'coTro'
+                                  ? 'bg-amber-500 text-white shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              🌾 Có trở
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetRowMode(row.id, 'khongTro', originalTons)}
+                              className={`flex-1 py-1 text-[10px] font-bold rounded-md transition cursor-pointer ${
+                                rowMode === 'khongTro'
+                                  ? 'bg-indigo-600 text-white shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              🌾 Không trở
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetRowMode(row.id, 'caHai', originalTons)}
+                              className={`flex-1 py-1 text-[10px] font-bold rounded-md transition cursor-pointer ${
+                                rowMode === 'caHai'
+                                  ? 'bg-emerald-600 text-white shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              ⚖️ Cả hai
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* Tấn Có Trở */}
+                        <td className="py-1 px-2 text-center bg-amber-50/30 border-x border-amber-100">
+                          {rowMode === 'khongTro' ? (
+                            <div
+                              onClick={() => handleSetRowMode(row.id, 'caHai', originalTons)}
+                              className="w-full rounded-md border border-dashed border-slate-200 bg-slate-50/50 py-1 text-center font-bold text-slate-300 cursor-pointer hover:border-amber-400 hover:text-amber-800"
+                              title="Bấm để bật Cả hai"
+                            >
+                              -
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              min={0}
+                              value={row.tonsCoTro === 0 ? '' : row.tonsCoTro}
+                              onChange={(e) => handleTonsChange(row.id, 'coTro', e.target.value)}
+                              placeholder="0"
+                              className="w-20 rounded-md border border-amber-300 bg-white px-2 py-1 text-center font-bold text-amber-900 focus:border-amber-500 focus:outline-hidden"
+                            />
+                          )}
+                        </td>
+
+                        {/* Tấn Không Trở */}
+                        <td className="py-1 px-2 text-center bg-indigo-50/30 border-x border-indigo-100">
+                          {rowMode === 'coTro' ? (
+                            <div
+                              onClick={() => handleSetRowMode(row.id, 'caHai', originalTons)}
+                              className="w-full rounded-md border border-dashed border-slate-200 bg-slate-50/50 py-1 text-center font-bold text-slate-300 cursor-pointer hover:border-indigo-400 hover:text-indigo-800"
+                              title="Bấm để bật Cả hai"
+                            >
+                              -
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              min={0}
+                              value={row.tonsKhongTro === 0 ? '' : row.tonsKhongTro}
+                              onChange={(e) => handleTonsChange(row.id, 'khongTro', e.target.value)}
+                              placeholder="0"
+                              className="w-20 rounded-md border border-indigo-300 bg-white px-2 py-1 text-center font-bold text-indigo-900 focus:border-indigo-500 focus:outline-hidden"
+                            />
+                          )}
+                        </td>
+
+                        {/* Tiền Xuất */}
+                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-slate-900 whitespace-nowrap">
+                          {formatVND(tienXuat)} đ
+                        </td>
+
+                        {/* Chụm lò */}
+                        <td className="py-2.5 px-3 text-right font-mono text-rose-900 whitespace-nowrap">
+                          {formatVND(tienChum)} đ
+                        </td>
+
+                        {/* Vô bồn */}
+                        <td className="py-2.5 px-3 text-right font-mono text-purple-900 whitespace-nowrap">
+                          {formatVND(tienVoBon)} đ
+                        </td>
+
+                        {/* Tổng Ngày */}
+                        <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900 bg-slate-50 whitespace-nowrap">
+                          {formatVND(tongNgay)} đ
+                        </td>
+
+                        {/* Xem chi tiết */}
+                        <td className="py-2 px-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setDetailRow(row)}
+                            className="rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                          >
+                            🔍 {dayBatches.length} mẻ
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
+      )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-100/80 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                <th className="py-2.5 px-3 text-center w-12">STT</th>
-                <th className="py-2.5 px-3 text-center">Số HĐ</th>
-                <th className="py-2.5 px-3">Ngày Cân</th>
-                <th className="py-2.5 px-3">Khách Hàng</th>
-                <th className="py-2.5 px-3">Loại Lúa</th>
-                <th className="py-2.5 px-3 text-right">Cân Nhập (kg)</th>
-                <th className="py-2.5 px-3 text-center bg-amber-50/60 text-amber-900 border-x border-amber-200/60">
-                  Ngày Xuống Lúa
-                </th>
-                <th className="py-2.5 px-3 text-center">PT Chở</th>
-                <th className="py-2.5 px-3 text-right bg-emerald-50/60 text-emerald-900 border-x border-emerald-200/60">
-                  Số Tấn
-                </th>
-                <th className="py-2.5 px-3 text-right text-blue-900">Xuất Có Trở (17k)</th>
-                <th className="py-2.5 px-3 text-right text-amber-900">Xuất K.Trở (11k)</th>
-                <th className="py-2.5 px-3 text-right text-rose-900">Chụm Lò</th>
-                <th className="py-2.5 px-3 text-right text-purple-900">Vô Bồn (3k)</th>
-                <th className="py-2.5 px-3 text-right font-black text-slate-900 bg-slate-100">Thành Tiền</th>
-                <th className="py-2.5 px-3">Ghi Chú</th>
-                <th className="py-2.5 px-2 text-center w-10">Thao Tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredEntries.length === 0 ? (
-                <tr>
-                  <td colSpan={16} className="py-12 text-center text-slate-400">
-                    Không tìm thấy mẻ xuất lúa nào phù hợp với bộ lọc.
-                  </td>
+      {/* ─── TAB 2: CHI TIẾT MẺ LÚA TỪ FILE (ĐẦY ĐỦ NHƯ CS1) ───────────────── */}
+      {activeTab === 'batches' && (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5 bg-slate-50/70">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🌾</span>
+              <h2 className="text-sm sm:text-base font-extrabold text-slate-800">
+                Toàn Bộ Mẻ Lúa Thực Tế NSX TM • Tháng {selectedMonthKey}
+              </h2>
+              <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-bold text-slate-700">
+                {fullMonthEntries.length} mẻ
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleAutoClassifyByRiceType}
+                className="rounded-xl bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+              >
+                ⚡ Gán Tự Động Theo Giống Lúa
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-100/80 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  <th className="py-2.5 px-3 text-center w-12">STT</th>
+                  <th className="py-2.5 px-3">Mã Lô</th>
+                  <th className="py-2.5 px-3">Khách Hàng</th>
+                  <th className="py-2.5 px-3">Giống Lúa</th>
+                  <th className="py-2.5 px-3 text-right">Cân Nhập (kg)</th>
+                  <th className="py-2.5 px-3 text-center bg-amber-50/60 text-amber-900 border-x border-amber-200/60">
+                    Ngày Xuống Lúa
+                  </th>
+                  <th className="py-2.5 px-3 text-center">PT Chở</th>
+                  <th className="py-2.5 px-3 text-right bg-emerald-50/60 text-emerald-900 border-x border-emerald-200/60">
+                    Số Tấn
+                  </th>
+                  <th className="py-2.5 px-3 text-center">Phân Loại Xuất</th>
+                  <th className="py-2.5 px-3 text-right">Đơn Giá Xuất</th>
+                  <th className="py-2.5 px-3 text-right text-rose-900">Chụm Lò</th>
+                  <th className="py-2.5 px-3 text-right text-purple-900">Vô Bồn</th>
+                  <th className="py-2.5 px-3 text-right font-black text-slate-900 bg-slate-100">Thành Tiền</th>
                 </tr>
-              ) : (
-                filteredEntries.map((row, idx) => {
-                  const japonica = isJaponica(row.loaiLua);
-                  const nep = isNep(row.loaiLua);
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {fullMonthEntries.length === 0 ? (
+                  <tr>
+                    <td colSpan={13} className="py-12 text-center text-slate-400">
+                      Không có mẻ lúa NSX TM nào trong tháng {selectedMonthKey}.
+                    </td>
+                  </tr>
+                ) : (
+                  fullMonthEntries.map((row, idx) => {
+                    const japonica = isJaponica(row.loaiLua);
+                    const nep = isNep(row.loaiLua);
+                    const isCoTro = row.donGiaCoTro > 0;
 
-                  return (
-                    <tr
-                      key={row.id}
-                      className="hover:bg-slate-50/80 transition-colors group"
-                    >
-                      {/* STT */}
-                      <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">
-                        {String(idx + 1).padStart(2, '0')}
-                      </td>
+                    return (
+                      <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">
+                          {String(idx + 1).padStart(2, '0')}
+                        </td>
 
-                      {/* Số HĐ */}
-                      <td className="py-2.5 px-3 text-center font-bold text-slate-800">
-                        {row.soHD || '-'}
-                      </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-slate-800">
+                          {row.maLo || '-'}
+                        </td>
 
-                      {/* Ngày Cân */}
-                      <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
-                        {row.ngayCan || '-'}
-                      </td>
+                        <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
+                          {row.khachHang}
+                        </td>
 
-                      {/* Khách Hàng */}
-                      <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
-                        {row.khachHang}
-                      </td>
-
-                      {/* Loại Lúa (Badge) */}
-                      <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span
-                          className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-bold ${
-                            japonica
-                              ? 'bg-blue-100 text-blue-900 border border-blue-300'
-                              : nep
-                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                              : 'bg-teal-100 text-teal-900 border border-teal-300'
-                          }`}
-                        >
-                          {row.loaiLua}
-                        </span>
-                      </td>
-
-                      {/* Cân Nhập Sấy (kg) */}
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-600 whitespace-nowrap">
-                        {row.canNhapSayKg ? formatMoney(row.canNhapSayKg) : '-'}
-                      </td>
-
-                      {/* Ngày Xuống Lúa Khô */}
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap font-bold text-amber-900 bg-amber-50/30 border-x border-amber-100">
-                        {row.ngayXuongLuaKho || '-'}
-                      </td>
-
-                      {/* Phương tiện chở */}
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap text-slate-600">
-                        {row.phuongTienChoLuaKho || 'VÔ BỒN'}
-                      </td>
-
-                      {/* Số Tấn (Cho phép sửa trực tiếp) */}
-                      <td className="py-1 px-2 text-right bg-emerald-50/30 border-x border-emerald-100">
-                        <input
-                          type="number"
-                          value={row.soLuongTan}
-                          onChange={(e) =>
-                            handleUpdateEntry(row.id, 'soLuongTan', parseFloat(e.target.value) || 0)
-                          }
-                          className="w-16 rounded-md border border-transparent hover:border-slate-300 focus:border-emerald-500 bg-transparent px-1.5 py-1 text-right font-bold text-emerald-900 focus:bg-white focus:outline-hidden"
-                          title="Nhấp để sửa số tấn"
-                        />
-                      </td>
-
-                      {/* Xuất có trở (17k) */}
-                      <td className="py-2.5 px-3 text-right text-blue-900 font-mono whitespace-nowrap">
-                        {row.thanhTienCoTro > 0 ? (
-                          <span title={`${row.soLuongTan} tấn × 17.000 đ`}>
-                            {formatMoney(row.thanhTienCoTro)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300">-</span>
-                        )}
-                      </td>
-
-                      {/* Xuất không trở (11k) */}
-                      <td className="py-2.5 px-3 text-right text-amber-900 font-mono whitespace-nowrap">
-                        {row.thanhTienKhongTro > 0 ? (
-                          <span title={`${row.soLuongTan} tấn × 11.000 đ`}>
-                            {formatMoney(row.thanhTienKhongTro)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300">-</span>
-                        )}
-                      </td>
-
-                      {/* Chụm lò */}
-                      <td className="py-2.5 px-3 text-right text-rose-900 font-mono whitespace-nowrap">
-                        {row.thanhTienChum > 0 ? (
+                        <td className="py-2.5 px-3 whitespace-nowrap">
                           <span
-                            title={`${row.soLuongTan} tấn × ${
-                              row.donGiaChumNep > 0 ? '11.000 (Nếp)' : '8.000 (Lúa)'
+                            className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-bold ${
+                              japonica
+                                ? 'bg-blue-100 text-blue-900 border border-blue-300'
+                                : nep
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                : 'bg-teal-100 text-teal-900 border border-teal-300'
                             }`}
                           >
-                            {formatMoney(row.thanhTienChum)}
+                            {row.loaiLua}
                           </span>
-                        ) : (
-                          <span className="text-slate-300">-</span>
-                        )}
-                      </td>
+                        </td>
 
-                      {/* Vô bồn (3k) */}
-                      <td className="py-2.5 px-3 text-right text-purple-900 font-mono whitespace-nowrap">
-                        {row.thanhTienVoBon > 0 ? (
-                          <span title={`${row.soLuongTan} tấn × 3.000 đ`}>
-                            {formatMoney(row.thanhTienVoBon)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300">-</span>
-                        )}
-                      </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-600 whitespace-nowrap">
+                          {row.canNhapSayKg ? formatVND(row.canNhapSayKg) : '-'}
+                        </td>
 
-                      {/* Tổng thành tiền */}
-                      <td className="py-2.5 px-3 text-right font-black text-slate-900 font-mono bg-slate-50 whitespace-nowrap">
-                        {formatMoney(row.tongThanhTien)}
-                      </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap font-bold text-amber-900 bg-amber-50/30 border-x border-amber-100">
+                          {row.ngayXuongLuaKho || '-'}
+                        </td>
 
-                      {/* Ghi chú */}
-                      <td className="py-2.5 px-3 text-slate-500 max-w-[150px] truncate" title={row.ghiChu}>
-                        {row.ghiChu || '-'}
-                      </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap text-slate-600">
+                          {row.phuongTienChoLuaKho || 'VÔ BỒN'}
+                        </td>
 
-                      {/* Thao tác xóa */}
-                      <td className="py-2.5 px-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteEntry(row.id)}
-                          className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-600 transition cursor-pointer p-1"
-                          title="Xóa mẻ này"
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-            {filteredEntries.length > 0 && (
-              <tfoot>
-                <tr className="border-t-2 border-slate-300 bg-amber-50/40 font-bold text-slate-900">
-                  <td colSpan={5} className="py-3 px-3 text-center uppercase tracking-wider text-xs">
-                    TỔNG CỘNG:
-                  </td>
-                  <td className="py-3 px-3 text-right font-mono text-xs">
-                    {formatMoney(summary.totalKg)}
-                  </td>
-                  <td className="py-3 px-3"></td>
-                  <td className="py-3 px-3"></td>
-                  <td className="py-3 px-3 text-right font-mono text-xs font-black text-emerald-900">
-                    {formatMoney(summary.totalTons)}
-                  </td>
-                  <td className="py-3 px-3 text-right font-mono text-xs text-blue-900">
-                    {formatMoney(summary.thanhTienCoTro)}
-                  </td>
-                  <td className="py-3 px-3 text-right font-mono text-xs text-amber-900">
-                    {formatMoney(summary.thanhTienKhongTro)}
-                  </td>
-                  <td className="py-3 px-3 text-right font-mono text-xs text-rose-900">
-                    {formatMoney(summary.thanhTienChumLua + summary.thanhTienChumNep)}
-                  </td>
-                  <td className="py-3 px-3 text-right font-mono text-xs text-purple-900">
-                    {formatMoney(summary.thanhTienVoBon)}
-                  </td>
-                  <td className="py-3 px-3 text-right font-mono text-sm font-black text-emerald-950 bg-amber-100/50">
-                    {formatMoney(summary.tongCong)} đ
-                  </td>
-                  <td colSpan={2}></td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
+                        {/* Sửa số tấn mẻ trực tiếp */}
+                        <td className="py-1 px-2 text-right bg-emerald-50/30 border-x border-emerald-100">
+                          <input
+                            type="number"
+                            min={0}
+                            value={row.soLuongTan}
+                            onChange={(e) =>
+                              handleBatchTonsChange(row.id, parseFloat(e.target.value) || 0)
+                            }
+                            className="w-16 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-right font-bold text-emerald-900 focus:border-emerald-500 focus:outline-hidden"
+                          />
+                        </td>
+
+                        {/* Toggle Có trở / Không trở */}
+                        <td className="py-2 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleBatchToggleCoTro(row.id, isCoTro)}
+                            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+                              isCoTro
+                                ? 'bg-blue-600 text-white shadow-2xs'
+                                : 'bg-amber-500 text-white shadow-2xs'
+                            }`}
+                          >
+                            {isCoTro ? '🌾 Có trở (17k)' : '🌾 Không trở (11k)'}
+                          </button>
+                        </td>
+
+                        <td className="py-2.5 px-3 text-right font-mono whitespace-nowrap">
+                          {formatVND(isCoTro ? row.thanhTienCoTro : row.thanhTienKhongTro)} đ
+                        </td>
+
+                        <td className="py-2.5 px-3 text-right font-mono text-rose-900 whitespace-nowrap">
+                          {formatVND(row.thanhTienChum)} đ
+                        </td>
+
+                        <td className="py-2.5 px-3 text-right font-mono text-purple-900 whitespace-nowrap">
+                          {formatVND(row.thanhTienVoBon)} đ
+                        </td>
+
+                        <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900 bg-slate-50 whitespace-nowrap">
+                          {formatVND(row.tongThanhTien)} đ
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ─── MODAL XEM CHI TIẾT CÁC MẺ TRONG 1 NGÀY ──────────────────────────── */}
+      {detailRow && (
+        <div
+          onClick={() => setDetailRow(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  🌾 Chi Tiết Mẻ Xuống Lúa Ngày {detailRow.date}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Các mẻ lúa thực tế của ngày này tại Nhà máy NSX Tân Mỹ
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailRow(null)}
+                className="text-slate-400 hover:text-slate-600 text-base font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-4 flex-1 overflow-y-auto">
+              {monthBatches.filter(
+                (b) => (b.dischargeDate || b.dryDate || b.weighDate) === detailRow.date
+              ).length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  Không có mẻ nào trong file lúa vào ngày này.
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700">
+                      <th className="py-2 px-3">Mã Lô</th>
+                      <th className="py-2 px-3">Khách Hàng</th>
+                      <th className="py-2 px-3">Giống Lúa</th>
+                      <th className="py-2 px-3 text-right">Cân Nhập (kg)</th>
+                      <th className="py-2 px-3 text-right">Số Tấn</th>
+                      <th className="py-2 px-3 text-center">Phân Loại</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {monthBatches
+                      .filter((b) => (b.dischargeDate || b.dryDate || b.weighDate) === detailRow.date)
+                      .map((b) => {
+                        const ov = batchOverrides[b.id];
+                        const t = ov?.tons ?? (b.roundedTons || roundRiceTons(b.dryWeightKg));
+                        const isCo = ov?.isCoTro ?? isJaponica(b.riceType);
+
+                        return (
+                          <tr key={b.id}>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">
+                              {b.batchCode}
+                            </td>
+                            <td className="py-2 px-3 font-bold text-slate-900">{b.customerName}</td>
+                            <td className="py-2 px-3">{b.riceType}</td>
+                            <td className="py-2 px-3 text-right font-mono">
+                              {formatVND(b.dryWeightKg)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-emerald-800">
+                              {t}t
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span
+                                className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                                  isCo
+                                    ? 'bg-blue-100 text-blue-900'
+                                    : 'bg-amber-100 text-amber-900'
+                                }`}
+                              >
+                                {isCo ? 'Có trở (17k)' : 'Không trở (11k)'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="mt-4 flex justify-end border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setDetailRow(null)}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── MODAL CẤU HÌNH CHỮ KÝ & TẠM ỨNG ──────────────────────────────────── */}
       {showConfigModal && (
@@ -901,7 +1302,7 @@ export default function RiceXuatNSXTMView() {
           >
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-extrabold text-slate-900">
-                ⚙️ Cấu Hình Chữ Ký & Tạm Ứng
+                ⚙️ Cấu Hình Chữ Ký &amp; Tạm Ứng
               </h3>
               <button
                 type="button"
@@ -915,7 +1316,7 @@ export default function RiceXuatNSXTMView() {
             <div className="mt-4 space-y-4 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Người lập bảng (Ký ở cuối Sheet 1):
+                  Người lập bảng (Ký cuối Sheet 1):
                 </label>
                 <input
                   type="text"
@@ -950,7 +1351,7 @@ export default function RiceXuatNSXTMView() {
               </div>
 
               <div className="rounded-xl bg-slate-50 p-3 text-slate-500 leading-relaxed">
-                ℹ️ Các thông tin này sẽ được in trực tiếp vào 2 Sheet của file Excel khi bạn nhấn <strong>Xuất File Excel</strong>.
+                ℹ️ Thông tin này được ghi trực tiếp vào 2 Sheet của file Excel khi bạn nhấn <strong>Xuất File Excel</strong>.
               </div>
             </div>
 
@@ -960,157 +1361,9 @@ export default function RiceXuatNSXTMView() {
                 onClick={() => setShowConfigModal(false)}
                 className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white hover:bg-amber-700 transition cursor-pointer"
               >
-                Lưu & Đóng
+                Lưu &amp; Đóng
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── MODAL THÊM MẺ THỦ CÔNG ───────────────────────────────────────────── */}
-      {showAddModal && (
-        <div
-          onClick={() => setShowAddModal(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl border border-slate-200"
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-extrabold text-slate-900">
-                ➕ Thêm Mẻ Xuống Lúa Khô Mới
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-base font-bold cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleAddManualEntry} className="mt-4 space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Số HĐ:</label>
-                  <input
-                    type="text"
-                    value={manualSoHD}
-                    onChange={(e) => setManualSoHD(e.target.value)}
-                    placeholder="ví dụ: 01, 02, 08"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-medium text-slate-900 focus:border-amber-500 focus:outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Ngày Xuống Lúa:</label>
-                  <input
-                    type="text"
-                    value={manualNgayXuong}
-                    onChange={(e) => setManualNgayXuong(e.target.value)}
-                    placeholder="DD/MM/YYYY"
-                    required
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-medium text-slate-900 focus:border-amber-500 focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Tên Khách Hàng:</label>
-                <input
-                  type="text"
-                  value={manualKhachHang}
-                  onChange={(e) => setManualKhachHang(e.target.value)}
-                  placeholder="ví dụ: VŨ THÔNG BÌNH, HẢI HÂN..."
-                  required
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-medium text-slate-900 focus:border-amber-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Loại Lúa:</label>
-                  <select
-                    value={manualLoaiLua}
-                    onChange={(e) => setManualLoaiLua(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-bold text-slate-900 focus:border-amber-500 focus:outline-hidden cursor-pointer"
-                  >
-                    <option value="NẾP CPC">NẾP CPC (Xuất 11k, Chụm 11k)</option>
-                    <option value="NẾP">NẾP (Xuất 11k, Chụm 11k)</option>
-                    <option value="JAPONICA-DS1">JAPONICA-DS1 (Có trở 17k, Chụm 8k)</option>
-                    <option value="JAPONICA">JAPONICA (Có trở 17k, Chụm 8k)</option>
-                    <option value="ST25 ĐL">ST25 ĐL (Xuất 11k, Chụm 8k)</option>
-                    <option value="OM18">OM18 (Xuất 11k, Chụm 8k)</option>
-                    <option value="LÚA THƯỜNG">LÚA THƯỜNG (Xuất 11k, Chụm 8k)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Phương Tiện Chở:</label>
-                  <input
-                    type="text"
-                    value={manualPhuongTien}
-                    onChange={(e) => setManualPhuongTien(e.target.value)}
-                    placeholder="Mặc định: VÔ BỒN"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-medium text-slate-900 focus:border-amber-500 focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Cân Nhập Sấy (kg):</label>
-                  <input
-                    type="number"
-                    value={manualKg}
-                    onChange={(e) => {
-                      setManualKg(e.target.value);
-                      const kgVal = parseFloat(e.target.value) || 0;
-                      setManualTan(String(Math.round(kgVal / 1000)));
-                    }}
-                    placeholder="ví dụ: 75125"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-slate-900 focus:border-amber-500 focus:outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Số Tấn Quy Đổi:</label>
-                  <input
-                    type="number"
-                    value={manualTan}
-                    onChange={(e) => setManualTan(e.target.value)}
-                    placeholder="Làm tròn từ kg"
-                    required
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-bold text-emerald-800 focus:border-amber-500 focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Ghi Chú:</label>
-                <input
-                  type="text"
-                  value={manualGhiChu}
-                  onChange={(e) => setManualGhiChu(e.target.value)}
-                  placeholder="Ghi chú thêm nếu có..."
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-medium text-slate-900 focus:border-amber-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div className="mt-5 flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition cursor-pointer shadow-xs"
-                >
-                  Thêm Mẻ
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

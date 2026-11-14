@@ -175,4 +175,55 @@ describe('Rice Payroll: Thuật toán Subset Sum Ghép Mẻ Lúa', () => {
     expect(reconciliation.isMatched).toBe(false);
     expect(reconciliation.batchesCoTro).toHaveLength(0);
   });
+
+  it('ở chế độ Cả hai, khi sửa số lượng 1 bên (kể cả xóa tạm về 0), bên còn lại vẫn được bảo toàn nguyên vẹn', () => {
+    // Mô phỏng logic handleTonsChange với mode: 'caHai'
+    let row = {
+      tonsCoTro: 168,
+      tonsKhongTro: 253,
+      mode: 'caHai' as 'coTro' | 'khongTro' | 'caHai',
+    };
+
+    // User sửa số tấn Có trở thành 0 (hoặc xóa để gõ số mới)
+    const updateTons = (field: 'coTro' | 'khongTro', val: number) => {
+      const currentMode = row.mode ?? 'caHai';
+      let newCo = row.tonsCoTro;
+      let newKhong = row.tonsKhongTro;
+
+      if (currentMode === 'coTro') {
+        newCo = val;
+        newKhong = 0;
+      } else if (currentMode === 'khongTro') {
+        newKhong = val;
+        newCo = 0;
+      } else {
+        // caHai: sửa độc lập
+        if (field === 'coTro') newCo = val;
+        else newKhong = val;
+      }
+
+      row = {
+        ...row,
+        tonsCoTro: newCo,
+        tonsKhongTro: newKhong,
+        mode: currentMode,
+      };
+    };
+
+    // Sửa Có trở về 0
+    updateTons('coTro', 0);
+    expect(row.tonsCoTro).toBe(0);
+    expect(row.tonsKhongTro).toBe(253); // Không bao giờ bị mất!
+    expect(row.mode).toBe('caHai');
+
+    // Sau đó gõ số mới vào Có trở
+    updateTons('coTro', 150);
+    expect(row.tonsCoTro).toBe(150);
+    expect(row.tonsKhongTro).toBe(253); // Vẫn giữ nguyên!
+
+    // Sửa Không trở
+    updateTons('khongTro', 300);
+    expect(row.tonsCoTro).toBe(150);
+    expect(row.tonsKhongTro).toBe(300);
+  });
 });

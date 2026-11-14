@@ -43,9 +43,28 @@ export function isCoSo2(facility?: string | null): boolean {
 }
 
 /**
- * Bộ lọc theo cơ sở được chọn (CS1 hoặc CS2)
+ * Bộ lọc địa điểm sấy cho Đội Nam (Nhà máy NSX Tân Mỹ / ĐTM)
  */
-export function isFacilityMatch(facility?: string | null, facilityKey: 'CS1' | 'CS2' = 'CS1'): boolean {
+export function isNSXTM(facility?: string | null): boolean {
+  if (!facility) return false;
+  const f = facility.toUpperCase().trim();
+  return (
+    f.includes('NSX TM') ||
+    f.includes('NSX ĐTM') ||
+    f.includes('CCĐTM') ||
+    f.includes('TÂN MỸ') ||
+    f.includes('TM')
+  );
+}
+
+/**
+ * Bộ lọc theo cơ sở được chọn (CS1, CS2 hoặc NSX TM)
+ */
+export function isFacilityMatch(
+  facility?: string | null,
+  facilityKey: 'CS1' | 'CS2' | 'NSX_TM' = 'CS1'
+): boolean {
+  if (facilityKey === 'NSX_TM') return isNSXTM(facility);
   return facilityKey === 'CS2' ? isCoSo2(facility) : isCoSo1(facility);
 }
 

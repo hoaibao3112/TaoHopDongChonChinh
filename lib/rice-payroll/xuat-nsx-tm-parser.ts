@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { XuatNSXTMEntry, XuatNSXTMSummary } from './xuat-nsx-tm-types';
+import { RiceBatch } from './types';
 import { roundRiceTons } from './rounding';
 import { formatExcelDate } from './excel-parser';
 
@@ -22,6 +23,74 @@ export function isNSXTM(facility: string): boolean {
     norm.includes('TÂN MỸ') ||
     norm.includes('TM')
   );
+}
+
+/**
+ * Chuyển đổi từ mẻ sấy chung (RiceBatch) sang dòng mẻ Xuất NSX TM
+ */
+export function batchToXuatNSXTMEntry(
+  batch: RiceBatch,
+  override?: { isCoTro?: boolean; tons?: number }
+): XuatNSXTMEntry {
+  const tons = override?.tons !== undefined ? override.tons : (batch.roundedTons || roundRiceTons(batch.dryWeightKg));
+  const isCoTro = override?.isCoTro !== undefined ? override.isCoTro : isJaponica(batch.riceType);
+  const nep = isNep(batch.riceType);
+
+  let donGiaCoTro = 0;
+  let donGiaKhongTro = 0;
+  let donGiaChumLua = 0;
+  let donGiaChumNep = 0;
+
+  if (isCoTro) {
+    donGiaCoTro = 17000;
+  } else {
+    donGiaKhongTro = 11000;
+  }
+
+  if (nep) {
+    donGiaChumNep = 11000;
+  } else {
+    donGiaChumLua = 8000;
+  }
+
+  const donGiaVoBon = 3000;
+  const thanhTienCoTro = tons * donGiaCoTro;
+  const thanhTienKhongTro = tons * donGiaKhongTro;
+  const thanhTienChum = tons * (donGiaChumLua || donGiaChumNep);
+  const thanhTienVoBon = tons * donGiaVoBon;
+  const tongThanhTien = thanhTienCoTro + thanhTienKhongTro + thanhTienChum + thanhTienVoBon;
+
+  const bAny = batch as any;
+  return {
+    id: batch.id,
+    soHD: bAny.soHD || '',
+    ngayCan: batch.weighDate || '',
+    nhanVienThuMua: batch.purchaser || '',
+    khachHang: batch.customerName || '',
+    loaiLua: batch.riceType || '',
+    maLo: batch.batchCode || '',
+    soLuongKg: bAny.soLuongKg || batch.freshWeightKg || 0,
+    phuongTienTangBo: bAny.phuongTienTangBo || batch.freshBoVehicle || batch.vehicleName || '',
+    ngayNhapSay: batch.dryDate || '',
+    diaDiemSay: batch.dryFacility || 'NSX TM',
+    ghiChuCanNhap: bAny.ghiChuCanNhap || '',
+    canNhapSayKg: batch.dryWeightKg || 0,
+    ngayXuongLuaKho: batch.dischargeDate || batch.dryDate || batch.weighDate || '',
+    soLieuLuaKhoKg: bAny.soLieuLuaKhoKg || 0,
+    phuongTienChoLuaKho: batch.dryVehicle || 'VÔ BỒN',
+    soLuongTan: tons,
+    donGiaCoTro,
+    thanhTienCoTro,
+    donGiaKhongTro,
+    thanhTienKhongTro,
+    donGiaChumLua,
+    donGiaChumNep,
+    thanhTienChum,
+    donGiaVoBon,
+    thanhTienVoBon,
+    ghiChu: '',
+    tongThanhTien,
+  };
 }
 
 /**
@@ -311,3 +380,4 @@ export function parseXuatNSXTMWorkbook(wb: XLSX.WorkBook): XuatNSXTMEntry[] {
 
   return entries;
 }
+

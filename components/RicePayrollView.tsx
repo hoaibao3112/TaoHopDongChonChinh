@@ -40,6 +40,7 @@ interface DayRow {
   status: 'idle' | 'loading' | 'matched' | 'mismatch' | 'error';
   result: DailyReconciliationResult | null;
   errorMsg: string;
+  mode?: 'coTro' | 'khongTro' | 'caHai';
 }
 
 function newRow(date = ''): DayRow {
@@ -53,6 +54,7 @@ function newRow(date = ''): DayRow {
     status: 'idle',
     result: null,
     errorMsg: '',
+    mode: 'coTro',
   };
 }
 
@@ -151,7 +153,9 @@ export default function RicePayrollView() {
   // ── Lựa chọn Cơ sở / Đội ──
   const [selectedFacilityKey, setSelectedFacilityKey] = useState<'CS1' | 'CS2'>('CS1');
   const selectedFacilityRef = useRef<'CS1' | 'CS2'>('CS1');
-  selectedFacilityRef.current = selectedFacilityKey;
+  useEffect(() => {
+    selectedFacilityRef.current = selectedFacilityKey;
+  }, [selectedFacilityKey]);
 
   const selectedFacility = selectedFacilityKey === 'CS2' ? 'Cơ sở II' : 'Cơ sở I';
   const selectedTeamName =
@@ -213,10 +217,18 @@ export default function RicePayrollView() {
           tonsKhong = 0;
         }
 
+        const initialMode: 'coTro' | 'khongTro' | 'caHai' =
+          tonsCo > 0 && tonsKhong > 0
+            ? 'caHai'
+            : tonsKhong > 0
+            ? 'khongTro'
+            : 'coTro';
+
         return {
           ...newRow(d),
           tonsCoTro: tonsCo,
           tonsKhongTro: tonsKhong,
+          mode: initialMode,
           priceCoTro: masterPriceCoTro,
           priceKhongTro: masterPriceKhongTro,
         };
@@ -291,6 +303,7 @@ export default function RicePayrollView() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData(true);
   }, [loadData]);
 
@@ -437,17 +450,18 @@ export default function RicePayrollView() {
       const dayBatches = monthBatches.filter((b) => b.dischargeDate === targetRow.date);
       const fileBaseTons = dayBatches.reduce((s, b) => s + (b.roundedTons || roundRiceTons(b.dryWeightKg)), 0);
 
-      // Xác định mode hiện tại của dòng
-      const currentMode =
-        targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro === 0
-          ? 'coTro'
+      // Ưu tiên mode đã lưu trong targetRow.mode (nếu user đã chọn Có trở / Không trở / Cả hai)
+      const currentMode: 'coTro' | 'khongTro' | 'caHai' =
+        targetRow.mode ??
+        (targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro > 0
+          ? 'caHai'
           : targetRow.tonsKhongTro > 0 && targetRow.tonsCoTro === 0
           ? 'khongTro'
-          : targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro > 0
-          ? 'caHai'
+          : targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro === 0
+          ? 'coTro'
           : field === 'coTro'
           ? 'coTro'
-          : 'khongTro';
+          : 'khongTro');
 
       let newCo = targetRow.tonsCoTro;
       let newKhong = targetRow.tonsKhongTro;
@@ -459,7 +473,7 @@ export default function RicePayrollView() {
         newKhong = val;
         newCo = 0;
       } else {
-        // 'caHai'
+        // 'caHai': Cho phép sửa độc lập từng ô, không bao giờ tự động xóa ô còn lại
         if (field === 'coTro') {
           newCo = val;
         } else {
@@ -498,6 +512,7 @@ export default function RicePayrollView() {
                 ...r,
                 tonsCoTro: newCo,
                 tonsKhongTro: newKhong,
+                mode: currentMode,
                 status: 'idle',
                 errorMsg: '',
               }
@@ -547,6 +562,7 @@ export default function RicePayrollView() {
             ...r,
             tonsCoTro: sumCo,
             tonsKhongTro: sumKhong,
+            mode: sumCo > 0 && sumKhong > 0 ? 'caHai' : sumKhong > 0 ? 'khongTro' : 'coTro',
             status: 'idle',
             errorMsg: '',
           };
@@ -595,6 +611,7 @@ export default function RicePayrollView() {
               ...r,
               tonsCoTro: sumCo,
               tonsKhongTro: sumKhong,
+              mode: sumCo > 0 && sumKhong > 0 ? 'caHai' : sumKhong > 0 ? 'khongTro' : 'coTro',
               status: 'idle',
               errorMsg: '',
             };
@@ -640,6 +657,7 @@ export default function RicePayrollView() {
                 ...r,
                 tonsCoTro: newCo,
                 tonsKhongTro: newKhong,
+                mode: newMode,
                 status: 'idle',
                 errorMsg: '',
               }
@@ -702,6 +720,7 @@ export default function RicePayrollView() {
               ...r,
               tonsCoTro: sumCo,
               tonsKhongTro: sumKhong,
+              mode: sumCo > 0 && sumKhong > 0 ? 'caHai' : sumKhong > 0 ? 'khongTro' : 'coTro',
               status: 'idle',
               errorMsg: '',
             };
@@ -736,6 +755,7 @@ export default function RicePayrollView() {
             ...r,
             tonsCoTro: newIsCoTro ? dayTons : 0,
             tonsKhongTro: newIsCoTro ? 0 : dayTons,
+            mode: newIsCoTro ? 'coTro' : 'khongTro',
             status: 'idle',
             errorMsg: '',
           };
@@ -1392,13 +1412,12 @@ export default function RicePayrollView() {
 
                 // Xác định chế độ xuất: 'coTro' (chỉ có trở) | 'khongTro' (chỉ không trở) | 'caHai' (vừa có vừa không)
                 const rowMode: 'coTro' | 'khongTro' | 'caHai' =
-                  row.tonsCoTro > 0 && row.tonsKhongTro === 0
-                    ? 'coTro'
+                  row.mode ??
+                  (row.tonsCoTro > 0 && row.tonsKhongTro > 0
+                    ? 'caHai'
                     : row.tonsKhongTro > 0 && row.tonsCoTro === 0
                     ? 'khongTro'
-                    : row.tonsCoTro > 0 && row.tonsKhongTro > 0
-                    ? 'caHai'
-                    : 'coTro';
+                    : 'coTro');
 
                 return (
                   <tr
@@ -1812,13 +1831,12 @@ export default function RicePayrollView() {
 
             // Xác định chế độ xuất: 'coTro' | 'khongTro' | 'caHai'
             const rowMode: 'coTro' | 'khongTro' | 'caHai' =
-              row.tonsCoTro > 0 && row.tonsKhongTro === 0
-                ? 'coTro'
+              row.mode ??
+              (row.tonsCoTro > 0 && row.tonsKhongTro > 0
+                ? 'caHai'
                 : row.tonsKhongTro > 0 && row.tonsCoTro === 0
                 ? 'khongTro'
-                : row.tonsCoTro > 0 && row.tonsKhongTro > 0
-                ? 'caHai'
-                : 'coTro';
+                : 'coTro');
 
             return (
               <div key={row.id} className={`p-4 space-y-3 ${diffTons !== 0 ? 'bg-blue-50/20' : ''}`}>

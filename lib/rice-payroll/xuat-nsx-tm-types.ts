@@ -72,3 +72,4 @@ export interface XuatNSXTMExportPayload {
   nguoiXacNhan?: string;        // Mặc định "Huỳnh Anh Phát Thịnh"
   tamUng?: number;
 }
+
