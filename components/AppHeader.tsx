@@ -23,6 +23,7 @@ export default function AppHeader() {
   const isNhapSay = pathname === '/nhap-say';
   const isNhapSayCS1 = pathname.startsWith('/nhap-say-cs1');
   const isNhapSayTM = pathname.startsWith('/nhap-say-tm');
+  const isXuatNSXTM = pathname.startsWith('/xuat-nsx-tm');
   const isChumLo = pathname.startsWith('/chum-lo');
   const isXuatTrau = pathname.startsWith('/xuat-trau');
 
@@ -118,6 +119,21 @@ export default function AppHeader() {
                   <span>🌾</span>
                   <span>Nhập Sấy NSX TM</span>
                   <span className="rounded-full bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 font-bold shadow-2xs">
+                    Mới
+                  </span>
+                </Link>
+
+                <Link
+                  href="/xuat-nsx-tm"
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                    isXuatNSXTM
+                      ? 'bg-white text-amber-800 shadow-xs ring-1 ring-amber-500/30'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  }`}
+                >
+                  <span>🚛</span>
+                  <span>Xuất NSX TM</span>
+                  <span className="rounded-full bg-amber-600 text-white text-[10px] px-1.5 py-0.5 font-bold shadow-2xs">
                     Mới
                   </span>
                 </Link>
