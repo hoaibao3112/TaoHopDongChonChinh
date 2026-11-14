@@ -313,49 +313,73 @@ export async function POST(req: NextRequest) {
 
       // Col J: ĐƠN GIÁ XUẤT CÓ TRỞ
       if (row.donGiaCoTro > 0) {
-        setCell(ws1, `J${r}`, 'n', row.donGiaCoTro, styleMoney());
+        setCell(ws1, `J${r}`, 'n', row.donGiaCoTro, styleMoney(), FMT_MONEY);
       } else {
-        setCell(ws1, `J${r}`, 's', '', styleData('center'));
+        setCell(ws1, `J${r}`, 'n', 0, styleMoney(), FMT_MONEY);
       }
-      // Col K: THÀNH TIỀN GIÁ XUẤT CÓ TRỞ = I * J
-      setCell(ws1, `K${r}`, 'n', row.thanhTienCoTro || 0, styleMoney(), FMT_MONEY, `I${r}*J${r}`);
+      // Col K: THÀNH TIỀN GIÁ XUẤT CÓ TRỞ = I * J (dùng IF(ISNUMBER) chống lỗi #VALUE!)
+      setCell(
+        ws1,
+        `K${r}`,
+        'n',
+        row.thanhTienCoTro || 0,
+        styleMoney(),
+        FMT_MONEY,
+        `IF(ISNUMBER(J${r}),I${r}*J${r},0)`
+      );
 
       // Col L: ĐƠN GIÁ XUẤT KHÔNG TRỞ
       if (row.donGiaKhongTro > 0) {
-        setCell(ws1, `L${r}`, 'n', row.donGiaKhongTro, styleMoney());
+        setCell(ws1, `L${r}`, 'n', row.donGiaKhongTro, styleMoney(), FMT_MONEY);
       } else {
-        setCell(ws1, `L${r}`, 's', '', styleData('center'));
+        setCell(ws1, `L${r}`, 'n', 0, styleMoney(), FMT_MONEY);
       }
-      // Col M: THÀNH TIỀN XUẤT KHÔNG TRỞ = I * L
-      setCell(ws1, `M${r}`, 'n', row.thanhTienKhongTro || 0, styleMoney(), FMT_MONEY, `I${r}*L${r}`);
+      // Col M: THÀNH TIỀN XUẤT KHÔNG TRỞ = I * L (dùng IF(ISNUMBER) chống lỗi #VALUE!)
+      setCell(
+        ws1,
+        `M${r}`,
+        'n',
+        row.thanhTienKhongTro || 0,
+        styleMoney(),
+        FMT_MONEY,
+        `IF(ISNUMBER(L${r}),I${r}*L${r},0)`
+      );
 
       // Col N: ĐƠN GIÁ CHỤM LÒ LÚA
       if (row.donGiaChumLua > 0) {
-        setCell(ws1, `N${r}`, 'n', row.donGiaChumLua, styleMoney());
+        setCell(ws1, `N${r}`, 'n', row.donGiaChumLua, styleMoney(), FMT_MONEY);
       } else {
-        setCell(ws1, `N${r}`, 's', '', styleData('center'));
+        setCell(ws1, `N${r}`, 'n', 0, styleMoney(), FMT_MONEY);
       }
 
       // Col O: ĐƠN GIÁ CHỤM LÒ NẾP
       if (row.donGiaChumNep > 0) {
-        setCell(ws1, `O${r}`, 'n', row.donGiaChumNep, styleMoney());
+        setCell(ws1, `O${r}`, 'n', row.donGiaChumNep, styleMoney(), FMT_MONEY);
       } else {
-        setCell(ws1, `O${r}`, 's', '', styleData('center'));
+        setCell(ws1, `O${r}`, 'n', 0, styleMoney(), FMT_MONEY);
       }
 
-      // Col P: THÀNH TIỀN CHỤM LÒ
-      const chumForm = `IF(N${r}>0,I${r}*N${r},IF(O${r}>0,I${r}*O${r},0))`;
+      // Col P: THÀNH TIỀN CHỤM LÒ (dùng IF(ISNUMBER) cả 2 cột N và O chống lỗi #VALUE!)
+      const chumForm = `(IF(ISNUMBER(N${r}),I${r}*N${r},0)+IF(ISNUMBER(O${r}),I${r}*O${r},0))`;
       setCell(ws1, `P${r}`, 'n', row.thanhTienChum || 0, styleMoney(), FMT_MONEY, chumForm);
 
       // Col Q: ĐƠN GIÁ VÔ BỒN
       if (row.donGiaVoBon > 0) {
-        setCell(ws1, `Q${r}`, 'n', row.donGiaVoBon, styleMoney());
+        setCell(ws1, `Q${r}`, 'n', row.donGiaVoBon, styleMoney(), FMT_MONEY);
       } else {
-        setCell(ws1, `Q${r}`, 's', '', styleData('center'));
+        setCell(ws1, `Q${r}`, 'n', 0, styleMoney(), FMT_MONEY);
       }
 
-      // Col R: THÀNH TIỀN VÔ BỒN = I * Q
-      setCell(ws1, `R${r}`, 'n', row.thanhTienVoBon || 0, styleMoney(), FMT_MONEY, `I${r}*Q${r}`);
+      // Col R: THÀNH TIỀN VÔ BỒN = I * Q (dùng IF(ISNUMBER) chống lỗi #VALUE!)
+      setCell(
+        ws1,
+        `R${r}`,
+        'n',
+        row.thanhTienVoBon || 0,
+        styleMoney(),
+        FMT_MONEY,
+        `IF(ISNUMBER(Q${r}),I${r}*Q${r},0)`
+      );
 
       // Col S: GHI CHÚ
       setCell(ws1, `S${r}`, 's', row.ghiChu || '', styleData('left'));

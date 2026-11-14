@@ -92,6 +92,18 @@ describe('Xuất NSX TM - Kiểm tra định dạng 19 Cột chuẩn theo mẫu 
     expect(ws1['P2']?.f).toBe('SUBTOTAL(109,P4:P35)');
     expect(ws1['R2']?.f).toBe('SUBTOTAL(109,R4:R35)');
 
+    // Kiểm tra công thức an toàn IF(ISNUMBER) chống triệt để lỗi #VALUE!
+    expect(ws1['K4']?.f).toBe('IF(ISNUMBER(J4),I4*J4,0)');
+    expect(ws1['M4']?.f).toBe('IF(ISNUMBER(L4),I4*L4,0)');
+    expect(ws1['P4']?.f).toBe('(IF(ISNUMBER(N4),I4*N4,0)+IF(ISNUMBER(O4),I4*O4,0))');
+    expect(ws1['R4']?.f).toBe('IF(ISNUMBER(Q4),I4*Q4,0)');
+
+    // Các ô không có đơn giá phải là số 0 (hiển thị '-') chứ không phải chuỗi rỗng gây lỗi #VALUE!
+    expect(typeof ws1['L4']?.v).toBe('number');
+    expect(ws1['L4']?.v).toBe(0);
+    expect(typeof ws1['J5']?.v).toBe('number');
+    expect(ws1['J5']?.v).toBe(0);
+
     // Kiểm tra Sheet 2: Phiếu thanh toán
     const sheet2Name = wb.SheetNames[1];
     expect(sheet2Name).toBe('CHI LƯƠNG ĐỘI NAM-XUẤT T10.2026');
