@@ -1113,7 +1113,12 @@ export default function RiceXuatNSXTMView() {
                   <th className="py-2.5 px-3 text-center bg-indigo-50/60 text-indigo-900 border-x border-indigo-200/60">
                     Tấn K.Trở ({formatVND(unitPrices.priceKhongTro)}đ)
                   </th>
-                  <th className="py-2.5 px-3 text-right">Thành Tiền Xuất</th>
+                  <th className="py-2.5 px-3 text-right bg-amber-50/60 text-amber-950 border-l border-amber-200/60 whitespace-nowrap">
+                    Tiền Có Trở
+                  </th>
+                  <th className="py-2.5 px-3 text-right bg-indigo-50/60 text-indigo-950 border-r border-indigo-200/60 whitespace-nowrap">
+                    Tiền K.Trở
+                  </th>
                   <th className="py-2.5 px-3 text-right text-rose-900">Chụm Lò</th>
                   <th className="py-2.5 px-3 text-right text-purple-900">Vô Bồn</th>
                   <th className="py-2.5 px-3 text-right font-black text-slate-900 bg-slate-100">Tổng Ngày</th>
@@ -1258,9 +1263,22 @@ export default function RiceXuatNSXTMView() {
                           )}
                         </td>
 
-                        {/* Thành tiền xuất lúa */}
-                        <td className="py-2.5 px-3 text-right font-mono font-semibold whitespace-nowrap">
-                          {formatVND(tienXuat)} đ
+                        {/* Tiền Có Trở */}
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-950 bg-amber-50/20 border-l border-amber-100 whitespace-nowrap">
+                          {row.tonsCoTro > 0 ? (
+                            `${formatVND(row.tonsCoTro * unitPrices.priceCoTro)} đ`
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </td>
+
+                        {/* Tiền K.Trở */}
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-indigo-950 bg-indigo-50/20 border-r border-indigo-100 whitespace-nowrap">
+                          {row.tonsKhongTro > 0 ? (
+                            `${formatVND(row.tonsKhongTro * unitPrices.priceKhongTro)} đ`
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
                         </td>
 
                         {/* Thành tiền chụm lò */}
@@ -1301,6 +1319,35 @@ export default function RiceXuatNSXTMView() {
                   })
                 )}
               </tbody>
+              <tfoot className="border-t-2 border-slate-300 bg-slate-100/90 text-xs font-black text-slate-900">
+                <tr>
+                  <td colSpan={4} className="py-3 px-3 text-right uppercase tracking-wider text-slate-600">
+                    Tổng Cộng:
+                  </td>
+                  <td className="py-3 px-3 text-center font-mono text-amber-900 bg-amber-100/50 border-x border-amber-200 whitespace-nowrap">
+                    {formatVND(summary.tonsCoTro)} t
+                  </td>
+                  <td className="py-3 px-3 text-center font-mono text-indigo-900 bg-indigo-100/50 border-x border-indigo-200 whitespace-nowrap">
+                    {formatVND(summary.tonsKhongTro)} t
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-amber-950 bg-amber-100/60 border-l border-amber-200 whitespace-nowrap">
+                    {formatVND(summary.thanhTienCoTro)} đ
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-indigo-950 bg-indigo-100/60 border-r border-indigo-200 whitespace-nowrap">
+                    {formatVND(summary.thanhTienKhongTro)} đ
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-rose-900 whitespace-nowrap">
+                    {formatVND(summary.thanhTienChumLua + summary.thanhTienChumNep)} đ
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-purple-900 whitespace-nowrap">
+                    {formatVND(summary.thanhTienVoBon)} đ
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-emerald-950 bg-emerald-100/70 text-sm whitespace-nowrap">
+                    {formatVND(summary.tongCong)} đ
+                  </td>
+                  <td className="py-3 px-3"></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
@@ -1344,7 +1391,12 @@ export default function RiceXuatNSXTMView() {
                     Số Tấn
                   </th>
                   <th className="py-2.5 px-3 text-center">Phân Loại Xuất</th>
-                  <th className="py-2.5 px-3 text-right">Tiền Xuất</th>
+                  <th className="py-2.5 px-3 text-right bg-amber-50/60 text-amber-950 border-l border-amber-200/60 whitespace-nowrap">
+                    Tiền Có Trở
+                  </th>
+                  <th className="py-2.5 px-3 text-right bg-indigo-50/60 text-indigo-950 border-r border-indigo-200/60 whitespace-nowrap">
+                    Tiền K.Trở
+                  </th>
                   <th className="py-2.5 px-3 text-right text-rose-900">Chụm Lò</th>
                   <th className="py-2.5 px-3 text-right text-purple-900">Vô Bồn</th>
                   <th className="py-2.5 px-3 text-right font-black text-slate-900 bg-slate-100">
@@ -1435,8 +1487,22 @@ export default function RiceXuatNSXTMView() {
                           </button>
                         </td>
 
-                        <td className="py-2.5 px-3 text-right font-mono whitespace-nowrap">
-                          {formatVND(isCoTro ? row.thanhTienCoTro : row.thanhTienKhongTro)} đ
+                        {/* Tiền Có Trở */}
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-950 bg-amber-50/20 border-l border-amber-100 whitespace-nowrap">
+                          {isCoTro && row.thanhTienCoTro > 0 ? (
+                            `${formatVND(row.thanhTienCoTro)} đ`
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </td>
+
+                        {/* Tiền K.Trở */}
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-indigo-950 bg-indigo-50/20 border-r border-indigo-100 whitespace-nowrap">
+                          {!isCoTro && row.thanhTienKhongTro > 0 ? (
+                            `${formatVND(row.thanhTienKhongTro)} đ`
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
                         </td>
 
                         <td className="py-2.5 px-3 text-right font-mono text-rose-900 whitespace-nowrap">
@@ -1455,6 +1521,34 @@ export default function RiceXuatNSXTMView() {
                   })
                 )}
               </tbody>
+              <tfoot className="border-t-2 border-slate-300 bg-slate-100/90 text-xs font-black text-slate-900">
+                <tr>
+                  <td colSpan={7} className="py-3 px-3 text-right uppercase tracking-wider text-slate-600">
+                    Tổng Cộng ({fullMonthEntries.length} mẻ):
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-emerald-900 bg-emerald-100/50 border-x border-emerald-200 whitespace-nowrap">
+                    {formatVND(summary.totalTons)} t
+                  </td>
+                  <td className="py-3 px-3 text-center text-[11px] text-slate-500 whitespace-nowrap">
+                    {formatVND(summary.tonsCoTro)}t Có / {formatVND(summary.tonsKhongTro)}t K.trở
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-amber-950 bg-amber-100/60 border-l border-amber-200 whitespace-nowrap">
+                    {formatVND(summary.thanhTienCoTro)} đ
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-indigo-950 bg-indigo-100/60 border-r border-indigo-200 whitespace-nowrap">
+                    {formatVND(summary.thanhTienKhongTro)} đ
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-rose-900 whitespace-nowrap">
+                    {formatVND(summary.thanhTienChumLua + summary.thanhTienChumNep)} đ
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-purple-900 whitespace-nowrap">
+                    {formatVND(summary.thanhTienVoBon)} đ
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-emerald-950 bg-emerald-100/70 text-sm whitespace-nowrap">
+                    {formatVND(summary.tongCong)} đ
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
