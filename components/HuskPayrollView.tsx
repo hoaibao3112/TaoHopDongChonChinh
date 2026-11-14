@@ -46,9 +46,20 @@ export default function HuskPayrollView() {
   const [previewRotation, setPreviewRotation] = useState<number>(0);
   const [previewZoom, setPreviewZoom] = useState<number>(1);
 
-  // Mở modal xem ảnh và đặt lại góc quay
-  const handleOpenPreview = (imgUrl: string) => {
-    setPreviewImage(imgUrl);
+  // Map lưu ảnh gốc kích thước lớn khi người dùng chọn file trên máy
+  const fileUrlMap = useRef<Map<string, string>>(new Map());
+
+  // Mở modal xem ảnh to nhất có thể và đặt lại góc quay
+  const handleOpenPreview = (slipOrUrl: ScannedSlipItem | string) => {
+    let finalUrl = '';
+    if (typeof slipOrUrl === 'string') {
+      finalUrl = slipOrUrl;
+    } else {
+      const origUrl = slipOrUrl.fileName ? fileUrlMap.current.get(slipOrUrl.fileName) : null;
+      finalUrl = origUrl || slipOrUrl.thumbnailBase64 || '';
+    }
+    if (!finalUrl) return;
+    setPreviewImage(finalUrl);
     setPreviewRotation(0);
     setPreviewZoom(1);
   };
@@ -242,6 +253,13 @@ export default function HuskPayrollView() {
         setErrorMessage('Tối đa 30 ảnh cho mỗi lượt quét. Vui lòng chọn lại.');
         return;
       }
+      // Lưu lại URL ảnh gốc để hiển thị phóng to to nhất và rõ nét nhất
+      files.forEach((file) => {
+        try {
+          const url = URL.createObjectURL(file);
+          fileUrlMap.current.set(file.name, url);
+        } catch {}
+      });
       setSelectedImages(files);
       setErrorMessage(null);
     }
@@ -983,14 +1001,14 @@ export default function HuskPayrollView() {
                             <img
                               src={slip.thumbnailBase64}
                               alt="Phiếu cân"
-                              onClick={() => handleOpenPreview(slip.thumbnailBase64 || '')}
+                              onClick={() => handleOpenPreview(slip)}
                               className="h-10 w-10 cursor-pointer rounded-lg border border-slate-200 object-cover shadow-2xs transition group-hover:scale-110 group-hover:border-amber-500 group-hover:shadow-md mx-auto"
                             />
                             <button
                               type="button"
-                              onClick={() => handleOpenPreview(slip.thumbnailBase64 || '')}
+                              onClick={() => handleOpenPreview(slip)}
                               className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 rounded-lg transition text-xs cursor-pointer"
-                              title="Bấm để xem và xoay ảnh"
+                              title="Bấm để xem và xoay ảnh to nhất"
                             >
                               🔍
                             </button>
@@ -1421,35 +1439,38 @@ export default function HuskPayrollView() {
         </div>
       )}
 
-      {/* ─── Modal Xem Phóng To & Xoay Ảnh Phiếu Cân ─────────────────────── */}
+      {/* ─── Modal Xem Phóng To & Xoay Ảnh Phiếu Cân (To Nhất Có Thể) ────────── */}
       {previewImage && (
         <div
           onClick={() => setPreviewImage(null)}
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-in fade-in"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-black/92 p-2 sm:p-4 backdrop-blur-md animate-in fade-in select-none"
         >
           {/* Thanh công cụ điều khiển trên cùng */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/20 bg-slate-900/90 px-4 py-2 text-white shadow-2xl backdrop-blur-lg w-full max-w-2xl"
+            className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/20 bg-slate-900/95 px-5 py-2.5 text-white shadow-2xl backdrop-blur-lg w-full max-w-4xl"
           >
             <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
-              <span>📸</span>
-              <span>Chi tiết phiếu cân</span>
+              <span className="text-base">📸</span>
+              <span className="text-sm font-extrabold text-white">Xem Chi Tiết Phiếu Cân</span>
               <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">
                 Góc xoay: {previewRotation}°
+              </span>
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">
+                Tỉ lệ: {Math.round(previewZoom * 100)}%
               </span>
             </div>
 
             {/* Các nút xoay & phóng to/thu nhỏ */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               {/* Quay trái 90° */}
               <button
                 type="button"
                 onClick={() => setPreviewRotation((prev) => (prev - 90 + 360) % 360)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-amber-500 hover:text-slate-950 transition active:scale-95 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-amber-500 hover:text-slate-950 transition active:scale-95 cursor-pointer"
                 title="Quay trái 90° (Phím mũi tên trái ←)"
               >
-                <span>↺</span>
+                <span className="text-sm">↺</span>
                 <span>Quay trái</span>
               </button>
 
@@ -1457,10 +1478,10 @@ export default function HuskPayrollView() {
               <button
                 type="button"
                 onClick={() => setPreviewRotation((prev) => (prev + 90) % 360)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-amber-500 hover:text-slate-950 transition active:scale-95 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-amber-500 hover:text-slate-950 transition active:scale-95 cursor-pointer"
                 title="Quay phải 90° (Phím mũi tên phải →)"
               >
-                <span>↻</span>
+                <span className="text-sm">↻</span>
                 <span>Quay phải</span>
               </button>
 
@@ -1468,7 +1489,7 @@ export default function HuskPayrollView() {
               <button
                 type="button"
                 onClick={() => setPreviewZoom((prev) => Math.max(prev - 0.25, 0.5))}
-                className="rounded-xl border border-white/15 bg-white/10 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-white/20 transition active:scale-95 cursor-pointer"
+                className="rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/20 transition active:scale-95 cursor-pointer"
                 title="Thu nhỏ (-)"
               >
                 🔍−
@@ -1477,8 +1498,8 @@ export default function HuskPayrollView() {
               {/* Phóng to */}
               <button
                 type="button"
-                onClick={() => setPreviewZoom((prev) => Math.min(prev + 0.25, 3))}
-                className="rounded-xl border border-white/15 bg-white/10 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-white/20 transition active:scale-95 cursor-pointer"
+                onClick={() => setPreviewZoom((prev) => Math.min(prev + 0.25, 4))}
+                className="rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/20 transition active:scale-95 cursor-pointer"
                 title="Phóng to (+)"
               >
                 🔍+
@@ -1492,7 +1513,7 @@ export default function HuskPayrollView() {
                     setPreviewRotation(0);
                     setPreviewZoom(1);
                   }}
-                  className="rounded-xl border border-amber-400/40 bg-amber-500/20 px-2.5 py-1.5 text-xs font-bold text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition cursor-pointer"
+                  className="rounded-xl border border-amber-400/50 bg-amber-500/20 px-3 py-1.5 text-xs font-bold text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition cursor-pointer"
                   title="Đặt lại ban đầu (0°, 100%)"
                 >
                   ⟲ Đặt lại
@@ -1503,7 +1524,7 @@ export default function HuskPayrollView() {
               <button
                 type="button"
                 onClick={() => setPreviewImage(null)}
-                className="ml-2 flex h-8 w-8 items-center justify-center rounded-xl bg-white/15 text-white hover:bg-rose-600 transition active:scale-95 cursor-pointer"
+                className="ml-2 flex h-8 w-8 items-center justify-center rounded-xl bg-rose-600/80 text-white hover:bg-rose-600 transition active:scale-95 cursor-pointer font-bold"
                 title="Đóng (ESC)"
               >
                 ✕
@@ -1511,20 +1532,38 @@ export default function HuskPayrollView() {
             </div>
           </div>
 
-          {/* Vùng hiển thị ảnh */}
+          {/* Vùng hiển thị ảnh - Chiếm trọn màn hình to nhất có thể */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative flex items-center justify-center max-h-[82vh] max-w-[92vw] overflow-hidden rounded-2xl bg-slate-950/60 p-4 border border-white/10 shadow-2xl"
+            onWheel={(e) => {
+              if (e.deltaY < 0) {
+                setPreviewZoom((prev) => Math.min(prev + 0.15, 4));
+              } else {
+                setPreviewZoom((prev) => Math.max(prev - 0.15, 0.5));
+              }
+            }}
+            className="relative flex flex-1 w-full max-w-7xl items-center justify-center overflow-hidden rounded-2xl bg-black/60 p-2 sm:p-4 border border-white/10 shadow-2xl my-auto cursor-zoom-in"
+            onClickCapture={() => setPreviewZoom((prev) => (prev > 1.2 ? 1 : 1.6))}
+            title="Nhấp vào ảnh hoặc cuộn chuột để phóng to/thu nhỏ"
           >
             <img
               src={previewImage}
               alt="Phóng to phiếu cân"
               style={{
                 transform: `rotate(${previewRotation}deg) scale(${previewZoom})`,
-                transition: 'transform 0.25s cubic-bezier(0.2, 0, 0, 1)',
+                transition: 'transform 0.22s cubic-bezier(0.2, 0, 0, 1)',
+                maxHeight: previewRotation % 180 !== 0 ? '86vw' : '82vh',
+                maxWidth: previewRotation % 180 !== 0 ? '82vh' : '92vw',
+                minHeight: '68vh',
+                minWidth: '320px',
               }}
-              className="max-h-[75vh] max-w-[85vw] object-contain rounded-lg shadow-lg select-none"
+              className="h-full w-full object-contain rounded-lg shadow-2xl select-none"
             />
+          </div>
+
+          {/* Hướng dẫn tiện ích dưới cùng */}
+          <div className="mt-1 text-center text-[11px] text-slate-400">
+            💡 Mẹo: Nhấp vào ảnh hoặc cuộn chuột để phóng to/thu nhỏ • Phím ← / → để quay trái/phải • Phím ESC để đóng
           </div>
         </div>
       )}

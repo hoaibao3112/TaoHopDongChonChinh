@@ -31,10 +31,10 @@ export async function preprocessSlipImage(inputBuffer: Buffer): Promise<Preproce
 
   const metadata = await sharp(processedBuffer).metadata();
 
-  // Tạo thumbnail nhỏ 120px cho giao diện bảng duyệt
+  // Tạo ảnh chất lượng cao 1200px để hiển thị phóng to to nhất có thể, đọc rõ mọi chữ số
   const thumbBuffer = await sharp(processedBuffer)
-    .resize({ width: 120, height: 120, fit: 'inside' })
-    .jpeg({ quality: 75 })
+    .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 80 })
     .toBuffer();
 
   const thumbnailBase64 = `data:image/jpeg;base64,${thumbBuffer.toString('base64')}`;
