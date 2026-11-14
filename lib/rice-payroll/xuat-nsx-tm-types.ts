@@ -64,6 +64,14 @@ export interface XuatNSXTMSummary {
   conLai: number;
 }
 
+export interface NSXTMUnitPrices {
+  priceCoTro: number;    // default: 17000
+  priceKhongTro: number; // default: 11000
+  priceChumLua: number;  // default: 8000
+  priceChumNep: number;  // default: 11000
+  priceVoBon: number;    // default: 3000
+}
+
 export interface XuatNSXTMExportPayload {
   monthKey: string;
   entries: XuatNSXTMEntry[];
@@ -71,5 +79,6 @@ export interface XuatNSXTMExportPayload {
   nguoiLapBang?: string;        // Mặc định "Võ Hoàng Cẩm Tiên"
   nguoiXacNhan?: string;        // Mặc định "Huỳnh Anh Phát Thịnh"
   tamUng?: number;
+  unitPrices?: NSXTMUnitPrices;
 }
 

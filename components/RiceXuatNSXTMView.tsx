@@ -4,16 +4,22 @@
  * RiceXuatNSXTMView — Quản lý & Tính Lương Xuống Lúa / Xuất Lúa NSX Tân Mỹ (Đội Nam)
  * Chuẩn mẫu theo: LƯƠNG_ĐỘI_NAM-XUẤT_NSX_ĐTM_T10_2026_IN_CHUANMAU.xlsx
  *
- * Kiến trúc đồng bộ chuẩn 100% với phân hệ Xuất Lúa CS1 (RicePayrollView):
+ * Tính năng chính:
  * 1. Tự động đọc dữ liệu nền từ File Lúa Master (2.902 mẻ lúa 2026) hoặc tải file mới lên.
  * 2. Tự động lọc tất cả mẻ xuất tại Nhà Máy NSX Tân Mỹ (NSX TM / NSX ĐTM / CCĐTM).
  * 3. Hỗ trợ tính lương ĐẦY ĐỦ CHO TẤT CẢ CÁC THÁNG (Tháng 10, Tháng 11, Tháng 12, ...).
- * 4. 2 Chế độ xem:
- *    - Tab 1: 📝 Bảng Lương Ngày • Đội Nam (Gom theo từng ngày có mẻ xuống lúa, chọn Có trở 17k / Không trở 11k / Cả hai).
- *             Fix triệt để lỗi nhập Cả hai: các ô nhập số lượng độc lập, không tự xóa và không biến mất!
+ * 4. FORM ĐIỀU CHỈNH ĐƠN GIÁ TRỰC QUAN: Chụm lò lúa (8k), Chụm lò nếp (11k), Vô bồn (3k), Có trở (17k), Không trở (11k).
+ *    - Tự động nhảy số thời gian thực trên toàn bộ màn hình và bảng tính.
+ *    - Ghi nhớ cấu hình đơn giá theo từng tháng trong trình duyệt.
+ *    - Nút 1-click Khôi phục đơn giá mặc định.
+ * 5. 2 Chế độ xem:
+ *    - Tab 1: 📝 Bảng Lương Ngày • Đội Nam (Gom theo từng ngày có mẻ xuống lúa, chọn Có trở / Không trở / Cả hai).
+ *             Sửa số lượng độc lập, không tự xóa và không biến mất ô.
  *    - Tab 2: 🌾 Chi Tiết Mẻ Lúa Từ File (Liệt kê tất cả mẻ trong tháng, toggle Có trở / Không trở, sửa số tấn).
- * 5. Bảng tổng hợp KPI (Sheet 2): Xuất có trở (17k), Xuất không trở (11k), Chụm lò lúa (8k), Chụm lò nếp (11k), Vô bồn (3k), Tổng cộng, Tạm ứng, Còn lại.
- * 6. Xuất file Excel chuẩn 2 Sheet có công thức SUBTOTAL và SUM chính xác.
+ * 6. Bảng tổng hợp KPI (Sheet 2): Xuất có trở, Xuất không trở, Chụm lò lúa, Chụm lò nếp, Vô bồn, Tổng cộng, Tạm ứng, Còn lại.
+ * 7. XUẤT FILE EXCEL 19 CỘT CHUẨN ĐÚNG THEO ẢNH YÊU CẦU:
+ *    - Sheet 1: Đúng 19 cột (Ngày cân -> Ghi chú), công thức SUBTOTAL(109,...), màu xanh hải quân và xanh lá cây.
+ *    - Sheet 2: Phiếu thanh toán lương Đội Nam chuẩn form in ấn.
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -24,6 +30,7 @@ import {
   XuatNSXTMEntry,
   XuatNSXTMSummary,
   XuatNSXTMExportPayload,
+  NSXTMUnitPrices,
 } from '@/lib/rice-payroll/xuat-nsx-tm-types';
 import {
   isJaponica,
@@ -52,14 +59,22 @@ interface NSXTMDayRow {
   mode?: 'coTro' | 'khongTro' | 'caHai';
 }
 
-function newDayRow(date = ''): NSXTMDayRow {
+const DEFAULT_UNIT_PRICES: NSXTMUnitPrices = {
+  priceCoTro: 17000,
+  priceKhongTro: 11000,
+  priceChumLua: 8000,
+  priceChumNep: 11000,
+  priceVoBon: 3000,
+};
+
+function newDayRow(date = '', prices: NSXTMUnitPrices = DEFAULT_UNIT_PRICES): NSXTMDayRow {
   return {
     id: Math.random().toString(36).slice(2),
     date,
     tonsCoTro: 0,
-    priceCoTro: 17000,
+    priceCoTro: prices.priceCoTro,
     tonsKhongTro: 0,
-    priceKhongTro: 11000,
+    priceKhongTro: prices.priceKhongTro,
     mode: 'coTro',
   };
 }
@@ -76,12 +91,12 @@ export default function RiceXuatNSXTMView() {
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('10/2026');
   const [activeTab, setActiveTab] = useState<'notebook' | 'batches'>('notebook');
 
-  // Đơn giá chuẩn Đội Nam NSX TM
-  const masterPriceCoTro = 17000;
-  const masterPriceKhongTro = 11000;
+  // ─── Cấu hình Đơn giá (Form điều chỉnh đơn giá) ───────────────────────────
+  const [unitPrices, setUnitPrices] = useState<NSXTMUnitPrices>(DEFAULT_UNIT_PRICES);
+  const [showPriceCard, setShowPriceCard] = useState<boolean>(true);
 
   // ─── Danh sách ngày lương (Sổ tay Đội Nam) ────────────────────────────────
-  const [rows, setRows] = useState<NSXTMDayRow[]>([newDayRow('01/10/2026')]);
+  const [rows, setRows] = useState<NSXTMDayRow[]>([newDayRow('01/10/2026', DEFAULT_UNIT_PRICES)]);
 
   // Overrides riêng cho từng mẻ lúa (key = batch.id)
   const [batchOverrides, setBatchOverrides] = useState<
@@ -109,7 +124,7 @@ export default function RiceXuatNSXTMView() {
 
   // ─── TỰ ĐỘNG NẠP CÁC NGÀY XUỐNG LÚA TRONG THÁNG TỪ FILE MASTER ───────────
   const populateMonthDays = useCallback(
-    (monthKey: string, batches: RiceBatch[]) => {
+    (monthKey: string, batches: RiceBatch[], curPrices = DEFAULT_UNIT_PRICES) => {
       const tmBatchesInMonth = batches.filter(
         (b) =>
           isNSXTM(b.dryFacility) &&
@@ -134,9 +149,9 @@ export default function RiceXuatNSXTMView() {
       if (validDates.length === 0) {
         setRows([
           {
-            ...newDayRow(monthKey ? `01/${monthKey}` : ''),
-            priceCoTro: masterPriceCoTro,
-            priceKhongTro: masterPriceKhongTro,
+            ...newDayRow(monthKey ? `01/${monthKey}` : '', curPrices),
+            priceCoTro: curPrices.priceCoTro,
+            priceKhongTro: curPrices.priceKhongTro,
           },
         ]);
         setDetailRow(null);
@@ -166,19 +181,19 @@ export default function RiceXuatNSXTMView() {
             : 'coTro';
 
         return {
-          ...newDayRow(d),
+          ...newDayRow(d, curPrices),
           tonsCoTro: tonsCo,
           tonsKhongTro: tonsKhong,
           mode: initialMode,
-          priceCoTro: masterPriceCoTro,
-          priceKhongTro: masterPriceKhongTro,
+          priceCoTro: curPrices.priceCoTro,
+          priceKhongTro: curPrices.priceKhongTro,
         };
       });
 
       setRows(newRows);
       setDetailRow(null);
     },
-    [masterPriceCoTro, masterPriceKhongTro]
+    []
   );
 
   // ─── 1. TỰ ĐỘNG NẠP DỮ LIỆU NỀN TỪ MASTER EXCEL FILE ─────────────────────
@@ -217,7 +232,19 @@ export default function RiceXuatNSXTMView() {
           : tmMonths[0] || '10/2026';
 
         setSelectedMonthKey(initialMonth);
-        populateMonthDays(initialMonth, loadedBatches);
+
+        // Kiểm tra xem có cấu hình giá đã lưu cho tháng này không
+        let initialPrices = DEFAULT_UNIT_PRICES;
+        try {
+          const savedPrices = localStorage.getItem(`nsx_tm_prices_${initialMonth}`);
+          if (savedPrices) {
+            initialPrices = { ...DEFAULT_UNIT_PRICES, ...JSON.parse(savedPrices) };
+          }
+        } catch {
+          // ignore
+        }
+        setUnitPrices(initialPrices);
+        populateMonthDays(initialMonth, loadedBatches, initialPrices);
       } catch (err: unknown) {
         if (!isMounted) return;
         setFileError((err as Error).message || 'Không thể tải dữ liệu mẻ lúa');
@@ -256,7 +283,59 @@ export default function RiceXuatNSXTMView() {
   const handleSelectMonth = (newMonth: string) => {
     setSelectedMonthKey(newMonth);
     setBatchOverrides({});
-    populateMonthDays(newMonth, allBatches);
+
+    let pricesForMonth = DEFAULT_UNIT_PRICES;
+    try {
+      const saved = localStorage.getItem(`nsx_tm_prices_${newMonth}`);
+      if (saved) {
+        pricesForMonth = { ...DEFAULT_UNIT_PRICES, ...JSON.parse(saved) };
+      }
+    } catch {
+      // ignore
+    }
+    setUnitPrices(pricesForMonth);
+    populateMonthDays(newMonth, allBatches, pricesForMonth);
+  };
+
+  // ─── 4. ĐIỀU CHỈNH ĐƠN GIÁ (FORM HANDLERS) ────────────────────────────────
+  const handlePriceChange = (field: keyof NSXTMUnitPrices, val: number) => {
+    const safeVal = Math.max(0, isNaN(val) ? 0 : val);
+    setUnitPrices((prev) => {
+      const updated = { ...prev, [field]: safeVal };
+      try {
+        localStorage.setItem(`nsx_tm_prices_${selectedMonthKey}`, JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    if (field === 'priceCoTro' || field === 'priceKhongTro') {
+      setRows((prev) =>
+        prev.map((r) => ({
+          ...r,
+          priceCoTro: field === 'priceCoTro' ? safeVal : r.priceCoTro,
+          priceKhongTro: field === 'priceKhongTro' ? safeVal : r.priceKhongTro,
+        }))
+      );
+    }
+  };
+
+  const handleResetPrices = () => {
+    setUnitPrices(DEFAULT_UNIT_PRICES);
+    try {
+      localStorage.removeItem(`nsx_tm_prices_${selectedMonthKey}`);
+    } catch {
+      // ignore
+    }
+    setRows((prev) =>
+      prev.map((r) => ({
+        ...r,
+        priceCoTro: DEFAULT_UNIT_PRICES.priceCoTro,
+        priceKhongTro: DEFAULT_UNIT_PRICES.priceKhongTro,
+      }))
+    );
+    showToast('Đã khôi phục đơn giá mặc định (Chụm lúa 8k, nếp 11k, vô bồn 3k, có trở 17k, ko trở 11k)!');
   };
 
   // ─── 5. SỬA SỐ TẤN TRỰC TIẾP TRÊN DÒNG NGÀY (FIX BUG CẢ HAI) ──────────────
@@ -313,59 +392,67 @@ export default function RiceXuatNSXTMView() {
     [rows]
   );
 
-  // Đổi mode Có trở / Không trở / Cả hai cho 1 ngày
-  const handleSetRowMode = useCallback(
-    (rowId: string, newMode: 'coTro' | 'khongTro' | 'caHai', dayFileTons: number) => {
-      const targetRow = rows.find((r) => r.id === rowId);
-      const total =
-        (targetRow ? targetRow.tonsCoTro + targetRow.tonsKhongTro : 0) ||
-        (dayFileTons > 0 ? dayFileTons : 0);
+  // Đổi chế độ xuất của 1 ngày (Có trở / Không trở / Cả hai)
+  const handleSetRowMode = (
+    rowId: string,
+    mode: 'coTro' | 'khongTro' | 'caHai',
+    date: string
+  ) => {
+    const dayBatches = monthBatches.filter(
+      (b) => (b.dischargeDate || b.dryDate || b.weighDate) === date
+    );
+    const totalTons = dayBatches.reduce(
+      (s, b) => s + (b.roundedTons || roundRiceTons(b.dryWeightKg)),
+      0
+    );
 
-      let newCo = 0;
-      let newKhong = 0;
-
-      if (newMode === 'coTro') {
-        newCo = total;
-        newKhong = 0;
-      } else if (newMode === 'khongTro') {
-        newCo = 0;
-        newKhong = total;
-      } else {
-        // 'caHai': Giữ nguyên cả 2 ô hoặc chia đôi
-        if (targetRow && targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro > 0) {
-          newCo = targetRow.tonsCoTro;
-          newKhong = targetRow.tonsKhongTro;
-        } else if (targetRow && targetRow.tonsCoTro > 0) {
-          newCo = targetRow.tonsCoTro;
-          newKhong = 0;
-        } else if (targetRow && targetRow.tonsKhongTro > 0) {
-          newCo = 0;
-          newKhong = targetRow.tonsKhongTro;
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        if (mode === 'coTro') {
+          const curTons = r.tonsCoTro + r.tonsKhongTro || totalTons;
+          return { ...r, mode: 'coTro', tonsCoTro: curTons, tonsKhongTro: 0 };
+        } else if (mode === 'khongTro') {
+          const curTons = r.tonsCoTro + r.tonsKhongTro || totalTons;
+          return { ...r, mode: 'khongTro', tonsCoTro: 0, tonsKhongTro: curTons };
         } else {
-          newCo = Math.round(total / 2);
-          newKhong = Math.max(0, total - newCo);
+          // 'caHai': nếu cả 2 đang = 0 thì lấy theo phân loại thực tế
+          let co = r.tonsCoTro;
+          let khong = r.tonsKhongTro;
+          if (co === 0 && khong === 0) {
+            dayBatches.forEach((b) => {
+              const t = b.roundedTons || roundRiceTons(b.dryWeightKg);
+              if (isJaponica(b.riceType)) co += t;
+              else khong += t;
+            });
+            if (co === 0 && khong === 0) {
+              co = Math.round(totalTons / 2);
+              khong = Math.max(0, totalTons - co);
+            }
+          }
+          return { ...r, mode: 'caHai', tonsCoTro: co, tonsKhongTro: khong };
         }
-      }
+      })
+    );
+  };
 
-      setRows((prev) =>
-        prev.map((r) =>
-          r.id === rowId
-            ? {
-                ...r,
-                tonsCoTro: newCo,
-                tonsKhongTro: newKhong,
-                mode: newMode,
-              }
-            : r
-        )
-      );
-    },
-    [rows]
-  );
+  // Thêm một dòng ngày mới
+  const handleAddRow = () => {
+    setRows((prev) => [...prev, newDayRow(`01/${selectedMonthKey}`, unitPrices)]);
+  };
 
-  // ─── 6. CHỈNH SỬA TỪNG MẺ LÚA TRONG TAB 2 (CHI TIẾT MẺ TỪ FILE) ───────────
-  const handleBatchToggleCoTro = (batchId: string, currentIsCoTro: boolean) => {
-    const nextIsCo = !currentIsCoTro;
+  // Xóa một dòng ngày
+  const handleDeleteRow = (rowId: string) => {
+    if (rows.length <= 1) {
+      alert('Phải giữ lại ít nhất 1 dòng ngày');
+      return;
+    }
+    setRows((prev) => prev.filter((r) => r.id !== rowId));
+  };
+
+  // ─── 6. BẬT/TẮT CÓ TRỞ CHO TỪNG MẺ Ở TAB 2 ─────────────────────────────────
+  const handleBatchToggleCoTro = (batchId: string, currentIsCo: boolean) => {
+    const nextIsCo = !currentIsCo;
     setBatchOverrides((prev) => ({
       ...prev,
       [batchId]: {
@@ -386,7 +473,7 @@ export default function RiceXuatNSXTMView() {
     }));
   };
 
-  // Tự động gán toàn bộ mẻ theo giống lúa (Japonica 17k, Nếp/Lúa khác 11k)
+  // Tự động gán toàn bộ mẻ theo giống lúa (Japonica có trở, Nếp/Lúa khác không trở)
   const handleAutoClassifyByRiceType = () => {
     const next: Record<string, { isCoTro: boolean; tons?: number }> = {};
     monthBatches.forEach((b) => {
@@ -396,7 +483,7 @@ export default function RiceXuatNSXTMView() {
       };
     });
     setBatchOverrides(next);
-    populateMonthDays(selectedMonthKey, allBatches);
+    populateMonthDays(selectedMonthKey, allBatches, unitPrices);
     showToast('Đã tự động gán toàn bộ mẻ theo giống lúa chuẩn!');
   };
 
@@ -404,11 +491,11 @@ export default function RiceXuatNSXTMView() {
   const fullMonthEntries: XuatNSXTMEntry[] = useMemo(() => {
     return monthBatches.map((b) => {
       const ov = batchOverrides[b.id];
-      return batchToXuatNSXTMEntry(b, ov);
+      return batchToXuatNSXTMEntry(b, ov, unitPrices);
     });
-  }, [monthBatches, batchOverrides]);
+  }, [monthBatches, batchOverrides, unitPrices]);
 
-  // ─── 8. TÍNH BẢNG TỔNG HỢP KPI KHỚP SHEET 2 ──────────────────────────────
+  // ─── 8. TÍNH BẢNG TỔNG HỢP KPI KHỚP SHEET 2 (THEO ĐƠN GIÁ ĐIỀU CHỈNH) ─────
   const summary: XuatNSXTMSummary = useMemo(() => {
     let totalTonsCo = 0;
     let totalTonsKhong = 0;
@@ -441,11 +528,11 @@ export default function RiceXuatNSXTMView() {
       tonsChumNep = totalTonsKhong;
     }
 
-    const thanhTienCoTro = totalTonsCo * masterPriceCoTro;
-    const thanhTienKhongTro = totalTonsKhong * masterPriceKhongTro;
-    const thanhTienChumLua = tonsChumLua * 8000;
-    const thanhTienChumNep = tonsChumNep * 11000;
-    const thanhTienVoBon = tonsVoBon * 3000;
+    const thanhTienCoTro = totalTonsCo * unitPrices.priceCoTro;
+    const thanhTienKhongTro = totalTonsKhong * unitPrices.priceKhongTro;
+    const thanhTienChumLua = tonsChumLua * unitPrices.priceChumLua;
+    const thanhTienChumNep = tonsChumNep * unitPrices.priceChumNep;
+    const thanhTienVoBon = tonsVoBon * unitPrices.priceVoBon;
 
     const tongCong =
       thanhTienCoTro + thanhTienKhongTro + thanhTienChumLua + thanhTienChumNep + thanhTienVoBon;
@@ -459,27 +546,27 @@ export default function RiceXuatNSXTMView() {
       totalKg,
       totalTons: tonsVoBon,
       tonsCoTro: totalTonsCo,
-      priceCoTro: masterPriceCoTro,
+      priceCoTro: unitPrices.priceCoTro,
       thanhTienCoTro,
       tonsKhongTro: totalTonsKhong,
-      priceKhongTro: masterPriceKhongTro,
+      priceKhongTro: unitPrices.priceKhongTro,
       thanhTienKhongTro,
       tonsChumLua,
-      priceChumLua: 8000,
+      priceChumLua: unitPrices.priceChumLua,
       thanhTienChumLua,
       tonsChumNep,
-      priceChumNep: 11000,
+      priceChumNep: unitPrices.priceChumNep,
       thanhTienChumNep,
       tonsVoBon,
-      priceVoBon: 3000,
+      priceVoBon: unitPrices.priceVoBon,
       thanhTienVoBon,
       tongCong,
       tamUng,
       conLai,
     };
-  }, [rows, fullMonthEntries, selectedMonthKey, masterPriceCoTro, masterPriceKhongTro, tamUng]);
+  }, [rows, fullMonthEntries, selectedMonthKey, unitPrices, tamUng]);
 
-  // ─── 9. XUẤT FILE EXCEL CHUẨN 2 SHEET ─────────────────────────────────────
+  // ─── 9. XUẤT FILE EXCEL CHUẨN 2 SHEET ĐÚNG 19 CỘT THEO ẢNH ────────────────
   const handleExportExcel = async () => {
     if (fullMonthEntries.length === 0) {
       alert(`Không có mẻ lúa NSX TM nào trong tháng ${selectedMonthKey} để xuất file`);
@@ -496,6 +583,7 @@ export default function RiceXuatNSXTMView() {
       nguoiLapBang,
       nguoiXacNhan,
       tamUng,
+      unitPrices,
     };
 
     try {
@@ -521,7 +609,7 @@ export default function RiceXuatNSXTMView() {
       a.remove();
       window.URL.revokeObjectURL(url);
 
-      showToast(`Đã xuất file Excel Tháng ${selectedMonthKey} thành công!`);
+      showToast(`Đã xuất file Excel Tháng ${selectedMonthKey} (19 cột chuẩn) thành công!`);
     } catch (err: unknown) {
       console.error(err);
       setExportError((err as Error).message || 'Lỗi xuất file Excel');
@@ -564,7 +652,7 @@ export default function RiceXuatNSXTMView() {
 
       const nextMonth = tmMonths[0] || '10/2026';
       setSelectedMonthKey(nextMonth);
-      populateMonthDays(nextMonth, loadedBatches);
+      populateMonthDays(nextMonth, loadedBatches, unitPrices);
       showToast(`Tải file ${file.name} thành công! Có ${loadedBatches.length} mẻ.`);
     } catch (err: unknown) {
       console.error(err);
@@ -599,8 +687,8 @@ export default function RiceXuatNSXTMView() {
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 max-w-3xl">
-              Hệ thống theo dõi chi tiết từng mẻ xuống lúa khô, phân loại tự động <strong>Japonica (17k)</strong>,{' '}
-              <strong>Nếp / Lúa thường (11k)</strong>, <strong>Chụm lò (8k & 11k)</strong> và <strong>Vô bồn (3k)</strong>{' '}
+              Hệ thống theo dõi chi tiết từng mẻ xuống lúa khô, phân loại tự động <strong>Japonica</strong>,{' '}
+              <strong>Nếp / Lúa thường</strong>, <strong>Chụm lò</strong> và <strong>Vô bồn</strong>{' '}
               khớp 100% biểu mẫu công ty, tính được mọi tháng trong năm.
             </p>
           </div>
@@ -629,7 +717,7 @@ export default function RiceXuatNSXTMView() {
               type="button"
               onClick={handleAutoClassifyByRiceType}
               className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 px-3.5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 transition active:scale-95 cursor-pointer"
-              title="Tự động phân loại mẻ theo giống lúa: Japonica -> 17k, Nếp/Khác -> 11k"
+              title="Tự động phân loại mẻ theo giống lúa: Japonica -> Có trở, Nếp/Khác -> Không trở"
             >
               <span>⚡</span>
               <span>Tự Động Tính Theo File Lúa</span>
@@ -641,7 +729,7 @@ export default function RiceXuatNSXTMView() {
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition active:scale-95 cursor-pointer"
             >
               <span>⚙️</span>
-              <span>Chữ Ký & Tạm Ứng</span>
+              <span>Chữ Ký &amp; Tạm Ứng</span>
             </button>
 
             <button
@@ -704,6 +792,178 @@ export default function RiceXuatNSXTMView() {
         )}
       </div>
 
+      {/* ─── FORM ĐIỀU CHỈNH ĐƠN GIÁ (CHỤM LÒ, VÔ BỒN & XUẤT LÚA) ───────────── */}
+      <div className="rounded-3xl border border-amber-200/90 bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-amber-50/70 p-5 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-amber-200/80">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-xs text-lg">
+              💰
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-extrabold text-amber-950">
+                  Form Điều Chỉnh Đơn Giá (Chụm Lò, Vô Bồn &amp; Xuất Lúa)
+                </h3>
+                <span className="rounded-full bg-amber-200/80 px-2.5 py-0.5 text-[10px] font-black text-amber-900">
+                  Tháng {selectedMonthKey}
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800 font-medium">
+                Sửa trực tiếp các đơn giá bên dưới để tính lại lương tức thì và tự động áp dụng vào cả 2 sheet khi xuất Excel
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleResetPrices}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100/70 transition cursor-pointer shadow-2xs active:scale-95"
+              title="Khôi phục lại toàn bộ đơn giá mặc định chuẩn"
+            >
+              <span>↺</span>
+              <span>Khôi phục mặc định</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPriceCard((prev) => !prev)}
+              className="rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100/70 transition cursor-pointer shadow-2xs"
+            >
+              {showPriceCard ? 'Thu gọn ▲' : 'Mở rộng ▼'}
+            </button>
+          </div>
+        </div>
+
+        {showPriceCard && (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 animate-in fade-in duration-200">
+            {/* 1. Chụm lò lúa */}
+            <div className="rounded-2xl border border-rose-200 bg-white p-3.5 shadow-2xs hover:shadow-xs transition">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-rose-900 flex items-center gap-1.5">
+                  <span>🔥</span>
+                  <span>Chụm Lò Lúa</span>
+                </label>
+                <span className="text-[10px] rounded-md bg-rose-100 px-1.5 py-0.5 font-bold text-rose-700">
+                  Lúa thường
+                </span>
+              </div>
+              <div className="mt-2.5 flex items-center gap-1">
+                <input
+                  type="number"
+                  step="500"
+                  min="0"
+                  value={unitPrices.priceChumLua}
+                  onChange={(e) => handlePriceChange('priceChumLua', Number(e.target.value))}
+                  className="w-full rounded-xl border border-rose-300 bg-rose-50/30 px-3 py-1.5 text-sm font-black text-rose-900 text-right focus:border-rose-500 focus:bg-white focus:outline-hidden"
+                />
+                <span className="text-xs font-bold text-slate-500 shrink-0">đ/tấn</span>
+              </div>
+              <p className="mt-1.5 text-[10px] text-slate-500">Mặc định: 8.000 đ/tấn (Lúa)</p>
+            </div>
+
+            {/* 2. Chụm lò nếp */}
+            <div className="rounded-2xl border border-rose-200 bg-white p-3.5 shadow-2xs hover:shadow-xs transition">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-rose-900 flex items-center gap-1.5">
+                  <span>🔥</span>
+                  <span>Chụm Lò Nếp</span>
+                </label>
+                <span className="text-[10px] rounded-md bg-rose-100 px-1.5 py-0.5 font-bold text-rose-700">
+                  Nếp / CPC
+                </span>
+              </div>
+              <div className="mt-2.5 flex items-center gap-1">
+                <input
+                  type="number"
+                  step="500"
+                  min="0"
+                  value={unitPrices.priceChumNep}
+                  onChange={(e) => handlePriceChange('priceChumNep', Number(e.target.value))}
+                  className="w-full rounded-xl border border-rose-300 bg-rose-50/30 px-3 py-1.5 text-sm font-black text-rose-900 text-right focus:border-rose-500 focus:bg-white focus:outline-hidden"
+                />
+                <span className="text-xs font-bold text-slate-500 shrink-0">đ/tấn</span>
+              </div>
+              <p className="mt-1.5 text-[10px] text-slate-500">Mặc định: 11.000 đ/tấn (Nếp)</p>
+            </div>
+
+            {/* 3. Vô bồn */}
+            <div className="rounded-2xl border border-purple-200 bg-white p-3.5 shadow-2xs hover:shadow-xs transition">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-purple-900 flex items-center gap-1.5">
+                  <span>🏗️</span>
+                  <span>Đơn Giá Vô Bồn</span>
+                </label>
+                <span className="text-[10px] rounded-md bg-purple-100 px-1.5 py-0.5 font-bold text-purple-700">
+                  Xuống bồn
+                </span>
+              </div>
+              <div className="mt-2.5 flex items-center gap-1">
+                <input
+                  type="number"
+                  step="500"
+                  min="0"
+                  value={unitPrices.priceVoBon}
+                  onChange={(e) => handlePriceChange('priceVoBon', Number(e.target.value))}
+                  className="w-full rounded-xl border border-purple-300 bg-purple-50/30 px-3 py-1.5 text-sm font-black text-purple-900 text-right focus:border-purple-500 focus:bg-white focus:outline-hidden"
+                />
+                <span className="text-xs font-bold text-slate-500 shrink-0">đ/tấn</span>
+              </div>
+              <p className="mt-1.5 text-[10px] text-slate-500">Mặc định: 3.000 đ/tấn</p>
+            </div>
+
+            {/* 4. Xuất Có trở */}
+            <div className="rounded-2xl border border-blue-200 bg-white p-3.5 shadow-2xs hover:shadow-xs transition">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-blue-900 flex items-center gap-1.5">
+                  <span>🌾</span>
+                  <span>Xuất Có Trở</span>
+                </label>
+                <span className="text-[10px] rounded-md bg-blue-100 px-1.5 py-0.5 font-bold text-blue-700">
+                  Japonica
+                </span>
+              </div>
+              <div className="mt-2.5 flex items-center gap-1">
+                <input
+                  type="number"
+                  step="500"
+                  min="0"
+                  value={unitPrices.priceCoTro}
+                  onChange={(e) => handlePriceChange('priceCoTro', Number(e.target.value))}
+                  className="w-full rounded-xl border border-blue-300 bg-blue-50/30 px-3 py-1.5 text-sm font-black text-blue-900 text-right focus:border-blue-500 focus:bg-white focus:outline-hidden"
+                />
+                <span className="text-xs font-bold text-slate-500 shrink-0">đ/tấn</span>
+              </div>
+              <p className="mt-1.5 text-[10px] text-slate-500">Mặc định: 17.000 đ/tấn</p>
+            </div>
+
+            {/* 5. Xuất Không trở */}
+            <div className="rounded-2xl border border-amber-200 bg-white p-3.5 shadow-2xs hover:shadow-xs transition">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-amber-900 flex items-center gap-1.5">
+                  <span>🌾</span>
+                  <span>Xuất Không Trở</span>
+                </label>
+                <span className="text-[10px] rounded-md bg-amber-100 px-1.5 py-0.5 font-bold text-amber-700">
+                  Nếp / Khác
+                </span>
+              </div>
+              <div className="mt-2.5 flex items-center gap-1">
+                <input
+                  type="number"
+                  step="500"
+                  min="0"
+                  value={unitPrices.priceKhongTro}
+                  onChange={(e) => handlePriceChange('priceKhongTro', Number(e.target.value))}
+                  className="w-full rounded-xl border border-amber-300 bg-amber-50/30 px-3 py-1.5 text-sm font-black text-amber-900 text-right focus:border-amber-500 focus:bg-white focus:outline-hidden"
+                />
+                <span className="text-xs font-bold text-slate-500 shrink-0">đ/tấn</span>
+              </div>
+              <p className="mt-1.5 text-[10px] text-slate-500">Mặc định: 11.000 đ/tấn</p>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ─── BẢNG TỔNG HỢP KPI (KHỚP SHEET 2 CHI LƯƠNG ĐỘI NAM) ───────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {/* Card 1: Tổng tấn */}
@@ -722,7 +982,7 @@ export default function RiceXuatNSXTMView() {
         {/* Card 2: Xuất có trở (Japonica) */}
         <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 shadow-2xs">
           <div className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">
-            Xuất Có Trở (17k)
+            Xuất Có Trở ({formatVND(unitPrices.priceCoTro)}đ)
           </div>
           <div className="mt-1 text-2xl font-black text-blue-900">
             {formatVND(summary.tonsCoTro)} <span className="text-xs font-bold text-blue-700">tấn</span>
@@ -735,7 +995,7 @@ export default function RiceXuatNSXTMView() {
         {/* Card 3: Xuất không trở (Nếp / Lúa khác) */}
         <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-2xs">
           <div className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">
-            Xuất Không Trở (11k)
+            Xuất K.Trở ({formatVND(unitPrices.priceKhongTro)}đ)
           </div>
           <div className="mt-1 text-2xl font-black text-amber-900">
             {formatVND(summary.tonsKhongTro)} <span className="text-xs font-bold text-amber-800">tấn</span>
@@ -745,10 +1005,10 @@ export default function RiceXuatNSXTMView() {
           </div>
         </div>
 
-        {/* Card 4: Chụm lò (Lúa 8k + Nếp 11k) */}
+        {/* Card 4: Chụm lò (Lúa & Nếp) */}
         <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-4 shadow-2xs">
           <div className="text-[11px] font-bold text-rose-800 uppercase tracking-wider">
-            Chụm Lò (8k & 11k)
+            Chụm Lò ({formatVND(unitPrices.priceChumLua)}đ &amp; {formatVND(unitPrices.priceChumNep)}đ)
           </div>
           <div className="mt-1 text-lg font-black text-rose-900">
             {formatVND(summary.tonsChumLua)}t <span className="text-xs font-semibold text-rose-600">(Lúa)</span> + {formatVND(summary.tonsChumNep)}t <span className="text-xs font-semibold text-rose-600">(Nếp)</span>
@@ -758,10 +1018,10 @@ export default function RiceXuatNSXTMView() {
           </div>
         </div>
 
-        {/* Card 5: Vô bồn (3k) */}
+        {/* Card 5: Vô bồn */}
         <div className="rounded-2xl border border-purple-200 bg-purple-50/50 p-4 shadow-2xs">
           <div className="text-[11px] font-bold text-purple-800 uppercase tracking-wider">
-            Vô Bồn (3k)
+            Vô Bồn ({formatVND(unitPrices.priceVoBon)}đ)
           </div>
           <div className="mt-1 text-2xl font-black text-purple-900">
             {formatVND(summary.tonsVoBon)} <span className="text-xs font-bold text-purple-800">tấn</span>
@@ -816,26 +1076,30 @@ export default function RiceXuatNSXTMView() {
         </button>
       </div>
 
-      {/* ─── TAB 1: BẢNG LƯƠNG NGÀY (SỔ TAY ĐỘI NAM) ───────────────────────── */}
+      {/* ─── TAB 1: BẢNG LƯƠNG THEO NGÀY (SỔ TAY ĐỘI NAM) ──────────────────── */}
       {activeTab === 'notebook' && (
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5 bg-slate-50/70">
-            <div className="flex items-center gap-2">
-              <span className="text-base">📅</span>
-              <h2 className="text-sm sm:text-base font-extrabold text-slate-800">
-                Sổ Tay Bảng Lương Ngày Đội Nam • Tháng {selectedMonthKey}
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+            <div>
+              <h2 className="text-sm sm:text-base font-bold text-slate-900">
+                📝 Sổ Tay Lương Theo Ngày • Đội Nam (Tháng {selectedMonthKey})
               </h2>
-              <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-bold text-slate-700">
-                {rows.length} ngày
-              </span>
+              <p className="text-xs text-slate-500">
+                Có thể chọn nhanh Có trở, Không trở hoặc nhập cả 2 số lượng độc lập không bị xóa số.
+              </p>
             </div>
 
-            <div className="text-xs text-slate-500">
-              💡 Bấm nút <strong className="text-amber-800">Cả hai</strong> để nhập đồng thời số tấn Có trở &amp; Không trở mà không bị mất ô nhập!
-            </div>
+            <button
+              type="button"
+              onClick={handleAddRow}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-amber-400 bg-amber-50 px-3.5 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 transition cursor-pointer"
+            >
+              <span>➕</span>
+              <span>Thêm Ngày Xuống Lúa</span>
+            </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-100/80 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
@@ -844,10 +1108,10 @@ export default function RiceXuatNSXTMView() {
                   <th className="py-2.5 px-3 text-center">Số Mẻ &amp; Tấn Gốc</th>
                   <th className="py-2.5 px-3 text-center w-64">Chế Độ Xuất</th>
                   <th className="py-2.5 px-3 text-center bg-amber-50/60 text-amber-900 border-x border-amber-200/60">
-                    Tấn Có Trở (17k)
+                    Tấn Có Trở ({formatVND(unitPrices.priceCoTro)}đ)
                   </th>
                   <th className="py-2.5 px-3 text-center bg-indigo-50/60 text-indigo-900 border-x border-indigo-200/60">
-                    Tấn K.Trở (11k)
+                    Tấn K.Trở ({formatVND(unitPrices.priceKhongTro)}đ)
                   </th>
                   <th className="py-2.5 px-3 text-right">Thành Tiền Xuất</th>
                   <th className="py-2.5 px-3 text-right text-rose-900">Chụm Lò</th>
@@ -882,7 +1146,7 @@ export default function RiceXuatNSXTMView() {
                         : 'coTro');
 
                     const tienXuat =
-                      row.tonsCoTro * row.priceCoTro + row.tonsKhongTro * row.priceKhongTro;
+                      row.tonsCoTro * unitPrices.priceCoTro + row.tonsKhongTro * unitPrices.priceKhongTro;
 
                     // Tính Chụm lò ngày
                     let dayChumLua = 0;
@@ -893,8 +1157,8 @@ export default function RiceXuatNSXTMView() {
                       else dayChumLua += t;
                     });
                     const totalTonsRow = row.tonsCoTro + row.tonsKhongTro;
-                    const tienChum = dayChumLua * 8000 + dayChumNep * 11000;
-                    const tienVoBon = totalTonsRow * 3000;
+                    const tienChum = dayChumLua * unitPrices.priceChumLua + dayChumNep * unitPrices.priceChumNep;
+                    const tienVoBon = totalTonsRow * unitPrices.priceVoBon;
                     const tongNgay = tienXuat + tienChum + tienVoBon;
 
                     return (
@@ -918,112 +1182,118 @@ export default function RiceXuatNSXTMView() {
                           <div className="flex items-center p-0.5 rounded-lg bg-slate-100 border border-slate-200">
                             <button
                               type="button"
-                              onClick={() => handleSetRowMode(row.id, 'coTro', originalTons)}
-                              className={`flex-1 py-1 text-[10px] font-bold rounded-md transition cursor-pointer ${
+                              onClick={() => handleSetRowMode(row.id, 'coTro', row.date)}
+                              className={`flex-1 rounded-md py-1 text-[11px] font-bold transition cursor-pointer ${
                                 rowMode === 'coTro'
-                                  ? 'bg-amber-500 text-white shadow-2xs'
+                                  ? 'bg-blue-600 text-white shadow-2xs'
                                   : 'text-slate-600 hover:text-slate-900'
                               }`}
                             >
-                              🌾 Có trở
+                              Có trở
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleSetRowMode(row.id, 'khongTro', originalTons)}
-                              className={`flex-1 py-1 text-[10px] font-bold rounded-md transition cursor-pointer ${
+                              onClick={() => handleSetRowMode(row.id, 'khongTro', row.date)}
+                              className={`flex-1 rounded-md py-1 text-[11px] font-bold transition cursor-pointer ${
                                 rowMode === 'khongTro'
                                   ? 'bg-indigo-600 text-white shadow-2xs'
                                   : 'text-slate-600 hover:text-slate-900'
                               }`}
                             >
-                              🌾 Không trở
+                              Không trở
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleSetRowMode(row.id, 'caHai', originalTons)}
-                              className={`flex-1 py-1 text-[10px] font-bold rounded-md transition cursor-pointer ${
+                              onClick={() => handleSetRowMode(row.id, 'caHai', row.date)}
+                              className={`flex-1 rounded-md py-1 text-[11px] font-bold transition cursor-pointer ${
                                 rowMode === 'caHai'
-                                  ? 'bg-emerald-600 text-white shadow-2xs'
+                                  ? 'bg-purple-600 text-white shadow-2xs'
                                   : 'text-slate-600 hover:text-slate-900'
                               }`}
                             >
-                              ⚖️ Cả hai
+                              Cả hai
                             </button>
                           </div>
                         </td>
 
-                        {/* Tấn Có Trở */}
-                        <td className="py-1 px-2 text-center bg-amber-50/30 border-x border-amber-100">
+                        {/* Ô nhập Có trở */}
+                        <td className="py-2 px-3 text-center bg-amber-50/30 border-x border-amber-100">
                           {rowMode === 'khongTro' ? (
-                            <div
-                              onClick={() => handleSetRowMode(row.id, 'caHai', originalTons)}
-                              className="w-full rounded-md border border-dashed border-slate-200 bg-slate-50/50 py-1 text-center font-bold text-slate-300 cursor-pointer hover:border-amber-400 hover:text-amber-800"
-                              title="Bấm để bật Cả hai"
-                            >
-                              -
-                            </div>
+                            <span className="text-slate-300">-</span>
                           ) : (
-                            <input
-                              type="number"
-                              min={0}
-                              value={row.tonsCoTro === 0 ? '' : row.tonsCoTro}
-                              onChange={(e) => handleTonsChange(row.id, 'coTro', e.target.value)}
-                              placeholder="0"
-                              className="w-20 rounded-md border border-amber-300 bg-white px-2 py-1 text-center font-bold text-amber-900 focus:border-amber-500 focus:outline-hidden"
-                            />
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                value={row.tonsCoTro === 0 ? '' : row.tonsCoTro}
+                                onChange={(e) =>
+                                  handleTonsChange(row.id, 'coTro', e.target.value)
+                                }
+                                placeholder="0"
+                                className="w-16 rounded-md border border-amber-300 bg-white px-2 py-1 text-center font-bold text-amber-900 focus:border-amber-500 focus:outline-hidden"
+                              />
+                              <span className="text-[10px] text-slate-400">t</span>
+                            </div>
                           )}
                         </td>
 
-                        {/* Tấn Không Trở */}
-                        <td className="py-1 px-2 text-center bg-indigo-50/30 border-x border-indigo-100">
+                        {/* Ô nhập Không trở */}
+                        <td className="py-2 px-3 text-center bg-indigo-50/30 border-x border-indigo-100">
                           {rowMode === 'coTro' ? (
-                            <div
-                              onClick={() => handleSetRowMode(row.id, 'caHai', originalTons)}
-                              className="w-full rounded-md border border-dashed border-slate-200 bg-slate-50/50 py-1 text-center font-bold text-slate-300 cursor-pointer hover:border-indigo-400 hover:text-indigo-800"
-                              title="Bấm để bật Cả hai"
-                            >
-                              -
-                            </div>
+                            <span className="text-slate-300">-</span>
                           ) : (
-                            <input
-                              type="number"
-                              min={0}
-                              value={row.tonsKhongTro === 0 ? '' : row.tonsKhongTro}
-                              onChange={(e) => handleTonsChange(row.id, 'khongTro', e.target.value)}
-                              placeholder="0"
-                              className="w-20 rounded-md border border-indigo-300 bg-white px-2 py-1 text-center font-bold text-indigo-900 focus:border-indigo-500 focus:outline-hidden"
-                            />
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                value={row.tonsKhongTro === 0 ? '' : row.tonsKhongTro}
+                                onChange={(e) =>
+                                  handleTonsChange(row.id, 'khongTro', e.target.value)
+                                }
+                                placeholder="0"
+                                className="w-16 rounded-md border border-indigo-300 bg-white px-2 py-1 text-center font-bold text-indigo-900 focus:border-indigo-500 focus:outline-hidden"
+                              />
+                              <span className="text-[10px] text-slate-400">t</span>
+                            </div>
                           )}
                         </td>
 
-                        {/* Tiền Xuất */}
-                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-slate-900 whitespace-nowrap">
+                        {/* Thành tiền xuất lúa */}
+                        <td className="py-2.5 px-3 text-right font-mono font-semibold whitespace-nowrap">
                           {formatVND(tienXuat)} đ
                         </td>
 
-                        {/* Chụm lò */}
+                        {/* Thành tiền chụm lò */}
                         <td className="py-2.5 px-3 text-right font-mono text-rose-900 whitespace-nowrap">
                           {formatVND(tienChum)} đ
                         </td>
 
-                        {/* Vô bồn */}
+                        {/* Thành tiền vô bồn */}
                         <td className="py-2.5 px-3 text-right font-mono text-purple-900 whitespace-nowrap">
                           {formatVND(tienVoBon)} đ
                         </td>
 
-                        {/* Tổng Ngày */}
+                        {/* Tổng ngày */}
                         <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900 bg-slate-50 whitespace-nowrap">
                           {formatVND(tongNgay)} đ
                         </td>
 
-                        {/* Xem chi tiết */}
-                        <td className="py-2 px-2 text-center">
+                        {/* Nút xem mẻ chi tiết */}
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => setDetailRow(row)}
-                            className="rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                           >
-                            🔍 {dayBatches.length} mẻ
+                            👁️ Mẻ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRow(row.id)}
+                            className="ml-1 text-slate-300 hover:text-rose-500 p-1 cursor-pointer"
+                            title="Xóa ngày này"
+                          >
+                            ✕
                           </button>
                         </td>
                       </tr>
@@ -1036,59 +1306,57 @@ export default function RiceXuatNSXTMView() {
         </div>
       )}
 
-      {/* ─── TAB 2: CHI TIẾT MẺ LÚA TỪ FILE (ĐẦY ĐỦ NHƯ CS1) ───────────────── */}
+      {/* ─── TAB 2: CHI TIẾT TỪNG MẺ LÚA TỪ FILE MASTER ───────────────────── */}
       {activeTab === 'batches' && (
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5 bg-slate-50/70">
-            <div className="flex items-center gap-2">
-              <span className="text-base">🌾</span>
-              <h2 className="text-sm sm:text-base font-extrabold text-slate-800">
-                Toàn Bộ Mẻ Lúa Thực Tế NSX TM • Tháng {selectedMonthKey}
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+            <div>
+              <h2 className="text-sm sm:text-base font-bold text-slate-900">
+                🌾 Chi Tiết Từng Mẻ Xuống Lúa Tại NSX TM ({fullMonthEntries.length} mẻ • Tháng {selectedMonthKey})
               </h2>
-              <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-bold text-slate-700">
-                {fullMonthEntries.length} mẻ
-              </span>
+              <p className="text-xs text-slate-500">
+                Mỗi mẻ có thể chỉnh số tấn hoặc đổi Có trở / Không trở độc lập để chuẩn hóa dữ liệu xuất file.
+              </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleAutoClassifyByRiceType}
-                className="rounded-xl bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 transition cursor-pointer"
-              >
-                ⚡ Gán Tự Động Theo Giống Lúa
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleAutoClassifyByRiceType}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+            >
+              <span>⚡</span>
+              <span>Tự Động Phân Loại Theo Giống Lúa</span>
+            </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-100/80 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                  <th className="py-2.5 px-3 text-center w-12">STT</th>
+                  <th className="py-2.5 px-3 text-center w-10">STT</th>
                   <th className="py-2.5 px-3">Mã Lô</th>
                   <th className="py-2.5 px-3">Khách Hàng</th>
                   <th className="py-2.5 px-3">Giống Lúa</th>
                   <th className="py-2.5 px-3 text-right">Cân Nhập (kg)</th>
-                  <th className="py-2.5 px-3 text-center bg-amber-50/60 text-amber-900 border-x border-amber-200/60">
-                    Ngày Xuống Lúa
-                  </th>
-                  <th className="py-2.5 px-3 text-center">PT Chở</th>
-                  <th className="py-2.5 px-3 text-right bg-emerald-50/60 text-emerald-900 border-x border-emerald-200/60">
+                  <th className="py-2.5 px-3 text-center">Ngày Xuống Lúa</th>
+                  <th className="py-2.5 px-3 text-center">PT Lúa Khô</th>
+                  <th className="py-2.5 px-3 text-right bg-emerald-50 text-emerald-900 border-x border-emerald-200">
                     Số Tấn
                   </th>
                   <th className="py-2.5 px-3 text-center">Phân Loại Xuất</th>
-                  <th className="py-2.5 px-3 text-right">Đơn Giá Xuất</th>
+                  <th className="py-2.5 px-3 text-right">Tiền Xuất</th>
                   <th className="py-2.5 px-3 text-right text-rose-900">Chụm Lò</th>
                   <th className="py-2.5 px-3 text-right text-purple-900">Vô Bồn</th>
-                  <th className="py-2.5 px-3 text-right font-black text-slate-900 bg-slate-100">Thành Tiền</th>
+                  <th className="py-2.5 px-3 text-right font-black text-slate-900 bg-slate-100">
+                    Tổng Mẻ
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {fullMonthEntries.length === 0 ? (
                   <tr>
                     <td colSpan={13} className="py-12 text-center text-slate-400">
-                      Không có mẻ lúa NSX TM nào trong tháng {selectedMonthKey}.
+                      Không có mẻ lúa NSX TM nào trong tháng này.
                     </td>
                   </tr>
                 ) : (
@@ -1161,7 +1429,9 @@ export default function RiceXuatNSXTMView() {
                                 : 'bg-amber-500 text-white shadow-2xs'
                             }`}
                           >
-                            {isCoTro ? '🌾 Có trở (17k)' : '🌾 Không trở (11k)'}
+                            {isCoTro
+                              ? `🌾 Có trở (${formatVND(unitPrices.priceCoTro)}đ)`
+                              : `🌾 K.trở (${formatVND(unitPrices.priceKhongTro)}đ)`}
                           </button>
                         </td>
 
@@ -1239,14 +1509,14 @@ export default function RiceXuatNSXTMView() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {monthBatches
-                      .filter((b) => (b.dischargeDate || b.dryDate || b.weighDate) === detailRow.date)
+                      .filter(
+                        (b) => (b.dischargeDate || b.dryDate || b.weighDate) === detailRow.date
+                      )
                       .map((b) => {
-                        const ov = batchOverrides[b.id];
-                        const t = ov?.tons ?? (b.roundedTons || roundRiceTons(b.dryWeightKg));
-                        const isCo = ov?.isCoTro ?? isJaponica(b.riceType);
-
+                        const t = b.roundedTons || roundRiceTons(b.dryWeightKg);
+                        const isCo = isJaponica(b.riceType);
                         return (
-                          <tr key={b.id}>
+                          <tr key={b.id} className="hover:bg-slate-50">
                             <td className="py-2 px-3 font-mono font-bold text-slate-800">
                               {b.batchCode}
                             </td>
@@ -1266,7 +1536,9 @@ export default function RiceXuatNSXTMView() {
                                     : 'bg-amber-100 text-amber-900'
                                 }`}
                               >
-                                {isCo ? 'Có trở (17k)' : 'Không trở (11k)'}
+                                {isCo
+                                  ? `Có trở (${formatVND(unitPrices.priceCoTro)}đ)`
+                                  : `Không trở (${formatVND(unitPrices.priceKhongTro)}đ)`}
                               </span>
                             </td>
                           </tr>

@@ -97,5 +97,31 @@ describe('Xuất Lúa NSX Tân Mỹ (Đội Nam) - Tính lương & Xuất Excel'
     expect(sum.totalTons).toBe(1589);
     expect(sum.tongCong).toBe(38183000);
   });
+
+  it('Cho phép tùy chỉnh đơn giá linh hoạt qua custom unitPrices (Chụm lò, Vô bồn, Xuất lúa)', () => {
+    const customPrices = {
+      priceCoTro: 18000,
+      priceKhongTro: 12000,
+      priceChumLua: 9000,
+      priceChumNep: 12000,
+      priceVoBon: 3500,
+    };
+
+    const row = calculateXuatNSXTMRow(
+      {
+        loaiLua: 'JAPONICA-DS1',
+        canNhapSayKg: 20000,
+        soLuongTan: 20,
+      },
+      customPrices
+    );
+
+    expect(row.donGiaCoTro).toBe(18000);
+    expect(row.thanhTienCoTro).toBe(20 * 18000);
+    expect(row.donGiaChumLua).toBe(9000);
+    expect(row.thanhTienChum).toBe(20 * 9000);
+    expect(row.donGiaVoBon).toBe(3500);
+    expect(row.thanhTienVoBon).toBe(20 * 3500);
+  });
 });
 

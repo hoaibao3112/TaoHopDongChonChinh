@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { XuatNSXTMEntry, XuatNSXTMSummary } from './xuat-nsx-tm-types';
+import { XuatNSXTMEntry, XuatNSXTMSummary, NSXTMUnitPrices } from './xuat-nsx-tm-types';
 import { RiceBatch } from './types';
 import { roundRiceTons } from './rounding';
 import { formatExcelDate } from './excel-parser';
@@ -30,11 +30,18 @@ export function isNSXTM(facility: string): boolean {
  */
 export function batchToXuatNSXTMEntry(
   batch: RiceBatch,
-  override?: { isCoTro?: boolean; tons?: number }
+  override?: { isCoTro?: boolean; tons?: number },
+  customPrices?: Partial<NSXTMUnitPrices>
 ): XuatNSXTMEntry {
   const tons = override?.tons !== undefined ? override.tons : (batch.roundedTons || roundRiceTons(batch.dryWeightKg));
   const isCoTro = override?.isCoTro !== undefined ? override.isCoTro : isJaponica(batch.riceType);
   const nep = isNep(batch.riceType);
+
+  const priceCoTro = customPrices?.priceCoTro ?? 17000;
+  const priceKhongTro = customPrices?.priceKhongTro ?? 11000;
+  const priceChumLua = customPrices?.priceChumLua ?? 8000;
+  const priceChumNep = customPrices?.priceChumNep ?? 11000;
+  const priceVoBon = customPrices?.priceVoBon ?? 3000;
 
   let donGiaCoTro = 0;
   let donGiaKhongTro = 0;
@@ -42,18 +49,18 @@ export function batchToXuatNSXTMEntry(
   let donGiaChumNep = 0;
 
   if (isCoTro) {
-    donGiaCoTro = 17000;
+    donGiaCoTro = priceCoTro;
   } else {
-    donGiaKhongTro = 11000;
+    donGiaKhongTro = priceKhongTro;
   }
 
   if (nep) {
-    donGiaChumNep = 11000;
+    donGiaChumNep = priceChumNep;
   } else {
-    donGiaChumLua = 8000;
+    donGiaChumLua = priceChumLua;
   }
 
-  const donGiaVoBon = 3000;
+  const donGiaVoBon = priceVoBon;
   const thanhTienCoTro = tons * donGiaCoTro;
   const thanhTienKhongTro = tons * donGiaKhongTro;
   const thanhTienChum = tons * (donGiaChumLua || donGiaChumNep);
@@ -104,17 +111,22 @@ export function calculateXuatNSXTMRow(
     giaChumLua?: number;
     giaChumNep?: number;
     giaVoBon?: number;
+    priceCoTro?: number;
+    priceKhongTro?: number;
+    priceChumLua?: number;
+    priceChumNep?: number;
+    priceVoBon?: number;
   }
 ): XuatNSXTMEntry {
   const loaiLua = raw.loaiLua || '';
   const canNhapSayKg = raw.canNhapSayKg || 0;
   const soLuongTan = raw.soLuongTan !== undefined ? raw.soLuongTan : roundRiceTons(canNhapSayKg);
 
-  const giaCoTroDefault = customPrices?.giaCoTro ?? 17000;
-  const giaKhongTroDefault = customPrices?.giaKhongTro ?? 11000;
-  const giaChumLuaDefault = customPrices?.giaChumLua ?? 8000;
-  const giaChumNepDefault = customPrices?.giaChumNep ?? 11000;
-  const giaVoBonDefault = customPrices?.giaVoBon ?? 3000;
+  const giaCoTroDefault = customPrices?.priceCoTro ?? customPrices?.giaCoTro ?? 17000;
+  const giaKhongTroDefault = customPrices?.priceKhongTro ?? customPrices?.giaKhongTro ?? 11000;
+  const giaChumLuaDefault = customPrices?.priceChumLua ?? customPrices?.giaChumLua ?? 8000;
+  const giaChumNepDefault = customPrices?.priceChumNep ?? customPrices?.giaChumNep ?? 11000;
+  const giaVoBonDefault = customPrices?.priceVoBon ?? customPrices?.giaVoBon ?? 3000;
 
   const japonica = isJaponica(loaiLua);
   const nep = isNep(loaiLua);
