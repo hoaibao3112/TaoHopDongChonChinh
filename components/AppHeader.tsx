@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { UserRole } from '@/lib/auth';
 
@@ -38,8 +39,15 @@ export default function AppHeader() {
         {/* Left: Branding & Nav Tabs */}
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-700 to-indigo-600 text-xl text-white shadow-md shadow-blue-500/20 ring-1 ring-white/30">
-              🌾
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white shadow-xs ring-1 ring-slate-200/90 p-1 overflow-hidden">
+              <Image
+                src="/logo.png"
+                alt="Logo XNK Chơn Chính"
+                width={40}
+                height={40}
+                className="h-full w-full object-contain"
+                priority
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">

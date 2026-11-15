@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, Suspense } from 'react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 function LoginFormContent() {
@@ -55,8 +56,15 @@ function LoginFormContent() {
 
       <div className="w-full max-w-md space-y-8 rounded-3xl border border-slate-200/90 bg-white/95 p-8 shadow-xl shadow-slate-200/50 backdrop-blur-md sm:p-10 relative z-10">
         <div className="text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-700 to-indigo-600 text-3xl text-white shadow-lg shadow-blue-500/25 ring-4 ring-blue-50">
-            📑
+          <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-2xl bg-white p-2 shadow-lg shadow-emerald-500/10 ring-1 ring-slate-200">
+            <Image
+              src="/logo.png"
+              alt="Logo XNK Chơn Chính"
+              width={96}
+              height={96}
+              className="h-full w-full object-contain"
+              priority
+            />
           </div>
           <h2 className="mt-5 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
             Tạo Hợp Đồng Mua Bán

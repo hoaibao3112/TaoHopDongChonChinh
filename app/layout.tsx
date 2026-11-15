@@ -4,6 +4,10 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Phần Mềm Tạo Hợp Đồng Mua Bán Hàng Hóa - Công ty TNHH XNK Chơn Chính',
   description: 'Hệ thống tạo và xuất file hợp đồng mua bán hàng hóa (.docx) tự động',
+  icons: {
+    icon: '/icon.png',
+    apple: '/icon.png',
+  },
 };
 
 export default function RootLayout({
