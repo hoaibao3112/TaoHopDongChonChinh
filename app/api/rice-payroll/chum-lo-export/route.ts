@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import XLSX from 'xlsx-js-style';
+import { finalizeWorkbookWithPrintSetup } from '@/lib/excel/excelPrintHelper';
 import { isRequestAuthenticated } from '@/lib/auth';
 import { ChumLoExportPayload } from '@/lib/rice-payroll/chum-lo-types';
 import { DEFAULT_CHUM_LO_WORKERS } from '@/lib/rice-payroll/team-chum-lo-workers';
@@ -386,11 +387,14 @@ export async function POST(req: NextRequest) {
     const sheet2Name = `ỨL ĐỘI NGUYÊN T0${mm}.${yyyy}`;
     XLSX.utils.book_append_sheet(wb, ws2, sheet2Name);
 
-    // Xuất Buffer Excel
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    // Xuất Buffer Excel hoàn chỉnh kèm Print Setup chống lấn trang & tự động tính toán
+    const buf = finalizeWorkbookWithPrintSetup(wb, {
+      'Chụm Lò': { orientation: 'landscape', fitToWidth: 1, fitToHeight: 0 },
+      [sheet2Name]: { orientation: 'portrait', fitToWidth: 1, fitToHeight: 0 },
+    });
     const fileName = `TONG_HOP_DOI_CHUM_LO_T${mm}_${yyyy}.xlsx`;
 
-    return new NextResponse(buf, {
+    return new NextResponse(new Uint8Array(buf), {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

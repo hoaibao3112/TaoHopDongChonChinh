@@ -452,11 +452,11 @@ export async function writeHuskRowsToExcel(
     cellR.numFmt = '#,##0';
     cellR.alignment = { horizontal: 'right', vertical: 'middle' };
 
-    // S: TỔNG CỘNG
+    // S: TỔNG CỘNG (dùng SUM để an toàn, không bị #VALUE! khi có ô trống)
     const cellS = targetRow.getCell(19);
     cellS.value = {
       formula: useMultiColSumS
-        ? `J${targetRowNumber}+L${targetRowNumber}+N${targetRowNumber}+P${targetRowNumber}+R${targetRowNumber}`
+        ? `SUM(J${targetRowNumber},L${targetRowNumber},N${targetRowNumber},P${targetRowNumber},R${targetRowNumber})`
         : `R${targetRowNumber}`,
       result: slip.amount,
     };
@@ -498,7 +498,23 @@ export async function writeHuskRowsToExcel(
     worksheet.autoFilter = `A7:S${finalRowNumber}`;
   }
 
-  // 9. Đặt fullCalcOnLoad để Excel tự tính lại mọi công thức khi mở
+  // 9. Cấu hình Print Setup chuẩn A4 Landscape chống lấn trang & fullCalcOnLoad
+  worksheet.pageSetup = {
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    orientation: 'landscape',
+    paperSize: 9, // A4
+    horizontalCentered: true,
+    margins: {
+      left: 0.35,
+      right: 0.35,
+      top: 0.45,
+      bottom: 0.45,
+      header: 0.2,
+      footer: 0.2,
+    },
+  };
   workbook.calcProperties.fullCalcOnLoad = true;
 
   const updatedBuffer = (await workbook.xlsx.writeBuffer()) as unknown as Buffer;

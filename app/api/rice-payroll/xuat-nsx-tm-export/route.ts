@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import XLSX from 'xlsx-js-style';
+import { finalizeWorkbookWithPrintSetup } from '@/lib/excel/excelPrintHelper';
 import { isRequestAuthenticated } from '@/lib/auth';
 import { XuatNSXTMExportPayload } from '@/lib/rice-payroll/xuat-nsx-tm-types';
 
@@ -522,17 +523,17 @@ export async function POST(req: NextRequest) {
     setCell(ws2, 'B14', 's', 'CÒN LẠI :', styleData('center', true));
     setCell(ws2, 'C14', 's', '', styleData('center'));
     setCell(ws2, 'D14', 's', '', styleData('center'));
-    const conLaiVal = Math.max(0, (summary?.tongCong ?? 0) - (tamUng || 0));
+    const conLaiVal = (summary?.tongCong ?? 0) - (tamUng || 0);
     setCell(
       ws2,
       'E14',
       'n',
       conLaiVal,
       {
-        font: { name: FONT_NAME, bold: true, sz: 11, color: { rgb: '006100' } },
+        font: { name: FONT_NAME, bold: true, sz: 11, color: { rgb: conLaiVal < 0 ? 'CC0000' : '006100' } },
         alignment: { horizontal: 'right', vertical: 'center' },
         numFmt: FMT_MONEY,
-        fill: { fgColor: { rgb: 'C6EFCE' }, patternType: 'solid' },
+        fill: { fgColor: { rgb: conLaiVal < 0 ? 'FFF2CC' : 'C6EFCE' }, patternType: 'solid' },
         border: BORDER_MEDIUM_BOTTOM,
       },
       FMT_MONEY,
@@ -558,11 +559,14 @@ export async function POST(req: NextRequest) {
     ws2['!ref'] = 'A1:E16';
     XLSX.utils.book_append_sheet(wb, ws2, sheet2Name);
 
-    // Xuất Buffer Excel
-    const wbBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+    // Xuất Buffer Excel hoàn chỉnh kèm Print Setup chống lấn trang & tự động tính toán
+    const wbBuffer = finalizeWorkbookWithPrintSetup(wb, {
+      [sheet1Name]: { orientation: 'landscape', fitToWidth: 1, fitToHeight: 0 },
+      [sheet2Name]: { orientation: 'portrait', fitToWidth: 1, fitToHeight: 0 },
+    });
     const filename = `LUONG_DOI_NAM-XUAT_NSX_DTM_T${safeMonth}_${year}.xlsx`;
 
-    return new NextResponse(wbBuffer, {
+    return new NextResponse(new Uint8Array(wbBuffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

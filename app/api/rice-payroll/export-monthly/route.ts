@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import XLSX from 'xlsx-js-style';
+import { finalizeWorkbookWithPrintSetup } from '@/lib/excel/excelPrintHelper';
 import * as fs from 'fs';
 import * as path from 'path';
 import { isRequestAuthenticated } from '@/lib/auth';
@@ -532,12 +533,14 @@ export async function POST(req: NextRequest) {
       };
     }
 
+    const hasDataRows = items.length > 0;
+
     // J3 = SUBTOTAL(109, J5:J{lastRow}) (Tổng Cân nhập sấy kg)
     const sumKgVal = items.reduce((s, it) => s + it.dryWeightKg, 0);
     wsBK['J3'] = {
       t: 'n',
       v: sumKgVal,
-      f: `SUBTOTAL(109,J5:J${lastRow})`,
+      ...(hasDataRows ? { f: `SUBTOTAL(109,J5:J${lastRow})` } : {}),
       z: FMT_NUMBER,
       s: { ...styleTotalBase, alignment: { horizontal: 'right', vertical: 'center' } },
     };
@@ -547,7 +550,7 @@ export async function POST(req: NextRequest) {
     wsBK['K3'] = {
       t: 'n',
       v: sumTonsVal,
-      f: `SUBTOTAL(109,K5:K${lastRow})`,
+      ...(hasDataRows ? { f: `SUBTOTAL(109,K5:K${lastRow})` } : {}),
       z: FMT_NUMBER,
       s: { ...styleTotalBase, alignment: { horizontal: 'center', vertical: 'center' } },
     };
@@ -559,7 +562,7 @@ export async function POST(req: NextRequest) {
     wsBK['Q3'] = {
       t: 'n',
       v: sumCoTroVal,
-      f: `SUBTOTAL(109,Q5:Q${lastRow})`,
+      ...(hasDataRows ? { f: `SUBTOTAL(109,Q5:Q${lastRow})` } : {}),
       z: FMT_MONEY,
       s: styleTotalHighlight,
     };
@@ -571,7 +574,7 @@ export async function POST(req: NextRequest) {
     wsBK['S3'] = {
       t: 'n',
       v: sumKhongTroVal,
-      f: `SUBTOTAL(109,S5:S${lastRow})`,
+      ...(hasDataRows ? { f: `SUBTOTAL(109,S5:S${lastRow})` } : {}),
       z: FMT_MONEY,
       s: styleTotalHighlight,
     };
@@ -1197,13 +1200,17 @@ export async function POST(req: NextRequest) {
 
     XLSX.utils.book_append_sheet(wb, wsCL, sheetNameCL);
 
-    // Kết xuất Buffer Excel
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    // Kết xuất Buffer Excel hoàn chỉnh kèm Print Setup chống lấn trang & tự động tính toán
+    const buffer = finalizeWorkbookWithPrintSetup(wb, {
+      [sheetNameBK]: { orientation: 'landscape', fitToWidth: 1, fitToHeight: 0 },
+      [sheetNameUL]: { orientation: 'portrait', fitToWidth: 1, fitToHeight: 0 },
+      [sheetNameCL]: { orientation: 'portrait', fitToWidth: 1, fitToHeight: 0 },
+    });
     const safeFileName = isCS2
       ? `TONG_HOP_DOI_DUONG_CS2_XUAT_T${String(month).padStart(2, '0')}_${year}_HOAN_CHINH.xlsx`
       : `DOI_THANH-XUAT_CS1_T${String(month).padStart(2, '0')}_${year}_HOAN_CHINH.xlsx`;
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

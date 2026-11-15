@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import XLSX from 'xlsx-js-style';
+import { finalizeWorkbookWithPrintSetup } from '@/lib/excel/excelPrintHelper';
 import { isRequestAuthenticated } from '@/lib/auth';
 import { NSXTMEntry, NSXTMPayload } from '@/lib/rice-payroll/nsx-tm-types';
 
@@ -203,27 +204,27 @@ function buildSheetQuy(
     // Sấy Xe / Ghe
     setCell(ws, `H${r}`, 'n', e.unitPriceSayXe || 0, styleMoney());
     setCell(ws, `I${r}`, 'n', e.unitPriceSayGhe || 0, styleMoney());
-    setCell(ws, `J${r}`, 'n', e.thanhTienSay || 0, styleMoney(true), undefined, `(F${r}*H${r})+(F${r}*I${r})`);
+    setCell(ws, `J${r}`, 'n', e.thanhTienSay || 0, styleMoney(true), undefined, `IF(ISNUMBER(H${r}),F${r}*H${r},0)+IF(ISNUMBER(I${r}),F${r}*I${r},0)`);
 
     // Lúa khô
     setCell(ws, `K${r}`, 'n', e.unitPriceLuaKho || 0, styleMoney());
-    setCell(ws, `L${r}`, 'n', e.thanhTienLuaKho || 0, styleMoney(true), undefined, `F${r}*K${r}`);
+    setCell(ws, `L${r}`, 'n', e.thanhTienLuaKho || 0, styleMoney(true), undefined, `IF(ISNUMBER(K${r}),F${r}*K${r},0)`);
 
     // Vô bồn
     setCell(ws, `M${r}`, 'n', e.unitPriceVoBon || 0, styleMoney());
-    setCell(ws, `N${r}`, 'n', e.thanhTienVoBon || 0, styleMoney(), undefined, `F${r}*M${r}`);
+    setCell(ws, `N${r}`, 'n', e.thanhTienVoBon || 0, styleMoney(), undefined, `IF(ISNUMBER(M${r}),F${r}*M${r},0)`);
 
     // Xuất gạo
     setCell(ws, `O${r}`, 'n', e.unitPriceXuatGao || 0, styleMoney());
-    setCell(ws, `P${r}`, 'n', e.thanhTienXuatGao || 0, styleMoney(), undefined, `G${r}*O${r}`);
+    setCell(ws, `P${r}`, 'n', e.thanhTienXuatGao || 0, styleMoney(), undefined, `IF(ISNUMBER(O${r}),G${r}*O${r},0)`);
 
     // Xuất trấu
     setCell(ws, `Q${r}`, 'n', e.unitPriceXuatTrau || 0, styleMoney());
-    setCell(ws, `R${r}`, 'n', e.thanhTienXuatTrau || 0, styleMoney(), undefined, `F${r}*Q${r}`);
+    setCell(ws, `R${r}`, 'n', e.thanhTienXuatTrau || 0, styleMoney(), undefined, `IF(ISNUMBER(Q${r}),F${r}*Q${r},0)`);
 
-    // Tổng dòng
+    // Tổng dòng — dùng SUM để chống #VALUE!
     const rowTotal = (e.thanhTienSay || 0) + (e.thanhTienLuaKho || 0) + (e.thanhTienVoBon || 0) + (e.thanhTienXuatGao || 0) + (e.thanhTienXuatTrau || 0);
-    setCell(ws, `S${r}`, 'n', rowTotal, styleMoney(true), undefined, `J${r}+L${r}+N${r}+P${r}+R${r}`);
+    setCell(ws, `S${r}`, 'n', rowTotal, styleMoney(true), undefined, `SUM(J${r},L${r},N${r},P${r},R${r})`);
 
     totKg += e.weightKg;
     totTons += e.roundedTons;
@@ -238,17 +239,19 @@ function buildSheetQuy(
 
   // R5: Dòng TỔNG CỘNG
   const totStyle = styleTitle(true);
-  for (const c of ['A','C','D','H','I','K','M','O','Q']) setCell(ws, `${c}5`, 's', '', totStyle);
+  for (const c of ['A','C','D']) setCell(ws, `${c}5`, 's', '', totStyle);
+  for (const c of ['H','I','K','M','O','Q']) setCell(ws, `${c}5`, 'n', 0, { ...totStyle, numFmt: FMT_MONEY });
   setCell(ws, 'B5', 's', 'TỔNG CỘNG:', totStyle);
-  setCell(ws, 'E5', 'n', totKg, { ...totStyle, numFmt: FMT_NUMBER }, undefined, `SUBTOTAL(109,E8:E${endRow})`);
-  setCell(ws, 'F5', 'n', totTons, { ...totStyle, numFmt: FMT_NUMBER }, undefined, `SUBTOTAL(109,F8:F${endRow})`);
-  setCell(ws, 'G5', 'n', totBao, { ...totStyle, numFmt: FMT_NUMBER }, undefined, `SUBTOTAL(109,G8:G${endRow})`);
-  setCell(ws, 'J5', 'n', totSay, { ...totStyle, numFmt: FMT_MONEY }, undefined, `SUBTOTAL(109,J8:J${endRow})`);
-  setCell(ws, 'L5', 'n', totKho, { ...totStyle, numFmt: FMT_MONEY }, undefined, `SUBTOTAL(109,L8:L${endRow})`);
-  setCell(ws, 'N5', 'n', totVoBon, { ...totStyle, numFmt: FMT_MONEY }, undefined, `SUBTOTAL(109,N8:N${endRow})`);
-  setCell(ws, 'P5', 'n', totGao, { ...totStyle, numFmt: FMT_MONEY }, undefined, `SUBTOTAL(109,P8:P${endRow})`);
-  setCell(ws, 'R5', 'n', totTrau, { ...totStyle, numFmt: FMT_MONEY }, undefined, `SUBTOTAL(109,R8:R${endRow})`);
-  setCell(ws, 'S5', 'n', grandTotal, { ...totStyle, numFmt: FMT_MONEY }, undefined, `ROUNDUP(J5+L5+N5+P5+R5,-3)`);
+  const hasRows = entries.length > 0;
+  setCell(ws, 'E5', 'n', totKg, { ...totStyle, numFmt: FMT_NUMBER }, undefined, hasRows ? `SUBTOTAL(109,E8:E${endRow})` : undefined);
+  setCell(ws, 'F5', 'n', totTons, { ...totStyle, numFmt: FMT_NUMBER }, undefined, hasRows ? `SUBTOTAL(109,F8:F${endRow})` : undefined);
+  setCell(ws, 'G5', 'n', totBao, { ...totStyle, numFmt: FMT_NUMBER }, undefined, hasRows ? `SUBTOTAL(109,G8:G${endRow})` : undefined);
+  setCell(ws, 'J5', 'n', totSay, { ...totStyle, numFmt: FMT_MONEY }, undefined, hasRows ? `SUBTOTAL(109,J8:J${endRow})` : undefined);
+  setCell(ws, 'L5', 'n', totKho, { ...totStyle, numFmt: FMT_MONEY }, undefined, hasRows ? `SUBTOTAL(109,L8:L${endRow})` : undefined);
+  setCell(ws, 'N5', 'n', totVoBon, { ...totStyle, numFmt: FMT_MONEY }, undefined, hasRows ? `SUBTOTAL(109,N8:N${endRow})` : undefined);
+  setCell(ws, 'P5', 'n', totGao, { ...totStyle, numFmt: FMT_MONEY }, undefined, hasRows ? `SUBTOTAL(109,P8:P${endRow})` : undefined);
+  setCell(ws, 'R5', 'n', totTrau, { ...totStyle, numFmt: FMT_MONEY }, undefined, hasRows ? `SUBTOTAL(109,R8:R${endRow})` : undefined);
+  setCell(ws, 'S5', 'n', grandTotal, { ...totStyle, numFmt: FMT_MONEY }, undefined, `ROUNDUP(SUM(J5,L5,N5,P5,R5),-3)`);
 
   // Chữ ký cuối bảng
   const signRow = endRow + 4;
@@ -411,27 +414,27 @@ function buildSheetDuc(
     // Sấy Xe / Ghe
     setCell(ws, `K${r}`, 'n', e.unitPriceSayXe || 0, styleMoney());
     setCell(ws, `L${r}`, 'n', e.unitPriceSayGhe || 0, styleMoney());
-    setCell(ws, `M${r}`, 'n', e.thanhTienSay || 0, styleMoney(true), undefined, `(I${r}*K${r})+(I${r}*L${r})`);
+    setCell(ws, `M${r}`, 'n', e.thanhTienSay || 0, styleMoney(true), undefined, `IF(ISNUMBER(K${r}),I${r}*K${r},0)+IF(ISNUMBER(L${r}),I${r}*L${r},0)`);
 
     // Lúa khô
     setCell(ws, `N${r}`, 'n', e.unitPriceLuaKho || 0, styleMoney());
-    setCell(ws, `O${r}`, 'n', e.thanhTienLuaKho || 0, styleMoney(true), undefined, `I${r}*N${r}`);
+    setCell(ws, `O${r}`, 'n', e.thanhTienLuaKho || 0, styleMoney(true), undefined, `IF(ISNUMBER(N${r}),I${r}*N${r},0)`);
 
     // Vô bồn
     setCell(ws, `P${r}`, 'n', e.unitPriceVoBon || 0, styleMoney());
-    setCell(ws, `Q${r}`, 'n', e.thanhTienVoBon || 0, styleMoney(), undefined, `I${r}*P${r}`);
+    setCell(ws, `Q${r}`, 'n', e.thanhTienVoBon || 0, styleMoney(), undefined, `IF(ISNUMBER(P${r}),I${r}*P${r},0)`);
 
     // Xuất gạo
     setCell(ws, `R${r}`, 'n', e.unitPriceXuatGao || 0, styleMoney());
-    setCell(ws, `S${r}`, 'n', e.thanhTienXuatGao || 0, styleMoney(), undefined, `J${r}*R${r}`);
+    setCell(ws, `S${r}`, 'n', e.thanhTienXuatGao || 0, styleMoney(), undefined, `IF(ISNUMBER(R${r}),J${r}*R${r},0)`);
 
     // Xuất trấu
     setCell(ws, `T${r}`, 'n', e.unitPriceXuatTrau || 0, styleMoney());
-    setCell(ws, `U${r}`, 'n', e.thanhTienXuatTrau || 0, styleMoney(), undefined, `I${r}*T${r}`);
+    setCell(ws, `U${r}`, 'n', e.thanhTienXuatTrau || 0, styleMoney(), undefined, `IF(ISNUMBER(T${r}),I${r}*T${r},0)`);
 
-    // Tổng dòng
+    // Tổng dòng — dùng SUM để chống #VALUE!
     const rowTotal = (e.thanhTienSay || 0) + (e.thanhTienLuaKho || 0) + (e.thanhTienVoBon || 0) + (e.thanhTienXuatGao || 0) + (e.thanhTienXuatTrau || 0);
-    setCell(ws, `V${r}`, 'n', rowTotal, styleMoney(true), undefined, `M${r}+O${r}+Q${r}+S${r}+U${r}`);
+    setCell(ws, `V${r}`, 'n', rowTotal, styleMoney(true), undefined, `SUM(M${r},O${r},Q${r},S${r},U${r})`);
 
     totKg += e.weightKg;
     totTons += e.roundedTons;
@@ -446,17 +449,19 @@ function buildSheetDuc(
 
   // R5: Dòng TỔNG CỘNG
   const totStyle = styleTitle(true);
-  for (const c of ['A','C','D','E','F','G','K','L','N','P','R','T']) setCell(ws, `${c}5`, 's', '', totStyle);
+  for (const c of ['A','C','D','E','F','G']) setCell(ws, `${c}5`, 's', '', totStyle);
+  for (const c of ['K','L','N','P','R','T']) setCell(ws, `${c}5`, 'n', 0, { ...totStyle, numFmt: FMT_MONEY });
   setCell(ws, 'B5', 's', 'TỔNG CỘNG:', totStyle);
-  setCell(ws, 'H5', 'n', totKg, { ...totStyle, numFmt: FMT_NUMBER }, undefined, `SUBTOTAL(109,H8:H${endRow})`);
-  setCell(ws, 'I5', 'n', totTons, { ...totStyle, numFmt: FMT_NUMBER }, undefined, `SUBTOTAL(109,I8:I${endRow})`);
-  setCell(ws, 'J5', 'n', totBao, { ...totStyle, numFmt: FMT_NUMBER }, undefined, `SUBTOTAL(109,J8:J${endRow})`);
-  setCell(ws, 'M5', 'n', totSay, { ...totStyle, numFmt: FMT_MONEY }, undefined, `SUBTOTAL(109,M8:M${endRow})`);
-  setCell(ws, 'O5', 'n', totKho, { ...totStyle, numFmt: FMT_MONEY }, undefined, `SUBTOTAL(109,O8:O${endRow})`);
-  setCell(ws, 'Q5', 'n', totVoBon, { ...totStyle, numFmt: FMT_MONEY }, undefined, `SUBTOTAL(109,Q8:Q${endRow})`);
-  setCell(ws, 'S5', 'n', totGao, { ...totStyle, numFmt: FMT_MONEY }, undefined, `SUBTOTAL(109,S8:S${endRow})`);
-  setCell(ws, 'U5', 'n', totTrau, { ...totStyle, numFmt: FMT_MONEY }, undefined, `SUBTOTAL(109,U8:U${endRow})`);
-  setCell(ws, 'V5', 'n', grandTotal, { ...totStyle, numFmt: FMT_MONEY }, undefined, `M5+O5+Q5+S5+U5`);
+  const hasRows = entries.length > 0;
+  setCell(ws, 'H5', 'n', totKg, { ...totStyle, numFmt: FMT_NUMBER }, undefined, hasRows ? `SUBTOTAL(109,H8:H${endRow})` : undefined);
+  setCell(ws, 'I5', 'n', totTons, { ...totStyle, numFmt: FMT_NUMBER }, undefined, hasRows ? `SUBTOTAL(109,I8:I${endRow})` : undefined);
+  setCell(ws, 'J5', 'n', totBao, { ...totStyle, numFmt: FMT_NUMBER }, undefined, hasRows ? `SUBTOTAL(109,J8:J${endRow})` : undefined);
+  setCell(ws, 'M5', 'n', totSay, { ...totStyle, numFmt: FMT_MONEY }, undefined, hasRows ? `SUBTOTAL(109,M8:M${endRow})` : undefined);
+  setCell(ws, 'O5', 'n', totKho, { ...totStyle, numFmt: FMT_MONEY }, undefined, hasRows ? `SUBTOTAL(109,O8:O${endRow})` : undefined);
+  setCell(ws, 'Q5', 'n', totVoBon, { ...totStyle, numFmt: FMT_MONEY }, undefined, hasRows ? `SUBTOTAL(109,Q8:Q${endRow})` : undefined);
+  setCell(ws, 'S5', 'n', totGao, { ...totStyle, numFmt: FMT_MONEY }, undefined, hasRows ? `SUBTOTAL(109,S8:S${endRow})` : undefined);
+  setCell(ws, 'U5', 'n', totTrau, { ...totStyle, numFmt: FMT_MONEY }, undefined, hasRows ? `SUBTOTAL(109,U8:U${endRow})` : undefined);
+  setCell(ws, 'V5', 'n', grandTotal, { ...totStyle, numFmt: FMT_MONEY }, undefined, `ROUNDUP(SUM(M5,O5,Q5,S5,U5),-3)`);
 
   // Chữ ký cuối bảng
   const signRow = endRow + 4;
@@ -532,8 +537,11 @@ export async function POST(req: NextRequest) {
       fileName = `TONG_HOP_LUONG_NSX_TM_T${mm}_${yyyy}.xlsx`;
     }
 
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-    return new NextResponse(buf, {
+    const buf = finalizeWorkbookWithPrintSetup(wb, {
+      'ĐỘI ĐỨC': { orientation: 'landscape', fitToWidth: 1, fitToHeight: 0 },
+      'ĐỘI QUÝ': { orientation: 'landscape', fitToWidth: 1, fitToHeight: 0 },
+    });
+    return new NextResponse(new Uint8Array(buf), {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

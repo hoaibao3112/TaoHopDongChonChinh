@@ -443,7 +443,10 @@ export async function writeShipments(
     updateExcelReportTextBoxes(workbook, generatedReport)
   }
 
-  // 5. Xuất workbook ra buffer
+  // 5. Đảm bảo fullCalcOnLoad để Excel tính lại công thức tự động khi mở
+  workbook.calcProperties.fullCalcOnLoad = true
+
+  // 6. Xuất workbook ra buffer
   const buffer = await workbook.xlsx.writeBuffer()
   const uint8 = new Uint8Array(buffer)
 

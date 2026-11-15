@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import XLSX from 'xlsx-js-style';
+import { finalizeWorkbookWithPrintSetup } from '@/lib/excel/excelPrintHelper';
 import { isRequestAuthenticated } from '@/lib/auth';
 import { CS1Batch, CS1ExportPayload } from '@/lib/rice-payroll/cs1-types';
 import { CS1Worker } from '@/lib/rice-payroll/team-cs1-workers';
@@ -573,8 +574,9 @@ export async function POST(req: NextRequest) {
       fileName = `TONG_HOP_NHAP_SAY_CS1_T${mm}_${yyyy}.xlsx`;
     }
 
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-    return new NextResponse(buf, {
+    // Xuất Buffer Excel hoàn chỉnh kèm Print Setup chống lấn trang & tự động tính toán
+    const buf = finalizeWorkbookWithPrintSetup(wb);
+    return new NextResponse(new Uint8Array(buf), {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

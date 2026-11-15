@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import XLSX from 'xlsx-js-style';
+import { finalizeWorkbookWithPrintSetup } from '@/lib/excel/excelPrintHelper';
 import { isRequestAuthenticated } from '@/lib/auth';
 import { NhapBatch, NhapExportPayload, NhapTrauItem } from '@/lib/rice-payroll/nhap-types';
 import { DOI_DUONG_WORKERS } from '@/lib/rice-payroll/team-duong-workers';
@@ -667,11 +668,11 @@ export async function POST(req: NextRequest) {
     const clSheetName = `CL ĐỘI DƯƠNG-CS2-${mm}.${yy}`;
     XLSX.utils.book_append_sheet(wb, ws4, clSheetName);
 
-    // ─── Xuất buffer ─────────────────────────────────────────────────────────
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    // ─── Xuất buffer hoàn chỉnh kèm Print Setup chống lấn trang & tự động tính toán ──
+    const buffer = finalizeWorkbookWithPrintSetup(wb);
     const fileName = `TONG_HOP_DOI_DUONG_CS2_NHAP_T${mm}_${yyyy}_HOAN_CHINH.xlsx`;
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
