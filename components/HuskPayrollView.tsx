@@ -7,6 +7,12 @@ import { calculateHuskTons } from '@/lib/husk/tonnage';
 import { formatWorkDescription, parseVehicle } from '@/lib/husk/plate';
 import { groupSlipsIfEnabled } from '@/lib/husk/merger';
 import { NSXTMEntry, NSXTMTeamKey } from '@/lib/rice-payroll/nsx-tm-types';
+import {
+  saveSlipOriginalImage,
+  getSlipOriginalImageUrl,
+  deleteSlipOriginalImage,
+  clearAllSlipImages,
+} from '@/lib/husk/imageStore';
 
 const POPULAR_CUSTOMERS = [
   'CÔ LIỄU',
@@ -45,23 +51,75 @@ export default function HuskPayrollView() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewRotation, setPreviewRotation] = useState<number>(0);
   const [previewZoom, setPreviewZoom] = useState<number>(1);
+  const [activePreviewSlip, setActivePreviewSlip] = useState<ScannedSlipItem | null>(null);
+  const [isUsingOriginalImage, setIsUsingOriginalImage] = useState<boolean>(false);
+  const replaceImageInputRef = useRef<HTMLInputElement>(null);
 
   // Map lưu ảnh gốc kích thước lớn khi người dùng chọn file trên máy
   const fileUrlMap = useRef<Map<string, string>>(new Map());
 
   // Mở modal xem ảnh to nhất có thể và đặt lại góc quay
-  const handleOpenPreview = (slipOrUrl: ScannedSlipItem | string) => {
-    let finalUrl = '';
+  const handleOpenPreview = async (slipOrUrl: ScannedSlipItem | string) => {
     if (typeof slipOrUrl === 'string') {
-      finalUrl = slipOrUrl;
-    } else {
-      const origUrl = slipOrUrl.fileName ? fileUrlMap.current.get(slipOrUrl.fileName) : null;
-      finalUrl = origUrl || slipOrUrl.thumbnailBase64 || '';
+      setActivePreviewSlip(null);
+      setPreviewImage(slipOrUrl);
+      setIsUsingOriginalImage(false);
+      setPreviewRotation(0);
+      setPreviewZoom(1);
+      return;
     }
+
+    setActivePreviewSlip(slipOrUrl);
+
+    // 1. Kiểm tra blob url trong memory
+    let highResUrl = slipOrUrl.id ? fileUrlMap.current.get(slipOrUrl.id) : null;
+    if (!highResUrl && slipOrUrl.fileName) {
+      highResUrl = fileUrlMap.current.get(slipOrUrl.fileName) || fileUrlMap.current.get(slipOrUrl.fileName.toLowerCase());
+    }
+
+    // 2. Kiểm tra trong IndexedDB (ảnh gốc lưu bền vững trên máy người dùng)
+    if (!highResUrl && slipOrUrl.id) {
+      highResUrl = await getSlipOriginalImageUrl(slipOrUrl.id);
+    }
+    if (!highResUrl && slipOrUrl.fileName) {
+      highResUrl = await getSlipOriginalImageUrl(slipOrUrl.fileName);
+    }
+
+    // 3. Fallback sang thumbnailBase64 nếu không tìm thấy ảnh gốc
+    const finalUrl = highResUrl || slipOrUrl.thumbnailBase64 || '';
     if (!finalUrl) return;
+
     setPreviewImage(finalUrl);
+    setIsUsingOriginalImage(Boolean(highResUrl));
     setPreviewRotation(0);
     setPreviewZoom(1);
+  };
+
+  // Thay thế hoặc cập nhật ảnh gốc siêu nét cho phiếu đang xem
+  const handleReplaceSlipImage = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activePreviewSlip) return;
+
+    try {
+      const url = URL.createObjectURL(file);
+      fileUrlMap.current.set(activePreviewSlip.id, url);
+      if (activePreviewSlip.fileName) {
+        fileUrlMap.current.set(activePreviewSlip.fileName, url);
+      }
+      await saveSlipOriginalImage(activePreviewSlip.id, file);
+
+      setPreviewImage(url);
+      setIsUsingOriginalImage(true);
+
+      // Cập nhật thumbnail trong danh sách phiếu
+      setScannedSlips((prev) =>
+        prev.map((s) => (s.id === activePreviewSlip.id ? { ...s, thumbnailBase64: url } : s))
+      );
+      setSuccessMessage('✅ Đã cập nhật ảnh gốc siêu nét cho phiếu cân này!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error('Lỗi cập nhật ảnh:', err);
+    }
   };
 
   // Lắng nghe phím tắt xoay và đóng modal ảnh (ESC, ←, →, +, -)
@@ -191,6 +249,7 @@ export default function HuskPayrollView() {
   };
 
   const handleDeleteSlip = (id: string) => {
+    deleteSlipOriginalImage(id);
     setScannedSlips((prev) => prev.filter((s) => s.id !== id));
   };
 
@@ -225,6 +284,8 @@ export default function HuskPayrollView() {
   // Xóa danh sách phiếu để quét lại đợt mới
   const handleClearScannedSlips = () => {
     if (window.confirm('Bạn có chắc muốn xóa danh sách phiếu cân đã quét này để quét đợt mới không?')) {
+      clearAllSlipImages();
+      fileUrlMap.current.clear();
       setScannedSlips([]);
       localStorage.removeItem('husk_scanned_slips_cache');
       setSuccessMessage('Đã làm mới danh sách phiếu cân!');
@@ -253,11 +314,13 @@ export default function HuskPayrollView() {
         setErrorMessage('Tối đa 30 ảnh cho mỗi lượt quét. Vui lòng chọn lại.');
         return;
       }
-      // Lưu lại URL ảnh gốc để hiển thị phóng to to nhất và rõ nét nhất
+      // Lưu lại URL ảnh gốc trong bộ nhớ và IndexedDB để xem phóng to 100% cực nét
       files.forEach((file) => {
         try {
           const url = URL.createObjectURL(file);
           fileUrlMap.current.set(file.name, url);
+          fileUrlMap.current.set(file.name.toLowerCase(), url);
+          saveSlipOriginalImage(file.name, file);
         } catch {}
       });
       setSelectedImages(files);
@@ -306,6 +369,22 @@ export default function HuskPayrollView() {
       if (!res.ok) {
         throw new Error(data.error || `Quá trình quét phiếu gặp sự cố (mã lỗi ${res.status}).`);
       }
+
+      // Lưu trữ ảnh gốc siêu nét theo ID phiếu để xem lại luôn rõ 100%
+      (data.slips || []).forEach((s: ScannedSlipItem, idx: number) => {
+        const matchedFile = selectedImages.find((f) => f.name === s.fileName) || selectedImages[idx];
+        if (matchedFile) {
+          saveSlipOriginalImage(s.id, matchedFile);
+          if (s.fileName) {
+            saveSlipOriginalImage(s.fileName, matchedFile);
+          }
+          try {
+            const url = URL.createObjectURL(matchedFile);
+            fileUrlMap.current.set(s.id, url);
+            if (s.fileName) fileUrlMap.current.set(s.fileName, url);
+          } catch {}
+        }
+      });
 
       setScannedSlips((prev) => {
         // Giữ lại các phiếu nhập tay đã có sẵn trước đó
@@ -1439,20 +1518,29 @@ export default function HuskPayrollView() {
         </div>
       )}
 
-      {/* ─── Modal Xem Phóng To & Xoay Ảnh Phiếu Cân (To Nhất Có Thể) ────────── */}
+      {/* ─── Modal Xem Phóng To & Xoay Ảnh Phiếu Cân (To Nhất & Sắc Nét 100%) ── */}
       {previewImage && (
         <div
           onClick={() => setPreviewImage(null)}
-          className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-black/92 p-2 sm:p-4 backdrop-blur-md animate-in fade-in select-none"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-black/95 p-2 sm:p-4 backdrop-blur-md animate-in fade-in select-none"
         >
           {/* Thanh công cụ điều khiển trên cùng */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/20 bg-slate-900/95 px-5 py-2.5 text-white shadow-2xl backdrop-blur-lg w-full max-w-4xl"
+            className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/20 bg-slate-900/95 px-5 py-2.5 text-white shadow-2xl backdrop-blur-lg w-full max-w-5xl"
           >
-            <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-300 flex-wrap">
               <span className="text-base">📸</span>
               <span className="text-sm font-extrabold text-white">Xem Chi Tiết Phiếu Cân</span>
+              {isUsingOriginalImage ? (
+                <span className="rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 px-2.5 py-0.5 text-[11px] font-bold inline-flex items-center gap-1">
+                  <span>✨</span> Ảnh gốc nét 100%
+                </span>
+              ) : (
+                <span className="rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40 px-2.5 py-0.5 text-[11px] font-bold inline-flex items-center gap-1">
+                  <span>⚠️</span> Ảnh cache
+                </span>
+              )}
               <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">
                 Góc xoay: {previewRotation}°
               </span>
@@ -1461,49 +1549,89 @@ export default function HuskPayrollView() {
               </span>
             </div>
 
-            {/* Các nút xoay & phóng to/thu nhỏ */}
-            <div className="flex items-center gap-2">
+            {/* Các nút xoay, phóng to & đổi ảnh gốc */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Nút nạp lại ảnh gốc cực nét nếu ảnh hiện tại mờ */}
+              {activePreviewSlip && (
+                <button
+                  type="button"
+                  onClick={() => replaceImageInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-amber-400/60 bg-amber-500/20 px-3 py-1.5 text-xs font-bold text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition active:scale-95 cursor-pointer shadow-xs"
+                  title="Chọn lại file ảnh chụp gốc từ máy để xem rõ nét 100%"
+                >
+                  <span>📷</span>
+                  <span>Chọn ảnh rõ nét</span>
+                </button>
+              )}
+              <input
+                ref={replaceImageInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleReplaceSlipImage}
+                className="hidden"
+              />
+
               {/* Quay trái 90° */}
               <button
                 type="button"
                 onClick={() => setPreviewRotation((prev) => (prev - 90 + 360) % 360)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-amber-500 hover:text-slate-950 transition active:scale-95 cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-amber-500 hover:text-slate-950 transition active:scale-95 cursor-pointer"
                 title="Quay trái 90° (Phím mũi tên trái ←)"
               >
                 <span className="text-sm">↺</span>
-                <span>Quay trái</span>
+                <span className="hidden sm:inline">Quay trái</span>
               </button>
 
               {/* Quay phải 90° */}
               <button
                 type="button"
                 onClick={() => setPreviewRotation((prev) => (prev + 90) % 360)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-amber-500 hover:text-slate-950 transition active:scale-95 cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-amber-500 hover:text-slate-950 transition active:scale-95 cursor-pointer"
                 title="Quay phải 90° (Phím mũi tên phải →)"
               >
                 <span className="text-sm">↻</span>
-                <span>Quay phải</span>
+                <span className="hidden sm:inline">Quay phải</span>
               </button>
 
-              {/* Thu nhỏ */}
-              <button
-                type="button"
-                onClick={() => setPreviewZoom((prev) => Math.max(prev - 0.25, 0.5))}
-                className="rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/20 transition active:scale-95 cursor-pointer"
-                title="Thu nhỏ (-)"
-              >
-                🔍−
-              </button>
-
-              {/* Phóng to */}
-              <button
-                type="button"
-                onClick={() => setPreviewZoom((prev) => Math.min(prev + 0.25, 4))}
-                className="rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/20 transition active:scale-95 cursor-pointer"
-                title="Phóng to (+)"
-              >
-                🔍+
-              </button>
+              {/* Zoom presets */}
+              <div className="flex items-center rounded-xl bg-white/10 border border-white/20 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setPreviewZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 0.5))}
+                  className="px-2 py-1 text-xs font-bold text-white hover:bg-white/20 rounded-lg transition cursor-pointer"
+                  title="Thu nhỏ (-)"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewZoom(1)}
+                  className={`px-2 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                    previewZoom === 1 ? 'bg-amber-500 text-slate-950' : 'text-slate-300 hover:text-white'
+                  }`}
+                  title="Vừa vặn 100%"
+                >
+                  100%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewZoom(1.5)}
+                  className={`px-2 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                    previewZoom === 1.5 ? 'bg-amber-500 text-slate-950' : 'text-slate-300 hover:text-white'
+                  }`}
+                  title="Phóng to 150%"
+                >
+                  150%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 4))}
+                  className="px-2 py-1 text-xs font-bold text-white hover:bg-white/20 rounded-lg transition cursor-pointer"
+                  title="Phóng to (+)"
+                >
+                  +
+                </button>
+              </div>
 
               {/* Đặt lại */}
               {(previewRotation !== 0 || previewZoom !== 1) && (
@@ -1513,10 +1641,10 @@ export default function HuskPayrollView() {
                     setPreviewRotation(0);
                     setPreviewZoom(1);
                   }}
-                  className="rounded-xl border border-amber-400/50 bg-amber-500/20 px-3 py-1.5 text-xs font-bold text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition cursor-pointer"
+                  className="rounded-xl border border-amber-400/50 bg-amber-500/20 px-2.5 py-1.5 text-xs font-bold text-amber-300 hover:bg-amber-500 hover:text-slate-950 transition cursor-pointer"
                   title="Đặt lại ban đầu (0°, 100%)"
                 >
-                  ⟲ Đặt lại
+                  ⟲
                 </button>
               )}
 
@@ -1524,7 +1652,7 @@ export default function HuskPayrollView() {
               <button
                 type="button"
                 onClick={() => setPreviewImage(null)}
-                className="ml-2 flex h-8 w-8 items-center justify-center rounded-xl bg-rose-600/80 text-white hover:bg-rose-600 transition active:scale-95 cursor-pointer font-bold"
+                className="ml-1 flex h-8 w-8 items-center justify-center rounded-xl bg-rose-600 text-white hover:bg-rose-500 transition active:scale-95 cursor-pointer font-bold shadow-md"
                 title="Đóng (ESC)"
               >
                 ✕
@@ -1532,38 +1660,57 @@ export default function HuskPayrollView() {
             </div>
           </div>
 
-          {/* Vùng hiển thị ảnh - Chiếm trọn màn hình to nhất có thể */}
+          {/* Vùng hiển thị ảnh - Chiếm trọn khung hình to nhất và cuộn được khi zoom */}
           <div
             onClick={(e) => e.stopPropagation()}
             onWheel={(e) => {
               if (e.deltaY < 0) {
-                setPreviewZoom((prev) => Math.min(prev + 0.15, 4));
+                setPreviewZoom((prev) => Math.min(Number((prev + 0.15).toFixed(2)), 4));
               } else {
-                setPreviewZoom((prev) => Math.max(prev - 0.15, 0.5));
+                setPreviewZoom((prev) => Math.max(Number((prev - 0.15).toFixed(2)), 0.5));
               }
             }}
-            className="relative flex flex-1 w-full max-w-7xl items-center justify-center overflow-hidden rounded-2xl bg-black/60 p-2 sm:p-4 border border-white/10 shadow-2xl my-auto cursor-zoom-in"
-            onClickCapture={() => setPreviewZoom((prev) => (prev > 1.2 ? 1 : 1.6))}
-            title="Nhấp vào ảnh hoặc cuộn chuột để phóng to/thu nhỏ"
+            className="relative flex flex-1 w-full max-w-7xl items-center justify-center overflow-auto rounded-2xl bg-black/80 p-2 sm:p-6 border border-white/10 shadow-2xl my-auto"
+            title="Cuộn chuột hoặc bấm nút +/− để phóng to/thu nhỏ • Bấm vào để đổi độ zoom"
           >
-            <img
-              src={previewImage}
-              alt="Phóng to phiếu cân"
+            <div
+              className="flex items-center justify-center transition-transform duration-150 ease-out m-auto"
               style={{
                 transform: `rotate(${previewRotation}deg) scale(${previewZoom})`,
-                transition: 'transform 0.22s cubic-bezier(0.2, 0, 0, 1)',
-                maxHeight: previewRotation % 180 !== 0 ? '86vw' : '82vh',
-                maxWidth: previewRotation % 180 !== 0 ? '82vh' : '92vw',
-                minHeight: '68vh',
-                minWidth: '320px',
+                transformOrigin: 'center center',
               }}
-              className="h-full w-full object-contain rounded-lg shadow-2xl select-none"
-            />
+            >
+              <img
+                src={previewImage}
+                alt="Phóng to phiếu cân"
+                style={{
+                  maxHeight: previewRotation % 180 !== 0 ? '78vw' : '80vh',
+                  maxWidth: previewRotation % 180 !== 0 ? '80vh' : '88vw',
+                }}
+                className="w-auto h-auto object-contain rounded-xl shadow-2xl select-none mx-auto my-auto block border border-white/5"
+              />
+            </div>
           </div>
 
           {/* Hướng dẫn tiện ích dưới cùng */}
-          <div className="mt-1 text-center text-[11px] text-slate-400">
-            💡 Mẹo: Nhấp vào ảnh hoặc cuộn chuột để phóng to/thu nhỏ • Phím ← / → để quay trái/phải • Phím ESC để đóng
+          <div className="mt-1 text-center text-[11px] text-slate-300 flex items-center justify-center gap-3 flex-wrap">
+            <span>💡 Mẹo: Cuộn chuột hoặc bấm <strong>+</strong> / <strong>−</strong> để phóng to/thu nhỏ</span>
+            <span>•</span>
+            <span>Phím <strong>←</strong> / <strong>→</strong> để quay ảnh 90°</span>
+            <span>•</span>
+            <span>Phím <strong>ESC</strong> để đóng</span>
+            {!isUsingOriginalImage && activePreviewSlip && (
+              <>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={() => replaceImageInputRef.current?.click()}
+                  className="text-amber-400 font-bold underline hover:text-amber-300 cursor-pointer"
+                >
+                  Bấm vào đây để chọn lại ảnh gốc cực nét 📸
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
