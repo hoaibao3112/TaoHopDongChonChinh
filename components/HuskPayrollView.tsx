@@ -1522,12 +1522,12 @@ export default function HuskPayrollView() {
       {previewImage && (
         <div
           onClick={() => setPreviewImage(null)}
-          className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-black/95 p-2 sm:p-4 backdrop-blur-md animate-in fade-in select-none"
+          className="fixed inset-0 z-50 flex flex-col items-center bg-black/95 p-2 sm:p-4 backdrop-blur-md animate-in fade-in select-none"
         >
           {/* Thanh công cụ điều khiển trên cùng */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/20 bg-slate-900/95 px-5 py-2.5 text-white shadow-2xl backdrop-blur-lg w-full max-w-5xl"
+            className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/20 bg-slate-900/95 px-4 py-2 text-white shadow-2xl backdrop-blur-lg w-full shrink-0"
           >
             <div className="flex items-center gap-2 text-xs font-bold text-amber-300 flex-wrap">
               <span className="text-base">📸</span>
@@ -1670,30 +1670,33 @@ export default function HuskPayrollView() {
                 setPreviewZoom((prev) => Math.max(Number((prev - 0.15).toFixed(2)), 0.5));
               }
             }}
-            className="relative flex flex-1 w-full max-w-7xl items-center justify-center overflow-auto rounded-2xl bg-black/80 p-2 sm:p-6 border border-white/10 shadow-2xl my-auto"
+            className="relative flex flex-1 min-h-0 w-full items-center justify-center overflow-auto rounded-2xl bg-black/80 border border-white/10 shadow-2xl"
             title="Cuộn chuột hoặc bấm nút +/− để phóng to/thu nhỏ • Bấm vào để đổi độ zoom"
           >
             <div
-              className="flex items-center justify-center transition-transform duration-150 ease-out m-auto"
+              className="flex h-full w-full items-center justify-center transition-transform duration-150 ease-out m-auto"
               style={{
                 transform: `rotate(${previewRotation}deg) scale(${previewZoom})`,
                 transformOrigin: 'center center',
+                transition: 'transform 0.15s ease-out',
               }}
             >
               <img
                 src={previewImage}
                 alt="Phóng to phiếu cân"
                 style={{
-                  maxHeight: previewRotation % 180 !== 0 ? '78vw' : '80vh',
-                  maxWidth: previewRotation % 180 !== 0 ? '80vh' : '88vw',
+                  maxHeight: previewRotation % 180 !== 0 ? '70vw' : 'calc(100vh - 140px)',
+                  maxWidth: previewRotation % 180 !== 0 ? 'calc(100vh - 140px)' : '98vw',
+                  width: 'auto',
+                  height: 'auto',
                 }}
-                className="w-auto h-auto object-contain rounded-xl shadow-2xl select-none mx-auto my-auto block border border-white/5"
+                className="w-auto h-auto object-contain rounded-xl shadow-2xl select-none block border border-white/5"
               />
             </div>
           </div>
 
           {/* Hướng dẫn tiện ích dưới cùng */}
-          <div className="mt-1 text-center text-[11px] text-slate-300 flex items-center justify-center gap-3 flex-wrap">
+          <div className="mt-1 shrink-0 text-center text-[11px] text-slate-300 flex items-center justify-center gap-3 flex-wrap">
             <span>💡 Mẹo: Cuộn chuột hoặc bấm <strong>+</strong> / <strong>−</strong> để phóng to/thu nhỏ</span>
             <span>•</span>
             <span>Phím <strong>←</strong> / <strong>→</strong> để quay ảnh 90°</span>
