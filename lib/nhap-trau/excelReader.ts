@@ -12,6 +12,7 @@ import {
   parseTabName,
 } from './config'
 import { extractRangesFromFormula } from './formulaUpdater'
+import { safeFormatDate } from './validator'
 
 /**
  * Kiểm tra một ô có phải chứa ngày tháng hợp lệ không (tránh nhận nhầm text hộp báo cáo).
@@ -153,7 +154,7 @@ export function extractWorkbookMetadata(
 
       let dateStr = ''
       if (dateCell.value instanceof Date) {
-        dateStr = dateCell.value.toISOString().split('T')[0]
+        dateStr = safeFormatDate(dateCell.value)
       } else if (dateCell.value) {
         dateStr = String(dateCell.value).trim()
       }

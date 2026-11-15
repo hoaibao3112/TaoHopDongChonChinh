@@ -144,8 +144,8 @@ export default function HuskPayrollView() {
     const team = manualTeam;
 
     const tons = calculateHuskTons(kgNum);
-    const unitPrice = settings.unitPrice || 11000;
-    const amount = Math.round(tons * unitPrice);
+    const effectiveUnitPrice = manualType === 'GHE' ? 7000 : (settings.unitPrice || 11000);
+    const amount = Math.round(tons * effectiveUnitPrice);
 
     const finalDesc = manualDesc.trim() || formatWorkDescription(vName || (manualType === 'GHE' ? 'Ghe' : 'Xe'), custName);
 
@@ -162,7 +162,7 @@ export default function HuskPayrollView() {
       weightTareKg: 0,
       weightNetKg: kgNum,
       tons,
-      unitPrice,
+      unitPrice: effectiveUnitPrice,
       amount,
       description: finalDesc,
       targetTeam: team,
@@ -1370,9 +1370,9 @@ export default function HuskPayrollView() {
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-600">Thành tiền ({settings.unitPrice || 11000}đ): </span>
+                      <span className="text-slate-600">Thành tiền ({manualType === 'GHE' ? '7.000đ/tấn (Ghe)' : `${(settings.unitPrice || 11000).toLocaleString()}đ/tấn (Xe)`}): </span>
                       <strong className="text-emerald-700 font-bold">
-                        {Math.round(calculateHuskTons(Number(manualKg)) * (settings.unitPrice || 11000)).toLocaleString()} VNĐ
+                        {Math.round(calculateHuskTons(Number(manualKg)) * (manualType === 'GHE' ? 7000 : (settings.unitPrice || 11000))).toLocaleString()} VNĐ
                       </strong>
                     </div>
                   </div>

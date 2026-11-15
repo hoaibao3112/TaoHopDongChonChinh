@@ -445,7 +445,7 @@ export function getCustomerSheetConfig(sheetName: string): Partial<CustomerSheet
   if (baseCust.includes('CHỊ BÉ BA') || baseCust.includes('BÉ BA')) {
     return PRECONFIGURED_CUSTOMER_SHEETS['CHỊ BÉ BA 27052601']
   }
-  if (baseCust.includes('MAI') || baseCust.includes('THÁI BẢO NGỌC')) {
+  if (baseCust.includes('THÁI BẢO NGỌC') || baseCust.includes('CHỊ MAI') || baseCust.includes('TBN')) {
     return PRECONFIGURED_CUSTOMER_SHEETS['CHỊ MAI THÁI BẢO NGỌC 091026']
   }
   if (baseCust.includes('NAM HOÀNG') || baseCust.includes('NAM HH')) {
@@ -454,7 +454,7 @@ export function getCustomerSheetConfig(sheetName: string): Partial<CustomerSheet
   if (baseCust.includes('TRÂM ANH')) {
     return PRECONFIGURED_CUSTOMER_SHEETS['TRÂM ANH 300926']
   }
-  if (baseCust.includes('CẨM') || baseCust.includes('THANH XUÂN')) {
+  if (baseCust.includes('THANH XUÂN') || baseCust.includes('CẨM THANH XUÂN') || (baseCust.includes('CẨM') && !baseCust.includes('PLTH'))) {
     return PRECONFIGURED_CUSTOMER_SHEETS['CẨM THANH XUÂN 170826']
   }
   if (baseCust.includes('ĐƯỢC PHƯỜNG')) {

@@ -237,7 +237,7 @@ export function calculateXuatNSXTMTotal(
   }
 
   const tongCong = thanhTienCoTro + thanhTienKhongTro + thanhTienChumLua + thanhTienChumNep + thanhTienVoBon;
-  const conLai = Math.max(0, tongCong - tamUng);
+  const conLai = tongCong - tamUng;
 
   return {
     monthKey,

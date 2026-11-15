@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs'
 import type { ShipmentEntry, WorkbookMetadata } from './types'
 import { SHEET_NAMES } from './config'
-import { normalizeDate } from './validator'
+import { normalizeDate, safeFormatDate } from './validator'
 import { findActualMainLastRow, findSummaryBoxStartRow, isDateLikeCell } from './excelReader'
 
 export interface DailyReportResult {
@@ -235,7 +235,7 @@ export function generateDailyReports(
 
       let rowDateNorm = ''
       if (dateVal instanceof Date) {
-        rowDateNorm = dateVal.toISOString().split('T')[0]
+        rowDateNorm = safeFormatDate(dateVal)
       } else {
         rowDateNorm = normalizeDate(String(dateVal))
       }

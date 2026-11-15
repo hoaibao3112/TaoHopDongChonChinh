@@ -405,6 +405,18 @@ export async function writeShipments(
           // Dời công thức SUM của các hợp đồng nằm bên dưới
           for (const otherContract of contractsList) {
             if (otherContract.row !== contract.row && otherContract.dataRowStart >= insertAt) {
+              otherContract.dataRowStart += 1
+              otherContract.dataRowEnd += 1
+              if (otherContract.row >= insertAt) {
+                otherContract.row += 1
+              }
+
+              // Cập nhật toạ độ ô SUM mới (ví dụ F30 -> F31 khi chèn ở dòng < 30)
+              const sumCol = otherContract.sumCell.replace(/\d+/g, '')
+              const oldSumRow = parseInt(otherContract.sumCell.replace(/[^\d]/g, ''), 10)
+              const newSumRow = oldSumRow >= insertAt ? oldSumRow + 1 : oldSumRow
+              otherContract.sumCell = `${sumCol}${newSumRow}`
+
               const otherSumCell = custSheet.getCell(otherContract.sumCell)
               let formula = ''
               if (otherSumCell.formula) {
@@ -416,9 +428,6 @@ export async function writeShipments(
               if (formula) {
                 otherSumCell.value = { formula: shiftFormulaRows(formula, insertAt, 1) }
               }
-
-              otherContract.dataRowStart += 1
-              otherContract.dataRowEnd += 1
             }
           }
         }

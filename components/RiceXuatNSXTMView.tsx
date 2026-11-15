@@ -536,7 +536,7 @@ export default function RiceXuatNSXTMView() {
 
     const tongCong =
       thanhTienCoTro + thanhTienKhongTro + thanhTienChumLua + thanhTienChumNep + thanhTienVoBon;
-    const conLai = Math.max(0, tongCong - tamUng);
+    const conLai = tongCong - tamUng;
 
     const totalKg = fullMonthEntries.reduce((s, e) => s + (e.canNhapSayKg || 0), 0);
 

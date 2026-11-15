@@ -17,6 +17,25 @@ export function normalizeVehicleName(name: string): string {
 }
 
 /**
+ * Chuyển đối tượng Date thành chuỗi YYYY-MM-DD an toàn, chống lệch múi giờ (UTC vs Local).
+ */
+export function safeFormatDate(dateVal: Date): string {
+  if (!dateVal || isNaN(dateVal.getTime())) return ''
+  // Nếu là UTC midnight (chuẩn ExcelJS khi đọc file xlsx)
+  if (dateVal.getUTCHours() === 0 && dateVal.getUTCMinutes() === 0 && dateVal.getUTCSeconds() === 0) {
+    const y = dateVal.getUTCFullYear()
+    const m = String(dateVal.getUTCMonth() + 1).padStart(2, '0')
+    const d = String(dateVal.getUTCDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  // Nếu có offset địa phương (local midnight hoặc giờ bất kỳ)
+  const y = dateVal.getFullYear()
+  const m = String(dateVal.getMonth() + 1).padStart(2, '0')
+  const d = String(dateVal.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/**
  * Chuẩn hóa chuỗi ngày tháng về format chuẩn YYYY-MM-DD để so sánh.
  */
 export function normalizeDate(dateStr: string): string {
