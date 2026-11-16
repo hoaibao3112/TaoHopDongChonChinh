@@ -44,8 +44,9 @@ export function groupSlipsIfEnabled(
     const totalTare = items.reduce((sum, i) => sum + (i.weightTareKg || 0), 0);
     const totalNet = items.reduce((sum, i) => sum + (i.weightNetKg || 0), 0);
 
-    const mergedTons = calculateHuskTons(totalNet);
-    const mergedAmount = mergedTons * unitPrice;
+    const sumTons = items.reduce((sum, i) => sum + (i.tons || 0), 0);
+    const mergedTons = sumTons > 0 ? Number(sumTons.toFixed(1)) : calculateHuskTons(totalNet);
+    const mergedAmount = Math.round(mergedTons * unitPrice);
     const mergedDesc = formatWorkDescription(first.vehicle, first.customer, items.length);
 
     // Gộp cảnh báo

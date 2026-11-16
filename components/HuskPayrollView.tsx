@@ -429,6 +429,13 @@ export default function HuskPayrollView() {
           updated.amount = Math.round(updated.tons * updated.unitPrice);
         }
 
+        // Nếu sửa Tấn trực tiếp -> cập nhật lại tấn và thành tiền
+        if (field === 'tons') {
+          const t = typeof value === 'number' ? value : parseFloat(String(value)) || 0;
+          updated.tons = t;
+          updated.amount = Math.round(t * updated.unitPrice);
+        }
+
         // Nếu sửa xe hoặc khách -> cập nhật lại mô tả cột D
         if (field === 'vehicle' || field === 'customer') {
           const vInfo = parseVehicle(updated.vehicle);
@@ -1142,8 +1149,24 @@ export default function HuskPayrollView() {
                         />
                       </td>
 
-                      {/* Tấn */}
-                      <td className="p-3 text-right font-bold text-amber-700">{slip.tons.toFixed(1)}</td>
+                      {/* Tấn (Cho phép điều chỉnh trực tiếp) */}
+                      <td className="p-2 text-right">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min={0}
+                          value={slip.tons}
+                          onChange={(e) =>
+                            handleFieldChange(
+                              slip.id,
+                              'tons',
+                              e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                            )
+                          }
+                          className="w-16 rounded border border-slate-200 bg-amber-50/50 px-1.5 py-1 text-right text-xs font-bold text-amber-700 hover:border-amber-400 focus:bg-white focus:border-amber-500 focus:outline-none transition shadow-2xs"
+                          title="Bấm để điều chỉnh số tấn theo thực tế (tự động cập nhật Thành tiền & Tổng cộng)"
+                        />
+                      </td>
 
                       {/* Mô tả Cột D */}
                       <td className="p-2">

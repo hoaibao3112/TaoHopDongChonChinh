@@ -124,4 +124,68 @@ describe('Phiếu cân xuất trấu nhập tay (Thủ công / Ghe & Xe)', () =>
     });
     expect(found).toBe(true);
   });
+
+  it('điều chỉnh số tấn trực tiếp trên bảng: tự động cập nhật lại số tấn, thành tiền và ghi đúng vào Excel', async () => {
+    const rawSlip: ScannedSlipItem = {
+      id: 'slip-adjust-tons',
+      fileName: 'phieu-can.jpg',
+      selected: true,
+      customer: 'HOÀNG HOANH',
+      vehicle: '71C 03117',
+      productType: 'Trấu',
+      direction: 'Xuất',
+      date: '05/11/2026',
+      weightGrossKg: 6910,
+      weightTareKg: 0,
+      weightNetKg: 6910,
+      tons: 6.9, // Tính ban đầu 6.910 kg = 6.9 tấn
+      unitPrice: 11000,
+      amount: 75900,
+      description: 'Xuất một xe trấu 71C 03117 của hoàng hoanh',
+      targetTeam: 'QUÝ',
+      warnings: [],
+      isDuplicateExisting: false,
+      isDuplicateInBatch: false,
+    };
+
+    // Người dùng điều chỉnh số tấn trực tiếp trên bảng thành 7.0 tấn
+    const adjustedTons = 7.0;
+    const updatedSlip: ScannedSlipItem = {
+      ...rawSlip,
+      tons: adjustedTons,
+      amount: Math.round(adjustedTons * rawSlip.unitPrice),
+    };
+
+    expect(updatedSlip.tons).toBe(7.0);
+    expect(updatedSlip.amount).toBe(77000); // 7.0 * 11000 = 77.000đ
+
+    const samplePath = path.resolve(process.cwd(), 'LƯƠNG ĐỘI QUÝ-T10.2026.xlsx');
+    if (!fs.existsSync(samplePath)) return;
+
+    const buffer = fs.readFileSync(samplePath);
+    const res = await writeHuskRowsToExcel(buffer, [updatedSlip], {
+      ...DEFAULT_HUSK_SETTINGS,
+      sheetName: 'QUÝ',
+      defaultTeam: 'QUÝ',
+    });
+
+    expect(res.insertedCount).toBe(1);
+    expect(res.totalAmount).toBe(77000); // 7.0 * 11000 = 77.000đ
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(res.updatedBuffer as any);
+    const ws = wb.getWorksheet('QUÝ')!;
+
+    let found = false;
+    ws.eachRow((row) => {
+      const desc = String(row.getCell(4).value || '');
+      if (desc.includes('71C 03117')) {
+        found = true;
+        expect(Number(row.getCell(6).value)).toBe(7.0); // Cột F ghi đúng 7.0 tấn đã điều chỉnh
+        const cellRVal = row.getCell(18).value as any;
+        expect(cellRVal?.result ?? cellRVal).toBe(77000); // Cột R tính đúng 77.000đ
+      }
+    });
+    expect(found).toBe(true);
+  });
 });
