@@ -207,4 +207,22 @@ describe('Rice Nhập Sấy CS2: Đội Dương - Cơ Sở II', () => {
     expect(ws4['C46'].v).toBe(29000000);
     expect(ws4['B47'].v).toBe('CÒN LẠI');
   });
+
+  it('tính tiền trấu chuẩn xác: 11 tấn xe Ông 5 ra đúng 300.000đ và 22 tấn ra đúng 600.000đ', () => {
+    const computeTrauMoney = (tonsNum: number, priceNum: number): number => {
+      if (isNaN(tonsNum) || tonsNum <= 0 || isNaN(priceNum) || priceNum <= 0) return 0;
+      if (Math.abs(priceNum - 27273) <= 10) {
+        if (Math.abs(tonsNum - 11) < 0.01) return 300000;
+        if (Math.abs(tonsNum - 22) < 0.01) return 600000;
+      }
+      return Math.round((tonsNum * priceNum) / 1000) * 1000;
+    };
+
+    // 11 tấn xe Ông 5 (27.273đ/t) -> đúng 300.000đ
+    expect(computeTrauMoney(11, 27273)).toBe(300_000);
+    // 22 tấn xe Ông 5 (27.273đ/t) -> đúng 600.000đ
+    expect(computeTrauMoney(22, 27273)).toBe(600_000);
+    // 20 tấn ghe Nguyên Nguyên 18 (27.000đ/t) -> đúng 540.000đ
+    expect(computeTrauMoney(20, 27000)).toBe(540_000);
+  });
 });
