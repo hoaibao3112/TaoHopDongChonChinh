@@ -212,17 +212,31 @@ export default function RiceNhapCS2View() {
 
   // ─── Phát hiện loại lúa chưa có giá ────────────────────────────────────
   const unknownRiceTypes = useMemo(() => {
-    const known = new Set(ricePrices.map((p) => p.riceType.trim().toUpperCase()));
     const unknown = new Set<string>();
     nhapBatches.forEach((b) => {
-      if (b.riceType && !known.has(b.riceType.trim().toUpperCase())) {
+      if (b.riceType && b.pricePerTon === 0) {
         unknown.add(b.riceType);
       }
     });
     return Array.from(unknown);
-  }, [nhapBatches, ricePrices]);
+  }, [nhapBatches]);
 
   // ─── Quản lý giá loại lúa ───────────────────────────────────────────────
+  const handleQuickAddRicePrice = (riceType: string, price: number = 20000) => {
+    const type = riceType.trim();
+    if (!type) return;
+    setRicePrices((prev) => {
+      const norm = (s: string) => s.trim().toUpperCase();
+      const existingIdx = prev.findIndex((p) => norm(p.riceType) === norm(type));
+      if (existingIdx >= 0) {
+        const copy = [...prev];
+        copy[existingIdx] = { riceType: type, pricePerTon: price };
+        return copy;
+      }
+      return [...prev, { riceType: type, pricePerTon: price }];
+    });
+  };
+
   const handleAddRicePrice = () => {
     const type = newRiceType.trim();
     const price = parseInt(newPrice.replace(/\D/g, ''), 10);
@@ -389,10 +403,11 @@ export default function RiceNhapCS2View() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 items-start">
+      {/* ── Top Section: Upload, Chọn Tháng & Cài Đặt Đơn Giá (Cân đối 2 cột) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-        {/* ── Main column ─────────────────────────────────────────────────── */}
-        <div className="space-y-5">
+        {/* ── Cột trái: Upload, Chọn tháng & Cảnh báo nhanh ── */}
+        <div className="lg:col-span-7 xl:col-span-8 space-y-5">
 
           {/* Upload file */}
           <div className="rounded-2xl border border-amber-200/70 bg-white shadow-sm p-5">
@@ -467,141 +482,46 @@ export default function RiceNhapCS2View() {
             </div>
           )}
 
-          {/* Warning: loại lúa chưa có giá */}
+          {/* Warning & Quick-Fix: loại lúa chưa có giá - có nút 1-click thêm ngay */}
           {unknownRiceTypes.length > 0 && (
-            <div className="rounded-xl border border-orange-300 bg-orange-50 px-4 py-3 flex items-start gap-3">
-              <span className="text-orange-500 text-lg mt-0.5">⚠️</span>
-              <div>
-                <p className="text-sm font-bold text-orange-800">Loại lúa chưa có giá:</p>
-                <p className="text-sm text-orange-700 mt-0.5">
-                  {unknownRiceTypes.join(', ')} — Thêm giá trong panel bên phải để tính chính xác.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Bảng dữ liệu nhập sấy */}
-          {nhapBatches.length > 0 && (
-            <div className="rounded-2xl border border-amber-200/70 bg-white shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-amber-100">
-                <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 text-xs font-black">3</span>
-                  Bảng Nhập Sấy Tháng {selectedMonth}/{selectedYear}
-                  <span className="text-xs font-normal text-slate-500">· {nhapBatches.length} mẻ · Đội Dương CS2</span>
-                </h2>
-                <button
-                  onClick={handleExportExcel}
-                  disabled={isExporting}
-                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 transition-all cursor-pointer"
-                >
-                  {isExporting ? (
-                    <>⏳ Đang xuất...</>
-                  ) : (
-                    <>📥 Xuất Excel 4 Sheet</>
-                  )}
-                </button>
-              </div>
-
-              {exportError && (
-                <div className="mx-5 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  ⚠️ {exportError}
+            <div className="rounded-2xl border-2 border-orange-300 bg-gradient-to-r from-orange-50 to-amber-50 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl mt-0.5">⚠️</span>
+                <div>
+                  <p className="text-sm font-bold text-orange-900">
+                    Phát hiện loại lúa chưa có đơn giá: <span className="underline decoration-orange-400 font-black">{unknownRiceTypes.join(', ')}</span>
+                  </p>
+                  <p className="text-xs text-orange-700 mt-0.5">
+                    Bấm nút bên dưới để áp dụng nhanh giá mặc định mà không cần nhập tay:
+                  </p>
                 </div>
-              )}
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-gradient-to-r from-amber-600 to-orange-500 text-white">
-                      <th className="px-2 py-2.5 text-center font-bold whitespace-nowrap">#</th>
-                      <th className="px-2 py-2.5 text-center font-bold whitespace-nowrap">ĐỢI NHẬP</th>
-                      <th className="px-3 py-2.5 text-left font-bold whitespace-nowrap">KHÁCH HÀNG</th>
-                      <th className="px-2 py-2.5 text-center font-bold whitespace-nowrap">LOẠI LÚA</th>
-                      <th className="px-2 py-2.5 text-center font-bold whitespace-nowrap">PHƯƠNG TIỆN</th>
-                      <th className="px-2 py-2.5 text-center font-bold whitespace-nowrap">NGÀY NHẬP SẤY</th>
-                      <th className="px-2 py-2.5 text-center font-bold whitespace-nowrap">ĐỊA ĐIỂM SẤY</th>
-                      <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">CÂN (KG)</th>
-                      <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap bg-amber-500/30">CÂN (TẤN)</th>
-                      <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">ĐƠN GIÁ NHẬP</th>
-                      <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">THÀNH TIỀN NHẬP</th>
-                      <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">ĐƠN GIÁ CHỤM LÒ</th>
-                      <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">THÀNH TIỀN CHỤM LÒ</th>
-                      <th className="px-3 py-2.5 text-right font-black whitespace-nowrap bg-orange-700/60 text-yellow-200">TỔNG CỘNG (VNĐ)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {nhapBatches.map((batch, idx) => (
-                      <tr
-                        key={batch.id}
-                        className={`border-b border-amber-100/70 hover:bg-amber-50/40 transition-colors ${
-                          idx % 2 === 0 ? 'bg-white' : 'bg-amber-50/20'
-                        } ${batch.pricePerTon === 0 ? 'bg-red-50' : ''}`}
-                      >
-                        <td className="px-2 py-2 text-center text-slate-400 font-medium">{idx + 1}</td>
-                        <td className="px-2 py-2 text-center font-semibold text-amber-700">{batch.doiNhap}</td>
-                        <td className="px-3 py-2 text-left font-medium text-slate-800">{batch.customerName || '—'}</td>
-                        <td className="px-2 py-2 text-center">
-                          <span className={`inline-block rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
-                            batch.pricePerTon === 0
-                              ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
-                              : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
-                          }`}>
-                            {batch.riceType || '—'}
-                          </span>
-                        </td>
-                        <td className="px-2 py-2 text-center text-slate-600">{batch.freshBoVehicle || '—'}</td>
-                        <td className="px-2 py-2 text-center font-mono text-slate-700">{batch.dryDate}</td>
-                        <td className="px-2 py-2 text-center text-slate-600">{batch.dryFacility}</td>
-                        <td className="px-2 py-2 text-right font-mono text-slate-700">{batch.dryWeightKg.toLocaleString('vi-VN')}</td>
-                        <td className="px-2 py-2 text-right font-black text-amber-700 bg-amber-50/50">{batch.roundedTons}</td>
-                        <td className="px-2 py-2 text-right font-semibold text-slate-700">
-                          {batch.pricePerTon > 0 ? `${formatMoney(batch.pricePerTon)}đ` : (
-                            <span className="text-red-500 font-bold">! Chưa có giá</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-2 text-right font-semibold text-emerald-700">
-                          {batch.thanhTienNhap > 0 ? `${formatMoney(batch.thanhTienNhap)}đ` : '—'}
-                        </td>
-                        <td className="px-2 py-2 text-right text-slate-600">{formatMoney(batch.chumLoUnitPrice)}đ</td>
-                        <td className="px-2 py-2 text-right font-semibold text-orange-700">{formatMoney(batch.thanhTienChumLo)}đ</td>
-                        <td className="px-3 py-2 text-right font-black text-red-700 bg-amber-100/40">
-                          {formatMoney(batch.tongThanhTien ?? (batch.thanhTienNhap + batch.thanhTienChumLo))}đ
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-gradient-to-r from-amber-100 to-orange-100 border-t-2 border-amber-400 font-black text-sm">
-                      <td colSpan={7} className="px-3 py-3 text-right text-amber-900">TỔNG CỘNG</td>
-                      <td className="px-2 py-3 text-right text-amber-900 font-mono">{summary.totalKg.toLocaleString('vi-VN')}</td>
-                      <td className="px-2 py-3 text-right text-amber-900 bg-amber-200/40">{summary.totalTons.toLocaleString('vi-VN')}</td>
-                      <td className="px-2 py-3 text-right text-amber-900">—</td>
-                      <td className="px-2 py-3 text-right text-emerald-800">{formatMoney(summary.totalThanhTienNhap)}đ</td>
-                      <td className="px-2 py-3 text-right text-amber-900">—</td>
-                      <td className="px-2 py-3 text-right text-orange-800">{formatMoney(summary.totalThanhTienChumLo)}đ</td>
-                      <td className="px-3 py-3 text-right text-red-800 bg-amber-300/40 font-black">
-                        {formatMoney(summary.grandTotal)}đ
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                {unknownRiceTypes.map((rt) => {
+                  const defaultVal = rt.toUpperCase().includes('ST25') ? 23000 : 20000;
+                  return (
+                    <button
+                      key={rt}
+                      type="button"
+                      onClick={() => handleQuickAddRicePrice(rt, defaultVal)}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white px-3.5 py-2 text-xs font-bold shadow-sm transition-all cursor-pointer"
+                    >
+                      <span>⚡</span>
+                      <span>Thêm {rt} ({defaultVal.toLocaleString('vi-VN')}đ)</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* Empty state */}
-          {!isParsing && allBatches.length === 0 && (
-            <div className="rounded-2xl border-2 border-dashed border-amber-200/70 bg-amber-50/30 py-16 text-center">
-              <span className="text-5xl mb-4 block">🌾</span>
-              <p className="text-base font-bold text-slate-700">Chưa có dữ liệu nhập sấy</p>
-              <p className="text-sm text-slate-500 mt-1">Upload file Excel master để bắt đầu</p>
-            </div>
-          )}
         </div>
 
-        {/* ── Right panel: Giá loại lúa ───────────────────────────────────── */}
-        <div className="space-y-4">
+        {/* ── Cột phải: Cài đặt đơn giá & trấu ── */}
+        <div className="lg:col-span-5 xl:col-span-4 space-y-4">
+
 
-          {/* Giá chụm lò */}
+{/* Giá chụm lò */}
           <div className="rounded-2xl border border-orange-200 bg-white shadow-sm p-5">
             <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
               🔥 Giá Chụm Lò (đ/tấn)
@@ -865,6 +785,139 @@ export default function RiceNhapCS2View() {
           )}
         </div>
       </div>
+
+      {/* ── BẢNG DỮ LIỆU NHẬP SẤY (FULL WIDTH 100% CÂN ĐỐI RỘNG RÃI) ───────── */}
+      {/* Bảng dữ liệu nhập sấy */}
+          {nhapBatches.length > 0 && (
+            <div className="rounded-2xl border border-amber-200/70 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-amber-100">
+                <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 text-xs font-black">3</span>
+                  Bảng Nhập Sấy Tháng {selectedMonth}/{selectedYear}
+                  <span className="text-xs font-normal text-slate-500">· {nhapBatches.length} mẻ · Đội Dương CS2</span>
+                </h2>
+                <button
+                  onClick={handleExportExcel}
+                  disabled={isExporting}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  {isExporting ? (
+                    <>⏳ Đang xuất...</>
+                  ) : (
+                    <>📥 Xuất Excel 4 Sheet</>
+                  )}
+                </button>
+              </div>
+
+              {exportError && (
+                <div className="mx-5 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  ⚠️ {exportError}
+                </div>
+              )}
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-amber-600 to-orange-500 text-white">
+                      <th className="px-2 py-2.5 text-center font-bold whitespace-nowrap">#</th>
+                      <th className="px-2 py-2.5 text-center font-bold whitespace-nowrap">ĐỢI NHẬP</th>
+                      <th className="px-3 py-2.5 text-left font-bold whitespace-nowrap">KHÁCH HÀNG</th>
+                      <th className="px-2 py-2.5 text-center font-bold whitespace-nowrap">LOẠI LÚA</th>
+                      <th className="px-2 py-2.5 text-center font-bold whitespace-nowrap">PHƯƠNG TIỆN</th>
+                      <th className="px-2 py-2.5 text-center font-bold whitespace-nowrap">NGÀY NHẬP SẤY</th>
+                      <th className="px-2 py-2.5 text-center font-bold whitespace-nowrap">ĐỊA ĐIỂM SẤY</th>
+                      <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">CÂN (KG)</th>
+                      <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap bg-amber-500/30">CÂN (TẤN)</th>
+                      <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">ĐƠN GIÁ NHẬP</th>
+                      <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">THÀNH TIỀN NHẬP</th>
+                      <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">ĐƠN GIÁ CHỤM LÒ</th>
+                      <th className="px-2 py-2.5 text-right font-bold whitespace-nowrap">THÀNH TIỀN CHỤM LÒ</th>
+                      <th className="px-3 py-2.5 text-right font-black whitespace-nowrap bg-orange-700/60 text-yellow-200">TỔNG CỘNG (VNĐ)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {nhapBatches.map((batch, idx) => (
+                      <tr
+                        key={batch.id}
+                        className={`border-b border-amber-100/70 hover:bg-amber-50/40 transition-colors ${
+                          idx % 2 === 0 ? 'bg-white' : 'bg-amber-50/20'
+                        } ${batch.pricePerTon === 0 ? 'bg-red-50' : ''}`}
+                      >
+                        <td className="px-2 py-2 text-center text-slate-400 font-medium">{idx + 1}</td>
+                        <td className="px-2 py-2 text-center font-semibold text-amber-700">{batch.doiNhap}</td>
+                        <td className="px-3 py-2 text-left font-medium text-slate-800">{batch.customerName || '—'}</td>
+                        <td className="px-2 py-2 text-center">
+                          <span className={`inline-block rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+                            batch.pricePerTon === 0
+                              ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
+                              : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                          }`}>
+                            {batch.riceType || '—'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 text-center text-slate-600">{batch.freshBoVehicle || '—'}</td>
+                        <td className="px-2 py-2 text-center font-mono text-slate-700">{batch.dryDate}</td>
+                        <td className="px-2 py-2 text-center text-slate-600">{batch.dryFacility}</td>
+                        <td className="px-2 py-2 text-right font-mono text-slate-700">{batch.dryWeightKg.toLocaleString('vi-VN')}</td>
+                        <td className="px-2 py-2 text-right font-black text-amber-700 bg-amber-50/50">{batch.roundedTons}</td>
+                        <td className="px-2 py-2 text-right font-semibold text-slate-700">
+                          {batch.pricePerTon > 0 ? (
+                            `${formatMoney(batch.pricePerTon)}đ`
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleQuickAddRicePrice(
+                                  batch.riceType,
+                                  batch.riceType.toUpperCase().includes('ST25') ? 23000 : 20000
+                                )
+                              }
+                              className="inline-flex items-center gap-1 rounded-lg bg-orange-100 hover:bg-orange-200 border border-orange-300 px-2 py-0.5 text-[11px] font-bold text-orange-800 transition cursor-pointer shadow-2xs"
+                              title="Bấm để đặt nhanh đơn giá lúa này"
+                            >
+                              <span>⚡ + Đặt giá</span>
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 text-right font-semibold text-emerald-700">
+                          {batch.thanhTienNhap > 0 ? `${formatMoney(batch.thanhTienNhap)}đ` : '—'}
+                        </td>
+                        <td className="px-2 py-2 text-right text-slate-600">{formatMoney(batch.chumLoUnitPrice)}đ</td>
+                        <td className="px-2 py-2 text-right font-semibold text-orange-700">{formatMoney(batch.thanhTienChumLo)}đ</td>
+                        <td className="px-3 py-2 text-right font-black text-red-700 bg-amber-100/40">
+                          {formatMoney(batch.tongThanhTien ?? (batch.thanhTienNhap + batch.thanhTienChumLo))}đ
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gradient-to-r from-amber-100 to-orange-100 border-t-2 border-amber-400 font-black text-sm">
+                      <td colSpan={7} className="px-3 py-3 text-right text-amber-900">TỔNG CỘNG</td>
+                      <td className="px-2 py-3 text-right text-amber-900 font-mono">{summary.totalKg.toLocaleString('vi-VN')}</td>
+                      <td className="px-2 py-3 text-right text-amber-900 bg-amber-200/40">{summary.totalTons.toLocaleString('vi-VN')}</td>
+                      <td className="px-2 py-3 text-right text-amber-900">—</td>
+                      <td className="px-2 py-3 text-right text-emerald-800">{formatMoney(summary.totalThanhTienNhap)}đ</td>
+                      <td className="px-2 py-3 text-right text-amber-900">—</td>
+                      <td className="px-2 py-3 text-right text-orange-800">{formatMoney(summary.totalThanhTienChumLo)}đ</td>
+                      <td className="px-3 py-3 text-right text-red-800 bg-amber-300/40 font-black">
+                        {formatMoney(summary.grandTotal)}đ
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!isParsing && allBatches.length === 0 && (
+            <div className="rounded-2xl border-2 border-dashed border-amber-200/70 bg-amber-50/30 py-16 text-center">
+              <span className="text-5xl mb-4 block">🌾</span>
+              <p className="text-base font-bold text-slate-700">Chưa có dữ liệu nhập sấy</p>
+              <p className="text-sm text-slate-500 mt-1">Upload file Excel master để bắt đầu</p>
+            </div>
+          )}
+
     </div>
   );
 }

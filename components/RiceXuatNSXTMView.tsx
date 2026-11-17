@@ -177,8 +177,8 @@ export default function RiceXuatNSXTMView() {
           tonsCo > 0 && tonsKhong > 0
             ? 'caHai'
             : tonsKhong > 0
-            ? 'khongTro'
-            : 'coTro';
+              ? 'khongTro'
+              : 'coTro';
 
         return {
           ...newDayRow(d, curPrices),
@@ -351,12 +351,12 @@ export default function RiceXuatNSXTMView() {
         (targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro > 0
           ? 'caHai'
           : targetRow.tonsKhongTro > 0 && targetRow.tonsCoTro === 0
-          ? 'khongTro'
-          : targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro === 0
-          ? 'coTro'
-          : field === 'coTro'
-          ? 'coTro'
-          : 'khongTro');
+            ? 'khongTro'
+            : targetRow.tonsCoTro > 0 && targetRow.tonsKhongTro === 0
+              ? 'coTro'
+              : field === 'coTro'
+                ? 'coTro'
+                : 'khongTro');
 
       let newCo = targetRow.tonsCoTro;
       let newKhong = targetRow.tonsKhongTro;
@@ -380,11 +380,11 @@ export default function RiceXuatNSXTMView() {
         prev.map((r) =>
           r.id === rowId
             ? {
-                ...r,
-                tonsCoTro: newCo,
-                tonsKhongTro: newKhong,
-                mode: currentMode,
-              }
+              ...r,
+              tonsCoTro: newCo,
+              tonsKhongTro: newKhong,
+              mode: currentMode,
+            }
             : r
         )
       );
@@ -1052,11 +1052,10 @@ export default function RiceXuatNSXTMView() {
         <button
           type="button"
           onClick={() => setActiveTab('notebook')}
-          className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'notebook'
+          className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${activeTab === 'notebook'
               ? 'bg-white text-amber-900 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
-          }`}
+            }`}
         >
           <span>📝</span>
           <span>Bảng Lương Ngày • Đội Nam ({rows.length} ngày)</span>
@@ -1065,11 +1064,10 @@ export default function RiceXuatNSXTMView() {
         <button
           type="button"
           onClick={() => setActiveTab('batches')}
-          className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'batches'
+          className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${activeTab === 'batches'
               ? 'bg-white text-blue-900 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
-          }`}
+            }`}
         >
           <span>🌾</span>
           <span>Chi Tiết Mẻ Lúa Từ File ({monthBatches.length} mẻ • NSX TM)</span>
@@ -1147,8 +1145,8 @@ export default function RiceXuatNSXTMView() {
                       (row.tonsCoTro > 0 && row.tonsKhongTro > 0
                         ? 'caHai'
                         : row.tonsKhongTro > 0 && row.tonsCoTro === 0
-                        ? 'khongTro'
-                        : 'coTro');
+                          ? 'khongTro'
+                          : 'coTro');
 
                     const tienXuat =
                       row.tonsCoTro * unitPrices.priceCoTro + row.tonsKhongTro * unitPrices.priceKhongTro;
@@ -1188,33 +1186,30 @@ export default function RiceXuatNSXTMView() {
                             <button
                               type="button"
                               onClick={() => handleSetRowMode(row.id, 'coTro', row.date)}
-                              className={`flex-1 rounded-md py-1 text-[11px] font-bold transition cursor-pointer ${
-                                rowMode === 'coTro'
+                              className={`flex-1 rounded-md py-1 text-[11px] font-bold transition cursor-pointer ${rowMode === 'coTro'
                                   ? 'bg-blue-600 text-white shadow-2xs'
                                   : 'text-slate-600 hover:text-slate-900'
-                              }`}
+                                }`}
                             >
                               Có trở
                             </button>
                             <button
                               type="button"
                               onClick={() => handleSetRowMode(row.id, 'khongTro', row.date)}
-                              className={`flex-1 rounded-md py-1 text-[11px] font-bold transition cursor-pointer ${
-                                rowMode === 'khongTro'
+                              className={`flex-1 rounded-md py-1 text-[11px] font-bold transition cursor-pointer ${rowMode === 'khongTro'
                                   ? 'bg-indigo-600 text-white shadow-2xs'
                                   : 'text-slate-600 hover:text-slate-900'
-                              }`}
+                                }`}
                             >
                               Không trở
                             </button>
                             <button
                               type="button"
                               onClick={() => handleSetRowMode(row.id, 'caHai', row.date)}
-                              className={`flex-1 rounded-md py-1 text-[11px] font-bold transition cursor-pointer ${
-                                rowMode === 'caHai'
+                              className={`flex-1 rounded-md py-1 text-[11px] font-bold transition cursor-pointer ${rowMode === 'caHai'
                                   ? 'bg-purple-600 text-white shadow-2xs'
                                   : 'text-slate-600 hover:text-slate-900'
-                              }`}
+                                }`}
                             >
                               Cả hai
                             </button>
@@ -1433,13 +1428,12 @@ export default function RiceXuatNSXTMView() {
 
                         <td className="py-2.5 px-3 whitespace-nowrap">
                           <span
-                            className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-bold ${
-                              japonica
+                            className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-bold ${japonica
                                 ? 'bg-blue-100 text-blue-900 border border-blue-300'
                                 : nep
-                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                : 'bg-teal-100 text-teal-900 border border-teal-300'
-                            }`}
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : 'bg-teal-100 text-teal-900 border border-teal-300'
+                              }`}
                           >
                             {row.loaiLua}
                           </span>
@@ -1475,11 +1469,10 @@ export default function RiceXuatNSXTMView() {
                           <button
                             type="button"
                             onClick={() => handleBatchToggleCoTro(row.id, isCoTro)}
-                            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                              isCoTro
+                            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${isCoTro
                                 ? 'bg-blue-600 text-white shadow-2xs'
                                 : 'bg-amber-500 text-white shadow-2xs'
-                            }`}
+                              }`}
                           >
                             {isCoTro
                               ? `🌾 Có trở (${formatVND(unitPrices.priceCoTro)}đ)`
@@ -1570,7 +1563,7 @@ export default function RiceXuatNSXTMView() {
                   🌾 Chi Tiết Mẻ Xuống Lúa Ngày {detailRow.date}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Các mẻ lúa thực tế của ngày này tại Nhà máy NSX Tân Mỹ
+                  Các mẻ lúa thực tế của ngày này tại Nhà máy NSX TM
                 </p>
               </div>
               <button
@@ -1624,11 +1617,10 @@ export default function RiceXuatNSXTMView() {
                             </td>
                             <td className="py-2 px-3 text-center">
                               <span
-                                className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
-                                  isCo
+                                className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${isCo
                                     ? 'bg-blue-100 text-blue-900'
                                     : 'bg-amber-100 text-amber-900'
-                                }`}
+                                  }`}
                               >
                                 {isCo
                                   ? `Có trở (${formatVND(unitPrices.priceCoTro)}đ)`
