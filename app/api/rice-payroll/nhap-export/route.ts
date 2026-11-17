@@ -157,16 +157,16 @@ export async function POST(req: NextRequest) {
     const unitPriceST25 = tonsST25 > 0 ? Math.round(moneyST25 / tonsST25) : 23_000;
     const unitPricePhothong = tonsPhothong > 0 ? Math.round(moneyPhothong / tonsPhothong) : 20_000;
 
-    // Trấu theo phương tiện
+    // Trấu theo phương tiện - khi in ra dùng 1 đơn giá thống nhất 27.000đ/tấn
     const trauOng5 = trauItems.filter((t) => t.phuongTien.toUpperCase().includes('ÔNG 5'));
     const tonsTrauOng5 = trauOng5.reduce((s, t) => s + t.soLuong, 0);
     const moneyTrauOng5 = trauOng5.reduce((s, t) => s + t.thanhTien, 0);
-    const unitPriceTrauOng5 = tonsTrauOng5 > 0 ? Math.round(moneyTrauOng5 / tonsTrauOng5) : 27273;
+    const unitPriceTrauOng5 = 27000;
 
     const trauNgoai = trauItems.filter((t) => !t.phuongTien.toUpperCase().includes('ÔNG 5'));
     const tonsTrauNgoai = trauNgoai.reduce((s, t) => s + t.soLuong, 0);
     const moneyTrauNgoai = trauNgoai.reduce((s, t) => s + t.thanhTien, 0);
-    const unitPriceTrauNgoai = tonsTrauNgoai > 0 ? Math.round(moneyTrauNgoai / tonsTrauNgoai) : 27000;
+    const unitPriceTrauNgoai = 27000;
 
     const totalTienNhapTongHop = moneyPhothong + moneyST25 + moneyTrauOng5 + moneyTrauNgoai;
     const totalTienCanChi = totalTienNhapTongHop + totalThanhTienChumLo + managementSalary + totalTienNuocDa;
@@ -351,14 +351,15 @@ export async function POST(req: NextRequest) {
       setCell(ws2, `${col}4`, 's', h, styleHeader());
     });
 
-    // Rows 5+: Data Trấu
+    // Rows 5+: Data Trấu (Dùng 1 đơn giá thống nhất 27.000đ/tấn khi in ra, thành tiền giữ nguyên y như form)
     trauItems.forEach((t, idx) => {
       const row = idx + 5;
+      const printDonGia = (t.donGia === 27273 || !t.donGia) ? 27000 : t.donGia;
       setCell(ws2, `A${row}`, 's', t.date,       styleData('center'));
       setCell(ws2, `B${row}`, 's', t.doiNhap,    styleData('center'));
       setCell(ws2, `C${row}`, 's', t.phuongTien, styleData('left'));
       setCell(ws2, `D${row}`, 'n', t.soLuong,    { ...styleData('center'), numFmt: FMT_NUMBER });
-      setCell(ws2, `E${row}`, 'n', t.donGia,     { ...styleMoney(), numFmt: FMT_MONEY });
+      setCell(ws2, `E${row}`, 'n', printDonGia,  { ...styleMoney(), numFmt: FMT_MONEY });
       setCell(ws2, `F${row}`, 'n', t.thanhTien,  { ...styleMoney(), numFmt: FMT_MONEY });
     });
 

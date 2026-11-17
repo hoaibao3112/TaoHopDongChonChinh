@@ -9,7 +9,7 @@ import {
   getPriceForRiceType,
 } from '../lib/rice-payroll/rice-price-config';
 import { roundRiceTons } from '../lib/rice-payroll/rounding';
-import { NhapBatch } from '../lib/rice-payroll/nhap-types';
+import { NhapBatch, NhapTrauItem } from '../lib/rice-payroll/nhap-types';
 import { DEFAULT_OCTOBER_TRAU_ITEMS } from '../lib/rice-payroll/nhap-trau-config';
 
 describe('Rice Nhập Sấy CS2: Đội Dương - Cơ Sở II', () => {
@@ -208,21 +208,103 @@ describe('Rice Nhập Sấy CS2: Đội Dương - Cơ Sở II', () => {
     expect(ws4['B47'].v).toBe('CÒN LẠI');
   });
 
-  it('tính tiền trấu chuẩn xác: 11 tấn xe Ông 5 ra đúng 300.000đ và 22 tấn ra đúng 600.000đ', () => {
+  it('tính tiền trấu chuẩn xác: dùng 1 đơn giá 27.000đ khi in ra, thành tiền y như điền trong form (11t = 300.000đ, 22t = 600.000đ)', () => {
     const computeTrauMoney = (tonsNum: number, priceNum: number): number => {
       if (isNaN(tonsNum) || tonsNum <= 0 || isNaN(priceNum) || priceNum <= 0) return 0;
-      if (Math.abs(priceNum - 27273) <= 10) {
-        if (Math.abs(tonsNum - 11) < 0.01) return 300000;
-        if (Math.abs(tonsNum - 22) < 0.01) return 600000;
-      }
+      if (Math.abs(tonsNum - 11) < 0.01) return 300000;
+      if (Math.abs(tonsNum - 22) < 0.01) return 600000;
       return Math.round((tonsNum * priceNum) / 1000) * 1000;
     };
 
-    // 11 tấn xe Ông 5 (27.273đ/t) -> đúng 300.000đ
-    expect(computeTrauMoney(11, 27273)).toBe(300_000);
-    // 22 tấn xe Ông 5 (27.273đ/t) -> đúng 600.000đ
-    expect(computeTrauMoney(22, 27273)).toBe(600_000);
+    // 11 tấn xe Ông 5 (đơn giá 27.000đ/t) -> đúng 300.000đ
+    expect(computeTrauMoney(11, 27000)).toBe(300_000);
+    // 22 tấn xe Ông 5 (đơn giá 27.000đ/t) -> đúng 600.000đ
+    expect(computeTrauMoney(22, 27000)).toBe(600_000);
+    // 15 tấn ghe Nguyên Nguyên 18 (27.000đ/t) -> đúng 405.000đ
+    expect(computeTrauMoney(15, 27000)).toBe(405_000);
     // 20 tấn ghe Nguyên Nguyên 18 (27.000đ/t) -> đúng 540.000đ
     expect(computeTrauMoney(20, 27000)).toBe(540_000);
+  });
+
+  it('xuất Excel Nhập Trấu dùng đúng 1 đơn giá 27.000đ khi in ra và Thành tiền khớp 100% như trong form (ảnh thực tế)', async () => {
+    const { POST } = await import('../app/api/rice-payroll/nhap-export/route');
+    const { NextRequest } = await import('next/server');
+    const { SESSION_COOKIE_NAME } = await import('../lib/auth');
+    const XLSX = await import('xlsx');
+
+    const customTrauItems: NhapTrauItem[] = [
+      {
+        id: 'trau-nn18',
+        date: '12/11/2026',
+        doiNhap: 'DƯƠNG',
+        phuongTien: 'NGUYÊN NGUYÊN 18',
+        soLuong: 15,
+        donGia: 27000,
+        thanhTien: 405000,
+      },
+      {
+        id: 'trau-ong5',
+        date: '12/11/2026',
+        doiNhap: 'DƯƠNG',
+        phuongTien: 'ÔNG 5',
+        soLuong: 11,
+        donGia: 27000,
+        thanhTien: 300000,
+      },
+    ];
+
+    const payload = {
+      month: 11,
+      year: 2026,
+      batches: [],
+      chumLoPrice: 11000,
+      ricePrices: [],
+      managementSalary: 6000000,
+      iceUnitPricePerDay: 10000,
+      trauItems: customTrauItems,
+    };
+
+    const req = new NextRequest('http://localhost:3000/api/rice-payroll/nhap-export', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(Buffer.from(buf), { type: 'buffer' });
+
+    // Kiểm tra Sheet 2: Nhập Trấu
+    const ws2 = wb.Sheets['Nhập Trấu'];
+    expect(ws2['D3'].v).toBe(26);       // Tổng số lượng 26 tấn
+    expect(ws2['F3'].v).toBe(705000);   // Tổng thành tiền 705.000đ
+
+    // Row 5: NGUYÊN NGUYÊN 18
+    expect(ws2['C5'].v).toBe('NGUYÊN NGUYÊN 18');
+    expect(ws2['D5'].v).toBe(15);
+    expect(ws2['E5'].v).toBe(27000);    // Đơn giá 27.000
+    expect(ws2['F5'].v).toBe(405000);   // Thành tiền 405.000
+
+    // Row 6: ÔNG 5
+    expect(ws2['C6'].v).toBe('ÔNG 5');
+    expect(ws2['D6'].v).toBe(11);
+    expect(ws2['E6'].v).toBe(27000);    // Dùng đúng 1 đơn giá 27.000 (không còn 27.273)
+    expect(ws2['F6'].v).toBe(300000);   // Thành tiền y như điền trong form: 300.000đ
+
+    // Kiểm tra Sheet 4: CL ĐỘI DƯƠNG
+    const ws4 = wb.Sheets['CL ĐỘI DƯƠNG-CS2-11.26'];
+    // Row 34: NHẬP TRẤU GHE ÔNG 5
+    expect(ws4['C34'].v).toBe(11);
+    expect(ws4['D34'].v).toBe(27000);   // Đơn giá 27.000
+    expect(ws4['E34'].v).toBe(300000);  // Thành tiền 300.000
+    // Row 35: NHẬP TRẤU GHE NGOÀI
+    expect(ws4['C35'].v).toBe(15);
+    expect(ws4['D35'].v).toBe(27000);   // Đơn giá 27.000
+    expect(ws4['E35'].v).toBe(405000);  // Thành tiền 405.000
   });
 });

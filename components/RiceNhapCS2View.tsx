@@ -82,7 +82,7 @@ export default function RiceNhapCS2View() {
   const [newTrauDate, setNewTrauDate] = useState('');
   const [newTrauVehicle, setNewTrauVehicle] = useState('ÔNG 5');
   const [newTrauTons, setNewTrauTons] = useState('');
-  const [newTrauPrice, setNewTrauPrice] = useState('27273');
+  const [newTrauPrice, setNewTrauPrice] = useState('27000');
   const [newTrauMoney, setNewTrauMoney] = useState('');
   const [editingTrauId, setEditingTrauId] = useState<string | null>(null);
 
@@ -284,13 +284,12 @@ export default function RiceNhapCS2View() {
   };
 
   // ─── Quản lý chuyến nhập trấu ──────────────────────────────────────────
-  // Tính tiền trấu chuẩn xác: 11 tấn xe Ông 5 (~27.273) = 300.000, 22 tấn = 600.000
+  // Tính tiền trấu chuẩn xác: 11 tấn xe Ông 5 = 300.000, 22 tấn = 600.000
+  // Dùng 1 đơn giá chuẩn 27.000đ/tấn khi hiển thị & in ấn
   const computeTrauMoney = (tonsNum: number, priceNum: number): number => {
     if (isNaN(tonsNum) || tonsNum <= 0 || isNaN(priceNum) || priceNum <= 0) return 0;
-    if (Math.abs(priceNum - 27273) <= 10) {
-      if (Math.abs(tonsNum - 11) < 0.01) return 300000;
-      if (Math.abs(tonsNum - 22) < 0.01) return 600000;
-    }
+    if (Math.abs(tonsNum - 11) < 0.01) return 300000;
+    if (Math.abs(tonsNum - 22) < 0.01) return 600000;
     return Math.round((tonsNum * priceNum) / 1000) * 1000;
   };
 
@@ -344,7 +343,7 @@ export default function RiceNhapCS2View() {
     setNewTrauDate('');
     setNewTrauVehicle('ÔNG 5');
     setNewTrauTons('');
-    setNewTrauPrice('27273');
+    setNewTrauPrice('27000');
     setNewTrauMoney('');
   };
 
@@ -824,18 +823,18 @@ export default function RiceNhapCS2View() {
                 <div className="pt-2 border-t border-yellow-200 space-y-2.5">
                   {/* Nút chọn nhanh xe quen thuộc */}
                   <div className="space-y-1">
-                    <span className="text-[11px] font-bold text-slate-600">⚡ Chọn nhanh mẫu xe:</span>
+                    <span className="text-[11px] font-bold text-slate-600">⚡ Chọn nhanh mẫu xe (đơn giá chuẩn 27.000đ):</span>
                     <div className="flex flex-wrap gap-1.5">
                       <button
                         type="button"
-                        onClick={() => handleSelectTrauPreset('ÔNG 5', 11, 27273, 300000)}
+                        onClick={() => handleSelectTrauPreset('ÔNG 5', 11, 27000, 300000)}
                         className="px-2 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-semibold border border-amber-300 transition-colors"
                       >
                         🚐 Nửa xe Ông 5 (11t = 300k)
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleSelectTrauPreset('ÔNG 5', 22, 27273, 600000)}
+                        onClick={() => handleSelectTrauPreset('ÔNG 5', 22, 27000, 600000)}
                         className="px-2 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-semibold border border-amber-300 transition-colors"
                       >
                         🚛 Nguyên xe Ông 5 (22t = 600k)
@@ -906,7 +905,7 @@ export default function RiceNhapCS2View() {
                         <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Đơn giá (đ/tấn):</label>
                         <input
                           type="text"
-                          placeholder="27273"
+                          placeholder="27000"
                           value={newTrauPrice}
                           onChange={(e) => handleTrauPriceChange(e.target.value)}
                           className="w-full rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
@@ -917,7 +916,7 @@ export default function RiceNhapCS2View() {
                         <div className="flex items-center justify-between mb-0.5">
                           <label className="text-[10px] font-bold text-slate-600">Thành tiền (VNĐ):</label>
                           <span className="text-[10px] text-amber-600 italic">
-                            (11 tấn xe Ông 5 = 300.000đ, 22 tấn = 600.000đ)
+                            (Đơn giá chuẩn 27.000đ; xe Ông 5: 11t = 300.000đ, 22t = 600.000đ)
                           </span>
                         </div>
                         <div className="relative">
