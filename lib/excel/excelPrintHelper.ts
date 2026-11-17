@@ -51,7 +51,7 @@ export function finalizeWorkbookWithPrintSetup(
   const sheetNames = wb.SheetNames;
 
   // 1. Áp dụng lề in mặc định cho tất cả các sheet nếu chưa có
-  sheetNames.forEach((name, idx) => {
+  sheetNames.forEach((name) => {
     const ws = wb.Sheets[name];
     if (ws && !ws['!margins']) {
       ws['!margins'] = { ...DEFAULT_MARGINS };

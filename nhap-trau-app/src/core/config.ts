@@ -50,7 +50,7 @@ export function parseTabName(rawName: string): ParsedTabInfo {
     }
   }
 
-  const [_, custPart, dd, mm, yy, seqPart] = match
+  const [, custPart, dd, mm, yy, seqPart] = match
   const day = parseInt(dd, 10)
   const month = parseInt(mm, 10)
   const year = 2000 + parseInt(yy, 10)

@@ -73,7 +73,6 @@ export async function POST(req: NextRequest) {
           teamName.toUpperCase().includes('CƠ SỞ II') ||
           teamName.toUpperCase().includes('CS2')));
 
-    const effectiveFacility = isCS2 ? 'CS2' : 'CS1';
     const effectiveTeamName =
       teamName || (isCS2 ? 'ĐỘI DƯƠNG - XUẤT CƠ SỞ II' : 'ĐỘI THANH - XUẤT CƠ SỞ I');
     const workers = isCS2 ? DOI_DUONG_WORKERS : DOI_CHU_6_THANH_WORKERS;

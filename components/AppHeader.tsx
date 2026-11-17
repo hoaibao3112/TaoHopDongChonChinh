@@ -8,16 +8,16 @@ import { UserRole } from '@/lib/auth';
 
 export default function AppHeader() {
   const pathname = usePathname();
-  const [role, setRole] = useState<UserRole | null>(null);
-
-  useEffect(() => {
-    // Đọc cookie phân quyền trên client
-    const match = document.cookie.match(/(?:^|; )auth_user_role=([^;]*)/);
-    const val = match ? (decodeURIComponent(match[1]) as UserRole) : null;
-    if (val === 'payroll' || val === 'contracts' || val === 'admin' || val === 'husk') {
-      setRole(val);
+  const [role, setRole] = useState<UserRole | null>(() => {
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|; )auth_user_role=([^;]*)/);
+      const val = match ? (decodeURIComponent(match[1]) as UserRole) : null;
+      if (val === 'payroll' || val === 'contracts' || val === 'admin' || val === 'husk') {
+        return val;
+      }
     }
-  }, []);
+    return null;
+  });
 
   const isContract = pathname === '/' || pathname.startsWith('/contracts');
   const isPayroll = pathname.startsWith('/tinh-luong');

@@ -7,7 +7,6 @@ import type {
 import {
   SHEET_NAMES,
   PROTECTED_SHEETS,
-  PRECONFIGURED_CUSTOMER_SHEETS,
   getCustomerSheetConfig,
   parseTabName,
 } from './config'

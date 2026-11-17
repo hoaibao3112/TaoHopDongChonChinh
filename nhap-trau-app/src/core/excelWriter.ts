@@ -7,7 +7,6 @@ import type {
 } from './types'
 import {
   SHEET_NAMES,
-  PRECONFIGURED_CUSTOMER_SHEETS,
   getCustomerSheetConfig,
   parseTabName,
 } from './config'
@@ -306,7 +305,7 @@ export async function writeShipments(
       }
 
       // Tìm dòng cuối thực tế ĐÃ CÓ DỮ LIỆU bên trong vùng [dataRowStart .. dataRowEnd] của HĐ này
-      let lastUsedInRange = findLastUsedRowInRange(
+      const lastUsedInRange = findLastUsedRowInRange(
         custSheet,
         contract.dataRowStart,
         contract.dataRowEnd,

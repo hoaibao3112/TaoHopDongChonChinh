@@ -5,23 +5,20 @@ import NhapTrauView from './NhapTrauView';
 import HuskPayrollView from './HuskPayrollView';
 
 export default function HuskContainerView() {
-  const [activeTab, setActiveTab] = useState<'nhap-trau-moi' | 'quet-anh-cu'>('nhap-trau-moi');
-
-  // Đọc query param hoặc localStorage để tự động chuyển tab tương ứng
-  useEffect(() => {
+  const [activeTab, setActiveTab] = useState<'nhap-trau-moi' | 'quet-anh-cu'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
       if (tabParam === 'quet-anh-cu' || tabParam === 'quet-anh' || tabParam === 'ai') {
-        setActiveTab('quet-anh-cu');
-      } else {
-        const savedTab = localStorage.getItem('husk_active_subtab');
-        if (savedTab === 'quet-anh-cu' || savedTab === 'nhap-trau-moi') {
-          setActiveTab(savedTab);
-        }
+        return 'quet-anh-cu';
+      }
+      const savedTab = localStorage.getItem('husk_active_subtab');
+      if (savedTab === 'quet-anh-cu' || savedTab === 'nhap-trau-moi') {
+        return savedTab;
       }
     }
-  }, []);
+    return 'nhap-trau-moi';
+  });
 
   const handleSelectTab = (tab: 'nhap-trau-moi' | 'quet-anh-cu') => {
     setActiveTab(tab);

@@ -9,9 +9,6 @@ import {
 } from '@/lib/nhap-trau/formulaUpdater';
 import {
   validateShipmentEntry,
-  validateBatchEntries,
-  normalizeVehicleName,
-  normalizeDate,
 } from '@/lib/nhap-trau/validator';
 import { writeShipments, flattenSharedFormulas } from '@/lib/nhap-trau/excelWriter';
 import { extractWorkbookMetadata } from '@/lib/nhap-trau/excelReader';
@@ -517,7 +514,7 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     expect(sheetBeBa!.parsedContractSeq).toBe(1);
     expect(sheetBeBa!.hasMultipleContracts).toBe(true); // Đuôi 01: có HĐ thứ 2 nữa
 
-    const sheetGiangTB3 = meta.customerSheets.find((s) => s.sheetName.includes('GIANG TB'));
+    const sheetGiangTB3 = meta.customerSheets.find((s) => s.sheetName.includes('GIANG THANH BÌNH') || s.sheetName.includes('GIANG TB'));
     expect(sheetGiangTB3).toBeDefined();
     // Tab thực tế trên file có tên 'GIANG TB MỚI 2-11' (không theo quy ước đặt tên số) nên parse được qua config
     expect(sheetGiangTB3!.mainCustomerName).toBe('GIANG THANH BÌNH');
@@ -574,13 +571,13 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
     const r3682Val = String(mainWs.getRow(3682).getCell('C').value || '');
     expect(r3682Val).toMatch(/báo cáo xuất trấu/i);
 
-    // 2. Kiểm tra Tab con CÔ LIỄU MỚI : dữ liệu cũ ở 63 -> ghi ngay vào dòng 64
-    const coLieuWs = wb.getWorksheet('CÔ LIỄU MỚI ')!;
+    // 2. Kiểm tra Tab con CÔ LIỄU : ghi đúng vào tab tương ứng
+    const coLieuWs = wb.getWorksheet(sheetCoLieu!.sheetName)!;
     expect(coLieuWs.getRow(64).getCell('C').value).toBe('54h 1423');
     expect(coLieuWs.getRow(64).getCell('F').value).toBe(1000);
 
-    // 3. Kiểm tra Tab con TRANG BẾN TRE: dữ liệu cũ ở 1161 -> ghi ngay vào dòng 1162
-    const trangWs = wb.getWorksheet('TRANG BẾN TRE')!;
+    // 3. Kiểm tra Tab con TRANG BẾN TRE: ghi đúng vào tab tương ứng
+    const trangWs = wb.getWorksheet(sheetTrangBT!.sheetName)!;
     expect(trangWs.getRow(1162).getCell('C').value).toBe('56 tranhoaibao');
     expect(trangWs.getRow(1162).getCell('F').value).toBe(4204);
   }, 15000);
@@ -637,10 +634,6 @@ describe('3. Kiểm tra Ghi Excel Toàn Diện (Excel Engine End-to-End)', () =>
       return meta.customerSheets.find(
         (x) => x.sheetName === keyword || x.sheetName.includes(keyword) || x.customerName.includes(keyword)
       )!;
-    };
-    const getLastContractRow = (keyword: string) => {
-      const s = findSheet(keyword);
-      return s.contracts[s.contracts.length - 1].row;
     };
 
     // Đúng 8 chuyến xe ngày 10/11/2026 theo ảnh của user

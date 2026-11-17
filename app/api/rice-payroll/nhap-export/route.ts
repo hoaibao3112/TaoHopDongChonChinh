@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import XLSX from 'xlsx-js-style';
 import { finalizeWorkbookWithPrintSetup } from '@/lib/excel/excelPrintHelper';
 import { isRequestAuthenticated } from '@/lib/auth';
-import { NhapBatch, NhapExportPayload, NhapTrauItem } from '@/lib/rice-payroll/nhap-types';
+import { NhapExportPayload } from '@/lib/rice-payroll/nhap-types';
 import { DOI_DUONG_WORKERS } from '@/lib/rice-payroll/team-duong-workers';
 import { DEFAULT_OCTOBER_TRAU_ITEMS } from '@/lib/rice-payroll/nhap-trau-config';
 
