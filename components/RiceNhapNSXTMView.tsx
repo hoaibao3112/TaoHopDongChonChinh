@@ -104,26 +104,80 @@ export default function RiceNhapNSXTMView() {
   const [quickNoteOpen, setQuickNoteOpen] = useState(false);
   const [quickNoteText, setQuickNoteText] = useState('');
   const [quickNoteSavedAt, setQuickNoteSavedAt] = useState<string>('');
+  const [quickNoteSyncing, setQuickNoteSyncing] = useState<boolean>(false);
+  const quickNoteTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Tải ghi chú NSX TM từ Cloud (Upstash Redis)
+  const fetchCloudNoteNSXTM = useCallback(async () => {
+    try {
+      const res = await fetch('/api/quick-notes?scope=nsx_tm', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.text !== undefined && data.text !== null) {
+          setQuickNoteText(data.text);
+          if (data.updatedAt) setQuickNoteSavedAt(data.updatedAt);
+          try {
+            localStorage.setItem('nsx_tm_quick_notes', data.text);
+            if (data.updatedAt) localStorage.setItem('nsx_tm_quick_notes_time', data.updatedAt);
+          } catch {}
+        }
+      }
+    } catch (e) {
+      console.warn('Lỗi đọc ghi chú NSX TM từ Cloud:', e);
+    }
+  }, []);
+
+  // Đọc từ cache localStorage trước, sau đó đồng bộ ngay từ Cloud
   useEffect(() => {
     try {
       const savedNote = localStorage.getItem('nsx_tm_quick_notes');
       if (savedNote !== null) setQuickNoteText(savedNote);
       const savedTime = localStorage.getItem('nsx_tm_quick_notes_time');
       if (savedTime) setQuickNoteSavedAt(savedTime);
-    } catch (e) {
-      console.warn('Lỗi đọc ghi chú NSX TM từ localStorage:', e);
-    }
-  }, []);
+    } catch {}
+
+    fetchCloudNoteNSXTM();
+
+    // Tự động tải lại khi quay lại tab trình duyệt
+    const onFocus = () => fetchCloudNoteNSXTM();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [fetchCloudNoteNSXTM]);
 
   const handleUpdateQuickNote = (text: string) => {
     setQuickNoteText(text);
-    const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    setQuickNoteSavedAt(timeStr);
+    setQuickNoteSyncing(true);
+
     try {
       localStorage.setItem('nsx_tm_quick_notes', text);
-      localStorage.setItem('nsx_tm_quick_notes_time', timeStr);
     } catch {}
+
+    if (quickNoteTimerRef.current) {
+      clearTimeout(quickNoteTimerRef.current);
+    }
+
+    quickNoteTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/quick-notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scope: 'nsx_tm', text }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.updatedAt) {
+            setQuickNoteSavedAt(data.updatedAt);
+            try {
+              localStorage.setItem('nsx_tm_quick_notes_time', data.updatedAt);
+            } catch {}
+          }
+        }
+      } catch (e) {
+        console.error('Lỗi đồng bộ ghi chú NSX TM lên Cloud:', e);
+      } finally {
+        setQuickNoteSyncing(false);
+      }
+    }, 700);
   };
 
   // Nhận dữ liệu phiếu cân chuyển từ tab "Quét Phiếu Cân AI"
@@ -1976,17 +2030,29 @@ export default function RiceNhapNSXTMView() {
                 <span className="text-base">📝</span>
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider">Sổ Ghi Chú NSX Tân Mỹ</h4>
-                  <span className="text-[10px] text-amber-100">Lưu tự động trên máy này</span>
+                  <span className="text-[10px] text-amber-100 flex items-center gap-1">
+                    <span>☁️ Đồng bộ trực tuyến (Ai vào cũng thấy)</span>
+                  </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setQuickNoteOpen(false)}
-                className="h-6 w-6 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-xs font-bold transition-all cursor-pointer"
-                title="Đóng ghi chú"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => fetchCloudNoteNSXTM()}
+                  className="h-6 px-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-[10px] font-bold transition-all cursor-pointer"
+                  title="Nhấn để tải nội dung mới nhất nếu người khác vừa sửa"
+                >
+                  🔄 Tải mới
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuickNoteOpen(false)}
+                  className="h-6 w-6 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-xs font-bold transition-all cursor-pointer"
+                  title="Đóng ghi chú"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Body */}
@@ -2000,14 +2066,20 @@ export default function RiceNhapNSXTMView() {
               />
 
               <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
-                <span>
-                  {quickNoteSavedAt ? `💾 Đã lưu lúc ${quickNoteSavedAt}` : '💾 Tự động lưu'}
+                <span className="flex items-center gap-1 font-medium">
+                  {quickNoteSyncing ? (
+                    <span className="text-amber-600 animate-pulse">☁️ Đang đồng bộ...</span>
+                  ) : quickNoteSavedAt ? (
+                    <span className="text-emerald-700">☁️ Đã đồng bộ lúc {quickNoteSavedAt}</span>
+                  ) : (
+                    <span>☁️ Tự động đồng bộ</span>
+                  )}
                 </span>
                 {quickNoteText && (
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm('Bạn có muốn xóa sạch nội dung sổ ghi chú này không?')) {
+                      if (window.confirm('Bạn có muốn xóa sạch nội dung sổ ghi chú này cho tất cả mọi người không?')) {
                         handleUpdateQuickNote('');
                       }
                     }}
@@ -2024,7 +2096,7 @@ export default function RiceNhapNSXTMView() {
             type="button"
             onClick={() => setQuickNoteOpen(true)}
             className="group flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 border-2 border-white ring-4 ring-amber-200/60 transition-all cursor-pointer font-bold text-xs"
-            title="Mở sổ ghi chú NSX TM (Lưu trên máy)"
+            title="Mở sổ ghi chú NSX TM (Đồng bộ mọi người)"
           >
             <span className="text-base group-hover:rotate-12 transition-transform">📝</span>
             <span>Ghi chú NSX TM</span>

@@ -135,31 +135,80 @@ export default function RiceNhapCS1View() {
   const [quickNoteOpen, setQuickNoteOpen] = useState(false);
   const [quickNoteText, setQuickNoteText] = useState('');
   const [quickNoteSavedAt, setQuickNoteSavedAt] = useState<string>('');
+  const [quickNoteSyncing, setQuickNoteSyncing] = useState<boolean>(false);
+  const quickNoteTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Đọc ghi chú nhanh từ localStorage khi mount
-  useEffect(() => {
+  // Tải ghi chú CS1 từ Cloud (Upstash Redis)
+  const fetchCloudNoteCS1 = useCallback(async () => {
     try {
-      const savedNote = localStorage.getItem('cs1_quick_notes');
-      if (savedNote !== null) {
-        setQuickNoteText(savedNote);
-      }
-      const savedTime = localStorage.getItem('cs1_quick_notes_time');
-      if (savedTime) {
-        setQuickNoteSavedAt(savedTime);
+      const res = await fetch('/api/quick-notes?scope=cs1', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.text !== undefined && data.text !== null) {
+          setQuickNoteText(data.text);
+          if (data.updatedAt) setQuickNoteSavedAt(data.updatedAt);
+          try {
+            localStorage.setItem('cs1_quick_notes', data.text);
+            if (data.updatedAt) localStorage.setItem('cs1_quick_notes_time', data.updatedAt);
+          } catch {}
+        }
       }
     } catch (e) {
-      console.warn('Lỗi đọc ghi chú CS1 từ localStorage:', e);
+      console.warn('Lỗi đọc ghi chú CS1 từ Cloud:', e);
     }
   }, []);
 
+  // Đọc ghi chú từ cache localStorage trước, sau đó đồng bộ ngay từ Cloud
+  useEffect(() => {
+    try {
+      const savedNote = localStorage.getItem('cs1_quick_notes');
+      if (savedNote !== null) setQuickNoteText(savedNote);
+      const savedTime = localStorage.getItem('cs1_quick_notes_time');
+      if (savedTime) setQuickNoteSavedAt(savedTime);
+    } catch {}
+
+    fetchCloudNoteCS1();
+
+    // Tự động tải lại khi quay lại tab trình duyệt
+    const onFocus = () => fetchCloudNoteCS1();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [fetchCloudNoteCS1]);
+
   const handleUpdateQuickNote = (text: string) => {
     setQuickNoteText(text);
-    const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    setQuickNoteSavedAt(timeStr);
+    setQuickNoteSyncing(true);
+
     try {
       localStorage.setItem('cs1_quick_notes', text);
-      localStorage.setItem('cs1_quick_notes_time', timeStr);
     } catch {}
+
+    if (quickNoteTimerRef.current) {
+      clearTimeout(quickNoteTimerRef.current);
+    }
+
+    quickNoteTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/quick-notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scope: 'cs1', text }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.updatedAt) {
+            setQuickNoteSavedAt(data.updatedAt);
+            try {
+              localStorage.setItem('cs1_quick_notes_time', data.updatedAt);
+            } catch {}
+          }
+        }
+      } catch (e) {
+        console.error('Lỗi đồng bộ ghi chú CS1 lên Cloud:', e);
+      } finally {
+        setQuickNoteSyncing(false);
+      }
+    }, 700);
   };
 
   // ── State: Xuất Excel ───────────────────────────────────────────────────
@@ -2095,17 +2144,29 @@ export default function RiceNhapCS1View() {
                 <span className="text-base">📝</span>
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider">Sổ Ghi Chú CS1</h4>
-                  <span className="text-[10px] text-amber-100">Lưu tự động trên máy này</span>
+                  <span className="text-[10px] text-amber-100 flex items-center gap-1">
+                    <span>☁️ Đồng bộ trực tuyến (Ai vào cũng thấy)</span>
+                  </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setQuickNoteOpen(false)}
-                className="h-6 w-6 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-xs font-bold transition-all cursor-pointer"
-                title="Đóng ghi chú"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => fetchCloudNoteCS1()}
+                  className="h-6 px-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-[10px] font-bold transition-all cursor-pointer"
+                  title="Nhấn để tải nội dung mới nhất nếu người khác vừa sửa"
+                >
+                  🔄 Tải mới
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuickNoteOpen(false)}
+                  className="h-6 w-6 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-xs font-bold transition-all cursor-pointer"
+                  title="Đóng ghi chú"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Body */}
@@ -2119,14 +2180,20 @@ export default function RiceNhapCS1View() {
               />
 
               <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
-                <span>
-                  {quickNoteSavedAt ? `💾 Đã lưu lúc ${quickNoteSavedAt}` : '💾 Tự động lưu'}
+                <span className="flex items-center gap-1 font-medium">
+                  {quickNoteSyncing ? (
+                    <span className="text-amber-600 animate-pulse">☁️ Đang đồng bộ...</span>
+                  ) : quickNoteSavedAt ? (
+                    <span className="text-emerald-700">☁️ Đã đồng bộ lúc {quickNoteSavedAt}</span>
+                  ) : (
+                    <span>☁️ Tự động đồng bộ</span>
+                  )}
                 </span>
                 {quickNoteText && (
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm('Bạn có muốn xóa sạch nội dung sổ ghi chú này không?')) {
+                      if (window.confirm('Bạn có muốn xóa sạch nội dung sổ ghi chú này cho tất cả mọi người không?')) {
                         handleUpdateQuickNote('');
                       }
                     }}
@@ -2143,7 +2210,7 @@ export default function RiceNhapCS1View() {
             type="button"
             onClick={() => setQuickNoteOpen(true)}
             className="group flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 border-2 border-white ring-4 ring-amber-200/60 transition-all cursor-pointer font-bold text-xs"
-            title="Mở sổ ghi chú CS1 (Lưu trên máy)"
+            title="Mở sổ ghi chú CS1 (Đồng bộ mọi người)"
           >
             <span className="text-base group-hover:rotate-12 transition-transform">📝</span>
             <span>Ghi chú CS1</span>
