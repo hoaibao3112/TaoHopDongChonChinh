@@ -39,23 +39,24 @@ export function proxy(request: NextRequest): NextResponse {
   // Phân quyền theo vai trò (Role-based access control)
   const role = getRequestUserRole(request);
 
-  // 1. Phân quyền cho Hoài Bảo ('payroll'): Chỉ vào Tính Lương Nông Sản
+  // 1. Phân quyền cho Hoài Bảo ('payroll'): Chỉ vào Tính Lương Nông Sản (không vào Báo cáo chưa xay)
   if (role === 'payroll') {
-    // Nếu cố vào trang chủ / hoặc các trang contracts -> redirect về /tinh-luong
-    if (pathname === '/' || pathname.startsWith('/contracts')) {
+    // Nếu cố vào trang chủ / hoặc các trang contracts hoặc bao-cao-chua-xay -> redirect về /tinh-luong
+    if (pathname === '/' || pathname.startsWith('/contracts') || pathname.startsWith('/bao-cao-chua-xay')) {
       return NextResponse.redirect(new URL('/tinh-luong', request.url));
     }
   }
 
   // 2. Phân quyền cho Chơn Chính ('contracts'): Chỉ vào Tạo Hợp Đồng
   if (role === 'contracts') {
-    // Nếu cố vào /tinh-luong, /nhap-say, /chum-lo hoặc /xuat-trau -> redirect về trang chủ /
+    // Nếu cố vào /tinh-luong, /nhap-say, /chum-lo, /xuat-trau hoặc /bao-cao-chua-xay -> redirect về trang chủ /
     if (
       pathname.startsWith('/tinh-luong') ||
       pathname.startsWith('/nhap-say') ||
       pathname.startsWith('/nhap-say-cs1') ||
       pathname.startsWith('/chum-lo') ||
-      pathname.startsWith('/xuat-trau')
+      pathname.startsWith('/xuat-trau') ||
+      pathname.startsWith('/bao-cao-chua-xay')
     ) {
       return NextResponse.redirect(new URL('/', request.url));
     }
@@ -65,6 +66,13 @@ export function proxy(request: NextRequest): NextResponse {
   if (role === 'husk') {
     if (!pathname.startsWith('/xuat-trau') && !pathname.startsWith('/api/husk')) {
       return NextResponse.redirect(new URL('/xuat-trau', request.url));
+    }
+  }
+
+  // 4. Phân quyền cho Báo Cáo ('baocao') với mật khẩu baocao: Chỉ vào /bao-cao-chua-xay
+  if (role === 'baocao') {
+    if (!pathname.startsWith('/bao-cao-chua-xay') && !pathname.startsWith('/api/')) {
+      return NextResponse.redirect(new URL('/bao-cao-chua-xay', request.url));
     }
   }
 

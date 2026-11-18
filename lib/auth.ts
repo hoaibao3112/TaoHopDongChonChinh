@@ -5,7 +5,7 @@ export const SESSION_COOKIE_NAME = 'auth_contract_session';
 export const ROLE_COOKIE_NAME = 'auth_user_role';
 export const SESSION_COOKIE_MAX_AGE = 60 * 60 * 12; // 12 giờ
 
-export type UserRole = 'payroll' | 'contracts' | 'admin' | 'husk';
+export type UserRole = 'payroll' | 'contracts' | 'admin' | 'husk' | 'baocao';
 
 export interface AuthCheckResult {
   isAuthenticated: boolean;
@@ -18,6 +18,7 @@ export interface AuthCheckResult {
  * - hoaibao -> Phân hệ Tính Lương Nông Sản (/tinh-luong)
  * - chonchinh -> Phân hệ Tạo Hợp Đồng Mua Bán (/)
  * - teamlua -> Phân hệ Quét Phiếu & Bảng Kê Xuất Trấu (/xuat-trau)
+ * - baocao -> Phân hệ Báo Cáo Lúa Khô Chưa Xay (/bao-cao-chua-xay)
  * - admin / APP_PASSWORD -> Toàn quyền truy cập cả hai phân hệ
  */
 export function checkPassword(password: string): AuthCheckResult {
@@ -28,6 +29,14 @@ export function checkPassword(password: string): AuthCheckResult {
       isAuthenticated: true,
       role: 'payroll',
       redirectUrl: '/tinh-luong',
+    };
+  }
+
+  if (clean === 'baocao') {
+    return {
+      isAuthenticated: true,
+      role: 'baocao',
+      redirectUrl: '/bao-cao-chua-xay',
     };
   }
 

@@ -12,7 +12,7 @@ export default function AppHeader() {
     if (typeof document !== 'undefined') {
       const match = document.cookie.match(/(?:^|; )auth_user_role=([^;]*)/);
       const val = match ? (decodeURIComponent(match[1]) as UserRole) : null;
-      if (val === 'payroll' || val === 'contracts' || val === 'admin' || val === 'husk') {
+      if (val === 'payroll' || val === 'contracts' || val === 'admin' || val === 'husk' || val === 'baocao') {
         return val;
       }
     }
@@ -27,11 +27,14 @@ export default function AppHeader() {
   const isXuatNSXTM = pathname.startsWith('/xuat-nsx-tm');
   const isChumLo = pathname.startsWith('/chum-lo');
   const isXuatTrau = pathname.startsWith('/xuat-trau');
+  const isBaoCao = pathname.startsWith('/bao-cao-chua-xay');
 
   // Quyền truy cập các tab
   const canAccessContracts = role === 'contracts' || role === 'admin' || role === null;
   const canAccessPayroll = role === 'payroll' || role === 'admin' || role === null;
   const canAccessHusk = role === 'husk' || role === 'payroll' || role === 'admin' || role === null;
+  // Tab Báo Cáo Chưa Xay: CHỈ hiện khi đăng nhập mật khẩu baocao hoặc admin (KHÔNG hiện khi nhập hoaibao)
+  const canAccessBaoCao = role === 'baocao' || role === 'admin';
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md transition-all shadow-xs">
@@ -174,11 +177,35 @@ export default function AppHeader() {
                 </span>
               </Link>
             )}
+
+            {canAccessBaoCao && (
+              <Link
+                href="/bao-cao-chua-xay"
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                  isBaoCao
+                    ? 'bg-white text-emerald-800 shadow-xs ring-2 ring-emerald-500/40 font-black'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                <span>🌾</span>
+                <span>Báo Cáo Chưa Xay</span>
+                <span className="rounded-full bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 font-bold shadow-2xs">
+                  Mới
+                </span>
+              </Link>
+            )}
           </nav>
         </div>
 
         {/* Right: User Role Badge & Logout */}
         <div className="flex items-center gap-3">
+          {role === 'baocao' && (
+            <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-900 shadow-2xs">
+              <span>📊</span>
+              <span>Báo Cáo Chưa Xay</span>
+            </div>
+          )}
+
           {role === 'payroll' && (
             <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 shadow-2xs">
               <span>👤</span>
