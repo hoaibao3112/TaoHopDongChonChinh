@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkPassword, setAuthCookie } from '@/lib/auth';
+import { checkRateLimit, getClientIp } from '@/lib/security/rateLimit';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -8,7 +9,32 @@ const loginSchema = z.object({
 
 export const runtime = 'nodejs';
 
+// ✅ Rate limit: Tối đa 10 lần thử / 15 phút / IP
+const LOGIN_MAX_ATTEMPTS = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 phút
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // ✅ Bảo mật: Rate limiting chống brute-force
+  const ip = getClientIp(request);
+  const rateLimit = checkRateLimit(ip, 'login', LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS);
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: `Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau ${rateLimit.retryAfterSeconds} giây.`,
+      },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimit.retryAfterSeconds),
+          'X-RateLimit-Limit': String(LOGIN_MAX_ATTEMPTS),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(Math.ceil(rateLimit.resetAt / 1000)),
+        },
+      }
+    );
+  }
+
   try {
     const body: unknown = await request.json();
     const parsed = loginSchema.safeParse(body);

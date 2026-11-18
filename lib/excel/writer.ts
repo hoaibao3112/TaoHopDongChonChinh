@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { ScannedSlipItem, HuskSettings, DEFAULT_HUSK_SETTINGS } from '../husk/types';
 import { formatExcelCellDateToDDMMYYYY } from './readExisting';
+import { sanitizeExcelCell } from './sanitizeCell';
 
 export interface WriteHuskResult {
   updatedBuffer: Buffer;
@@ -417,7 +418,7 @@ export async function writeHuskRowsToExcel(
 
     // D: CÔNG VIỆC
     const cellD = targetRow.getCell(4);
-    cellD.value = slip.description;
+    cellD.value = sanitizeExcelCell(slip.description);
     cellD.alignment = { horizontal: 'left', vertical: 'middle' };
 
     // E: SỐ LƯỢNG KG

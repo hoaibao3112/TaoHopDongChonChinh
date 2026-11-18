@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isRequestAuthenticated } from '@/lib/auth';
+import { checkRateLimit, getClientIp } from '@/lib/security/rateLimit';
 import { GeminiOcrProvider } from '@/lib/ocr/gemini';
 import { preprocessSlipImage } from '@/lib/ocr/preprocess';
 import { calculateHuskTons } from '@/lib/husk/tonnage';
@@ -8,6 +9,41 @@ import { validateSlipItem } from '@/lib/husk/validator';
 import { readExistingPayrollExcel } from '@/lib/excel/readExisting';
 import { ScannedSlipItem, ExistingExcelRow } from '@/lib/husk/types';
 
+// ✅ Rate limit: Tối đa 5 lần scan / phút / IP (mỗi lần tối đa 30 ảnh)
+const SCAN_MAX_REQUESTS = 5;
+const SCAN_WINDOW_MS = 60 * 1000; // 1 phút
+
+/**
+ * Kiểm tra magic bytes để xác nhận file là ảnh thực sự (chống upload file giả)
+ */
+function validateImageMagicBytes(buffer: Buffer): void {
+  if (buffer.length < 12) {
+    throw new Error('File quá nhỏ, không phải ảnh hợp lệ');
+  }
+
+  const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  const isPng =
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a;
+  const isWebp =
+    buffer.slice(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.slice(8, 12).toString('ascii') === 'WEBP';
+  const isHeic =
+    buffer.slice(4, 8).toString('ascii') === 'ftyp' ||
+    buffer.slice(4, 8).toString('ascii') === 'ftypheic' ||
+    buffer.slice(4, 8).toString('ascii') === 'ftyphevx';
+
+  if (!isJpeg && !isPng && !isWebp && !isHeic) {
+    throw new Error('File không phải định dạng ảnh hợp lệ (chỉ chấp nhận JPEG, PNG, WEBP, HEIC)');
+  }
+}
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Tăng timeout cho Vercel Serverless Function lên 60s
@@ -15,6 +51,25 @@ export const maxDuration = 60; // Tăng timeout cho Vercel Serverless Function l
 export async function POST(req: NextRequest) {
   if (!isRequestAuthenticated(req)) {
     return NextResponse.json({ error: 'Chưa xác thực phiên đăng nhập' }, { status: 401 });
+  }
+
+  // ✅ Bảo mật: Rate limit chống quota exhaustion
+  const ip = getClientIp(req);
+  const rateLimit = checkRateLimit(ip, 'husk-scan', SCAN_MAX_REQUESTS, SCAN_WINDOW_MS);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: `Quá nhiều yêu cầu quét. Vui lòng thử lại sau ${rateLimit.retryAfterSeconds} giây.`,
+      },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimit.retryAfterSeconds),
+          'X-RateLimit-Limit': String(SCAN_MAX_REQUESTS),
+          'X-RateLimit-Remaining': '0',
+        },
+      }
+    );
   }
 
   try {
@@ -81,6 +136,9 @@ export async function POST(req: NextRequest) {
 
         const arrayBuf = await file.arrayBuffer();
         const inputBuffer = Buffer.from(arrayBuf);
+
+        // ✅ Bảo mật: Kiểm tra magic bytes để xác nhận đây là file ảnh thực sự
+        validateImageMagicBytes(inputBuffer);
 
         // Tiền xử lý ảnh (xoay EXIF, resize, tạo thumbnail)
         const preprocessed = await preprocessSlipImage(inputBuffer);

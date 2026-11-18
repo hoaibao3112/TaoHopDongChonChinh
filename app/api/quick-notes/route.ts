@@ -1,38 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isRequestAuthenticated } from '@/lib/auth';
 
 export const runtime = 'nodejs';
+
+// Whitelist scope hợp lệ - chống scope injection
+const ALLOWED_SCOPES = ['cs1', 'nsx_tm'] as const;
+type AllowedScope = (typeof ALLOWED_SCOPES)[number];
+
+const MAX_TEXT_LENGTH = 10_000; // 10.000 ký tự tối đa
 
 interface QuickNoteData {
   text: string;
   updatedAt: string;
 }
 
-const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/$/, '') || 'https://upright-dogfish-99021.upstash.io';
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || 'gQAAAAAAAYLNAAIgcDFmODVkZWM0MDVlZjA0MjljYWY2NTc4YTJhNWYyNmZjOA';
+function getRedisConfig(): { url: string; token: string } {
+  const url = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/$/, '');
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) {
+    throw new Error(
+      '[QuickNotes] UPSTASH_REDIS_REST_URL hoặc UPSTASH_REDIS_REST_TOKEN chưa được cấu hình trong biến môi trường.'
+    );
+  }
+
+  return { url, token };
+}
+
+function sanitizeScope(raw: string | null): AllowedScope {
+  if (raw && ALLOWED_SCOPES.includes(raw as AllowedScope)) {
+    return raw as AllowedScope;
+  }
+  return 'cs1'; // Mặc định an toàn
+}
 
 async function redisGet(key: string): Promise<string | null> {
-  if (!REDIS_URL || !REDIS_TOKEN) return null;
   try {
-    const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+    const { url, token } = getRedisConfig();
+    const res = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
+      headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     });
     if (!res.ok) return null;
     const data = await res.json();
     return typeof data.result === 'string' ? data.result : null;
   } catch (err) {
-    console.error(`[Redis] Lỗi GET key ${key}:`, err);
+    console.error(`[Redis] Lỗi GET:`, err);
     return null;
   }
 }
 
 async function redisSet(key: string, value: string): Promise<boolean> {
-  if (!REDIS_URL || !REDIS_TOKEN) return false;
   try {
-    const res = await fetch(`${REDIS_URL}`, {
+    const { url, token } = getRedisConfig();
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${REDIS_TOKEN}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(['SET', key, value]),
@@ -40,14 +64,19 @@ async function redisSet(key: string, value: string): Promise<boolean> {
     });
     return res.ok;
   } catch (err) {
-    console.error(`[Redis] Lỗi SET key ${key}:`, err);
+    console.error(`[Redis] Lỗi SET:`, err);
     return false;
   }
 }
 
 export async function GET(req: NextRequest) {
+  // ✅ Bảo mật: Yêu cầu đăng nhập
+  if (!isRequestAuthenticated(req)) {
+    return NextResponse.json({ error: 'Chưa xác thực phiên đăng nhập' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
-  const scope = searchParams.get('scope') || 'cs1';
+  const scope = sanitizeScope(searchParams.get('scope'));
   const key = `quick_notes:${scope}`;
 
   const raw = await redisGet(key);
@@ -64,10 +93,20 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // ✅ Bảo mật: Yêu cầu đăng nhập
+  if (!isRequestAuthenticated(req)) {
+    return NextResponse.json({ error: 'Chưa xác thực phiên đăng nhập' }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
-    const scope = body.scope || 'cs1';
-    const text = typeof body.text === 'string' ? body.text : '';
+
+    // ✅ Bảo mật: Sanitize scope (whitelist only)
+    const scope = sanitizeScope(typeof body.scope === 'string' ? body.scope : null);
+
+    // ✅ Bảo mật: Giới hạn độ dài text
+    const text = typeof body.text === 'string' ? body.text.slice(0, MAX_TEXT_LENGTH) : '';
+
     const now = new Date();
     const timeStr = now.toLocaleDateString('vi-VN', {
       hour: '2-digit',
