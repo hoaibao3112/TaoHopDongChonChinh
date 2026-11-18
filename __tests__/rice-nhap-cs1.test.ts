@@ -143,5 +143,103 @@ describe('Rice Nhập Sấy CS1: Đội Nghị & Đội Nguyên - Cơ Sở I', (
     expect(wbNguyen.SheetNames[2]).toBe('ỨL ĐỘI NGUYÊN T10.2026');
     expect(wbNguyen.SheetNames[3]).toBe('CL ĐỘI NGUYÊN T10.2026');
   });
+
+  it('hỗ trợ tách mẻ sấy dở dang và mẻ thủ công phân bổ chính xác cho 2 đội', async () => {
+    const { POST } = await import('../app/api/rice-payroll/cs1-export/route');
+    const { NextRequest } = await import('next/server');
+    const { SESSION_COOKIE_NAME } = await import('../lib/auth');
+    const XLSX = await import('xlsx');
+
+    // Mẻ gốc 70 tấn sấy dở dang ngày 16/11 Đội Nghị làm 40 tấn, Đội Nguyên qua ngày 17/11 làm 30 tấn
+    const originalBatch: CS1Batch = {
+      id: 'batch-origin-70t',
+      contractNo: '08',
+      weighDate: '15/11/2026',
+      doiNhap: 'NGHỊ',
+      customerName: 'VIÊN U MINH THƯỢNG',
+      vehicleName: 'NGUYÊN NGUYÊN 12',
+      riceType: 'OM18',
+      dryDate: '16/11/2026',
+      dryFacility: 'CƠ SỞ I',
+      dryWeightKg: 40000,
+      roundedTons: 40, // Đã trừ 30 tấn chuyển cho Đội Nguyên
+      pricePerTon: 20000,
+      thanhTien: 40 * 20000, // 800.000
+    };
+
+    const splitBatch: CS1Batch = {
+      id: 'split-batch-origin-70t-1',
+      contractNo: '08+',
+      weighDate: '15/11/2026',
+      doiNhap: 'NGUYÊN',
+      customerName: 'VIÊN U MINH THƯỢNG',
+      vehicleName: 'NGUYÊN NGUYÊN 12',
+      riceType: 'OM18',
+      dryDate: '17/11/2026',
+      dryFacility: 'CƠ SỞ I',
+      dryWeightKg: 30000,
+      roundedTons: 30, // 30 tấn Đội Nguyên nhận làm tiếp
+      pricePerTon: 20000,
+      thanhTien: 30 * 20000, // 600.000
+      isManual: true,
+      splitFromId: 'batch-origin-70t',
+      originalTonsBeforeSplit: 70,
+      note: 'Tách mẻ qua ngày 17/11 Đội Nguyên làm tiếp',
+    };
+
+    const combinedBatches: CS1Batch[] = [originalBatch, splitBatch];
+
+    // Kiểm tra tổng sản lượng bảo toàn đúng 70 tấn
+    const totalTons = combinedBatches.reduce((s, b) => s + b.roundedTons, 0);
+    expect(totalTons).toBe(70);
+
+    // Xuất Excel cho Đội Nghị
+    const reqNghi = new NextRequest('http://localhost:3000/api/rice-payroll/cs1-export', {
+      method: 'POST',
+      headers: {
+        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        month: 11,
+        year: 2026,
+        targetTeam: 'NGHỊ',
+        batches: combinedBatches,
+        workersNghi: DEFAULT_DOI_NGHI_WORKERS,
+        trauNghi: [],
+        waterDaysNghi: 10,
+      }),
+    });
+
+    const resNghi = await POST(reqNghi);
+    expect(resNghi.status).toBe(200);
+    const bufNghi = await resNghi.arrayBuffer();
+    const wbNghi = XLSX.read(Buffer.from(bufNghi), { type: 'buffer' });
+    expect(wbNghi.SheetNames).toHaveLength(4);
+
+    // Xuất Excel cho Đội Nguyên
+    const reqNguyen = new NextRequest('http://localhost:3000/api/rice-payroll/cs1-export', {
+      method: 'POST',
+      headers: {
+        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        month: 11,
+        year: 2026,
+        targetTeam: 'NGUYÊN',
+        batches: combinedBatches,
+        workersNguyen: DEFAULT_DOI_NGUYEN_WORKERS,
+        trauNguyen: [],
+        waterDaysNguyen: 10,
+      }),
+    });
+
+    const resNguyen = await POST(reqNguyen);
+    expect(resNguyen.status).toBe(200);
+    const bufNguyen = await resNguyen.arrayBuffer();
+    const wbNguyen = XLSX.read(Buffer.from(bufNguyen), { type: 'buffer' });
+    expect(wbNguyen.SheetNames).toHaveLength(4);
+  });
 });
 

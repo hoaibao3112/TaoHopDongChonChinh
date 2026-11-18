@@ -20,6 +20,10 @@ export interface CS1Batch {
   roundedTons: number;      // Cột L: CÂN NHẬP SẤY (TẤN)
   pricePerTon: number;      // Cột M: ĐƠN GIÁ SẤY (VNĐ)
   thanhTien: number;        // Cột N: THÀNH TIỀN (VNĐ)
+  isManual?: boolean;       // Mẻ thêm tay / tách mẻ sấy dở dang
+  splitFromId?: string;     // ID mẻ gốc nếu tách từ mẻ khác
+  originalTonsBeforeSplit?: number; // Lưu số tấn gốc trước khi tách để khôi phục khi xóa
+  note?: string;            // Ghi chú thêm
 }
 
 export interface CS1TeamPayrollSummary {

@@ -80,6 +80,57 @@ export default function RiceNhapCS1View() {
   // ── State: Nước đá thủ công (nếu muốn chỉnh) ────────────────────────────
   const [waterDaysCustom, setWaterDaysCustom] = useState<{ NGHI?: number; NGUYEN?: number }>({});
 
+  // ── State: Mẻ thêm thủ công / Tách mẻ sấy dở dang ───────────────────────
+  const [manualBatches, setManualBatches] = useState<CS1Batch[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('cs1_manual_batches');
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return [];
+  });
+
+  const saveManualBatches = useCallback((updater: (prev: CS1Batch[]) => CS1Batch[]) => {
+    setManualBatches((prev) => {
+      const next = updater(prev);
+      try {
+        localStorage.setItem('cs1_manual_batches', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  // ── State: Modal Tách Mẻ / Thêm Thông Tin Mẻ Sấy ────────────────────────
+  const [splitModal, setSplitModal] = useState<{
+    isOpen: boolean;
+    mode: 'SPLIT' | 'ADD_NEW';
+    sourceBatch?: CS1Batch;
+    date: string;
+    team: CS1TeamKey;
+    customerName: string;
+    riceType: string;
+    vehicleName: string;
+    tons: string;
+    kg: string;
+    pricePerTon: string;
+    note: string;
+    autoDeductOrigin: boolean;
+  }>({
+    isOpen: false,
+    mode: 'SPLIT',
+    date: '',
+    team: 'NGUYÊN',
+    customerName: '',
+    riceType: 'L5451',
+    vehicleName: '',
+    tons: '',
+    kg: '',
+    pricePerTon: '20000',
+    note: '',
+    autoDeductOrigin: true,
+  });
+
   // ── State: Xuất Excel ───────────────────────────────────────────────────
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatusText, setExportStatusText] = useState<string>('');
@@ -174,9 +225,12 @@ export default function RiceNhapCS1View() {
   // ─── Danh sách các tháng có mẻ sấy Cơ Sở I ──────────────────────────────
   const cs1MonthKeys = useMemo(() => {
     const cs1Batches = allBatches.filter((b) => isCoSo1(b.dryFacility) && b.dryDate);
-    const dates = cs1Batches.map((b) => b.dryDate);
+    const dates = [
+      ...cs1Batches.map((b) => b.dryDate),
+      ...manualBatches.map((b) => b.dryDate),
+    ];
     return getSortedMonthKeysFromDates(dates);
-  }, [allBatches]);
+  }, [allBatches, manualBatches]);
 
   const applyParsedBatches = useCallback((batches: RiceBatch[]) => {
     setAllBatches(batches);
@@ -243,7 +297,7 @@ export default function RiceNhapCS1View() {
   const rawMonthBatches = useMemo<CS1Batch[]>(() => {
     if (!selectedMonthKey) return [];
 
-    return allBatches
+    const fromMaster = allBatches
       .filter((b) => {
         if (!isCoSo1(b.dryFacility)) return false;
         if (!b.dryDate) return false;
@@ -280,9 +334,30 @@ export default function RiceNhapCS1View() {
           roundedTons: tons,
           pricePerTon: price,
           thanhTien,
+          isManual: false,
         };
       });
-  }, [allBatches, selectedMonthKey, customTonsMap, getPriceForRice, teamAssignmentMap]);
+
+    const fromManual = manualBatches
+      .filter((b) => b.dryDate && getMonthKeyFromDate(b.dryDate) === selectedMonthKey)
+      .map((b, idx) => {
+        const tons = customTonsMap[b.id] !== undefined ? customTonsMap[b.id] : b.roundedTons;
+        const team = teamAssignmentMap[b.id] || b.doiNhap;
+        const price = b.pricePerTon || getPriceForRice(b.riceType);
+        const thanhTien = tons * price;
+        return {
+          ...b,
+          contractNo: b.contractNo || `+${idx + 1}`,
+          doiNhap: team,
+          roundedTons: tons,
+          pricePerTon: price,
+          thanhTien,
+          isManual: true,
+        };
+      });
+
+    return [...fromMaster, ...fromManual];
+  }, [allBatches, selectedMonthKey, customTonsMap, getPriceForRice, teamAssignmentMap, manualBatches]);
 
   // Lọc theo chế độ xem (ALL / NGHỊ / NGUYÊN)
   const currentBatches = useMemo(() => {
@@ -356,6 +431,149 @@ export default function RiceNhapCS1View() {
       delete next[batchId];
       return next;
     });
+  };
+
+  // ─── Xử lý Tách Mẻ / Thêm Thông Tin Mẻ Sấy Dở Dang ───────────────────────
+  // 1. Mở modal khi bấm dấu + ở trước Ngày Nhập Sấy của 1 mẻ cụ thể
+  const handleOpenSplitModal = (batch: CS1Batch) => {
+    const otherTeam: CS1TeamKey = batch.doiNhap === 'NGHỊ' ? 'NGUYÊN' : 'NGHỊ';
+    const price = batch.pricePerTon || getPriceForRice(batch.riceType);
+    setSplitModal({
+      isOpen: true,
+      mode: 'SPLIT',
+      sourceBatch: batch,
+      date: batch.dryDate || '',
+      team: otherTeam,
+      customerName: batch.customerName || '',
+      riceType: batch.riceType || '',
+      vehicleName: batch.vehicleName || batch.freshBoVehicle || '',
+      tons: '',
+      kg: '',
+      pricePerTon: String(price),
+      note: `Làm tiếp mẻ ${batch.customerName || ''} (${batch.roundedTons}t) chưa hết`,
+      autoDeductOrigin: true,
+    });
+  };
+
+  // 2. Mở modal khi bấm dấu + ở Header nhóm ngày
+  const handleOpenAddDayModal = (dateStr: string) => {
+    setSplitModal({
+      isOpen: true,
+      mode: 'ADD_NEW',
+      sourceBatch: undefined,
+      date: dateStr,
+      team: 'NGHỊ',
+      customerName: '',
+      riceType: 'L5451',
+      vehicleName: '',
+      tons: '',
+      kg: '',
+      pricePerTon: '20000',
+      note: '',
+      autoDeductOrigin: false,
+    });
+  };
+
+  // 3. Xác nhận thêm / tách mẻ từ modal
+  const handleSubmitSplitModal = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const tonsNum = parseFloat(splitModal.tons.replace(/[^\d.]/g, '')) || 0;
+    if (!splitModal.date.trim()) {
+      alert('Vui lòng nhập Ngày nhập sấy!');
+      return;
+    }
+    if (tonsNum <= 0) {
+      alert('Vui lòng nhập Số tấn lớn hơn 0!');
+      return;
+    }
+    const priceNum = parseInt(splitModal.pricePerTon.replace(/\D/g, ''), 10) || 20000;
+    const kgNum = parseInt(splitModal.kg.replace(/\D/g, ''), 10) || Math.round(tonsNum * 1000);
+
+    if (splitModal.mode === 'SPLIT' && splitModal.sourceBatch) {
+      const src = splitModal.sourceBatch;
+      const originTons = src.roundedTons;
+
+      // Nếu tick tự động trừ mẻ gốc
+      if (splitModal.autoDeductOrigin) {
+        const remainingTons = Math.max(0, originTons - tonsNum);
+        setCustomTonsMap((prev) => ({
+          ...prev,
+          [src.id]: remainingTons,
+        }));
+      }
+
+      const newBatchId = `split-${src.id}-${Date.now()}`;
+      const newBatch: CS1Batch = {
+        id: newBatchId,
+        contractNo: `${src.contractNo || '00'}+`,
+        weighDate: src.weighDate,
+        doiNhap: splitModal.team,
+        customerName: splitModal.customerName.trim() || src.customerName,
+        vehicleName: splitModal.vehicleName.trim() || src.vehicleName,
+        riceType: splitModal.riceType.trim() || src.riceType,
+        freshWeightKg: 0,
+        dryDate: splitModal.date.trim(),
+        dryFacility: 'CƠ SỞ I',
+        dryWeightKg: kgNum,
+        roundedTons: tonsNum,
+        pricePerTon: priceNum,
+        thanhTien: tonsNum * priceNum,
+        isManual: true,
+        splitFromId: src.id,
+        originalTonsBeforeSplit: originTons,
+        note: splitModal.note.trim() || 'Tách mẻ làm tiếp',
+      };
+
+      saveManualBatches((prev) => [...prev, newBatch]);
+    } else {
+      const newBatchId = `manual-cs1-${Date.now()}`;
+      const newBatch: CS1Batch = {
+        id: newBatchId,
+        contractNo: `+${manualBatches.length + 1}`,
+        weighDate: splitModal.date.trim(),
+        doiNhap: splitModal.team,
+        customerName: splitModal.customerName.trim() || 'Khách thêm ngoài',
+        vehicleName: splitModal.vehicleName.trim(),
+        riceType: splitModal.riceType.trim() || 'L5451',
+        freshWeightKg: 0,
+        dryDate: splitModal.date.trim(),
+        dryFacility: 'CƠ SỞ I',
+        dryWeightKg: kgNum,
+        roundedTons: tonsNum,
+        pricePerTon: priceNum,
+        thanhTien: tonsNum * priceNum,
+        isManual: true,
+        note: splitModal.note.trim(),
+      };
+
+      saveManualBatches((prev) => [...prev, newBatch]);
+    }
+
+    setSplitModal((prev) => ({ ...prev, isOpen: false }));
+  };
+
+  // 4. Xóa mẻ thủ công
+  const handleDeleteManualBatch = (batch: CS1Batch) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa dòng mẻ "${batch.customerName}" (${batch.roundedTons} tấn) không?`)) return;
+
+    // Nếu mẻ này được tách từ mẻ gốc, hỏi hoàn trả tấn
+    if (batch.splitFromId && batch.originalTonsBeforeSplit !== undefined) {
+      if (window.confirm(`Mẻ này được tách từ mẻ gốc. Bạn có muốn hoàn trả lại ${batch.roundedTons} tấn cho mẻ gốc không?`)) {
+        setCustomTonsMap((prev) => {
+          const currentSrcTons = prev[batch.splitFromId!] !== undefined
+            ? prev[batch.splitFromId!]
+            : (allBatches.find((b) => b.id === batch.splitFromId)?.dryWeightKg
+                ? roundRiceTons(allBatches.find((b) => b.id === batch.splitFromId)!.dryWeightKg)
+                : 0);
+          return {
+            ...prev,
+            [batch.splitFromId!]: currentSrcTons + batch.roundedTons,
+          };
+        });
+      }
+    }
+
+    saveManualBatches((prev) => prev.filter((b) => b.id !== batch.id));
   };
 
   // ─── Tính toán KPI & Quyết toán ──────────────────────────────────────────
@@ -1008,10 +1226,23 @@ export default function RiceNhapCS1View() {
 
                     return (
                       <React.Fragment key={dateStr}>
-                        {/* Hàng Header cụm Ngày có 2 nút Gán Nhanh */}
+                        {/* Hàng Header cụm Ngày có nút Thêm mẻ và 2 nút Gán Nhanh */}
                         <tr className="bg-slate-100/90 border-t border-b border-slate-200">
                           <td colSpan={6} className="px-3 py-1.5 font-bold text-slate-800">
-                            📅 Ngày nhập sấy: <span className="text-orange-700">{dateStr}</span> ({batchesInDate.length} mẻ — {dayTons} tấn)
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAddDayModal(dateStr)}
+                                className="inline-flex items-center gap-1 rounded bg-orange-600 hover:bg-orange-700 text-white px-2 py-0.5 text-[11px] font-bold transition-all shadow-2xs"
+                                title={`Thêm mẻ mới vào ngày ${dateStr}`}
+                              >
+                                <span>+</span>
+                                <span>Thêm mẻ</span>
+                              </button>
+                              <span>
+                                📅 Ngày nhập sấy: <span className="text-orange-700">{dateStr}</span> ({batchesInDate.length} mẻ — {dayTons} tấn)
+                              </span>
+                            </div>
                           </td>
                           <td colSpan={5} className="px-3 py-1.5 text-right">
                             <div className="flex items-center justify-end gap-1.5">
@@ -1044,7 +1275,19 @@ export default function RiceNhapCS1View() {
                           return (
                             <tr key={b.id} className="hover:bg-slate-50 transition-colors">
                               <td className="px-3 py-2 text-center text-slate-500 font-mono">
-                                {b.contractNo || String(idx + 1).padStart(2, '0')}
+                                <div className="flex items-center justify-center gap-1">
+                                  <span>{b.contractNo || String(idx + 1).padStart(2, '0')}</span>
+                                  {b.isManual && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteManualBatch(b)}
+                                      className="text-slate-400 hover:text-rose-600 p-0.5 transition-colors"
+                                      title="Xóa mẻ thủ công này"
+                                    >
+                                      🗑️
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-3 py-2 text-center text-slate-600">{b.weighDate || '-'}</td>
                               <td className="px-3 py-2 text-center">
@@ -1062,10 +1305,44 @@ export default function RiceNhapCS1View() {
                                   <span>{b.doiNhap}</span>
                                 </button>
                               </td>
-                              <td className="px-3 py-2 font-medium text-slate-900">{b.customerName || '-'}</td>
+                              <td className="px-3 py-2 font-medium text-slate-900">
+                                <div className="flex flex-col">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span>{b.customerName || '-'}</span>
+                                    {b.isManual && (
+                                      <span
+                                        className={`rounded px-1.5 py-0.2 text-[10px] font-bold ${
+                                          b.splitFromId
+                                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                            : 'bg-indigo-100 text-indigo-800 border border-indigo-300'
+                                        }`}
+                                      >
+                                        {b.splitFromId ? '🏷️ Tách mẻ' : '🏷️ Thêm tay'}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {b.note && (
+                                    <span className="text-[10px] text-slate-400 italic">
+                                      📝 {b.note}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
                               <td className="px-3 py-2 font-semibold text-slate-700">{b.riceType || '-'}</td>
                               <td className="px-3 py-2 text-slate-600">{b.vehicleName || b.freshBoVehicle || '-'}</td>
-                              <td className="px-3 py-2 text-center text-orange-700 font-medium">{b.dryDate}</td>
+                              <td className="px-3 py-2 text-center text-orange-700 font-medium">
+                                <div className="inline-flex items-center justify-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenSplitModal(b)}
+                                    className="w-5 h-5 rounded-full bg-orange-100 hover:bg-orange-600 hover:text-white text-orange-700 text-xs font-black flex items-center justify-center border border-orange-300 transition-all shadow-2xs cursor-pointer"
+                                    title="Bấm dấu + để điền thêm thông tin / tách mẻ sấy dở dang cho đội khác"
+                                  >
+                                    +
+                                  </button>
+                                  <span>{b.dryDate}</span>
+                                </div>
+                              </td>
                               <td className="px-3 py-2 text-right font-mono text-slate-700">
                                 {formatMoney(b.dryWeightKg)}
                               </td>
@@ -1386,6 +1663,312 @@ export default function RiceNhapCS1View() {
             >
               Nạp Dữ Liệu Mẫu
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modal Điền Thêm Thông Tin / Tách Mẻ Sấy Dở Dang ──────────────── */}
+      {splitModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden space-y-0">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-orange-600 to-amber-600 px-5 py-4 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-base font-bold">
+                  ➕
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold tracking-tight">
+                    {splitModal.mode === 'SPLIT'
+                      ? 'Điền Thêm Thông Tin / Tách Mẻ Sấy Dở Dang'
+                      : 'Thêm Mẻ Nhập Sấy Mới Vào Ngày'}
+                  </h3>
+                  <p className="text-[11px] text-orange-100">
+                    {splitModal.mode === 'SPLIT'
+                      ? 'Bữa đó sấy chưa hết hoặc qua ngày đội khác vào làm tiếp'
+                      : `Thêm dòng mẻ thủ công vào ngày ${splitModal.date}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSplitModal((prev) => ({ ...prev, isOpen: false }))}
+                className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-bold text-sm transition-all"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSubmitSplitModal} className="p-5 space-y-4 text-xs">
+              {/* Thẻ thông tin mẻ gốc nếu là SPLIT */}
+              {splitModal.mode === 'SPLIT' && splitModal.sourceBatch && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                      🌾 Thông tin mẻ gốc đang tách:
+                    </span>
+                    <span className="rounded bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 font-mono">
+                      {splitModal.sourceBatch.contractNo || 'Mẻ gốc'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-slate-700 pt-1">
+                    <div>
+                      <span className="text-slate-500">Khách hàng: </span>
+                      <strong className="text-slate-900">{splitModal.sourceBatch.customerName || '-'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Loại lúa: </span>
+                      <strong className="text-slate-900">{splitModal.sourceBatch.riceType || '-'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Phương tiện: </span>
+                      <span className="text-slate-800">{splitModal.sourceBatch.vehicleName || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Ngày sấy gốc: </span>
+                      <strong className="text-orange-700">{splitModal.sourceBatch.dryDate}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Đội ban đầu: </span>
+                      <span className={`inline-flex items-center gap-1 font-bold ${
+                        splitModal.sourceBatch.doiNhap === 'NGHỊ' ? 'text-blue-700' : 'text-emerald-700'
+                      }`}>
+                        {splitModal.sourceBatch.doiNhap === 'NGHỊ' ? '🔵 Đội Nghị' : '🟢 Đội Nguyên'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Sản lượng gốc: </span>
+                      <strong className="text-rose-700 text-sm font-mono">{splitModal.sourceBatch.roundedTons} tấn</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Hàng 1: Ngày nhập sấy + Chọn Đội */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Ngày nhập sấy <span className="text-rose-500">*</span>:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="dd/mm/yyyy (vd: 16/11/2026)"
+                    value={splitModal.date}
+                    onChange={(e) => setSplitModal((prev) => ({ ...prev, date: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-800 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Có thể là cùng ngày hoặc ngày hôm sau khi đội khác vào làm
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Đội phụ trách <span className="text-rose-500">*</span>:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSplitModal((prev) => ({ ...prev, team: 'NGHỊ' }))}
+                      className={`rounded-lg py-1.5 px-2 font-bold text-xs flex items-center justify-center gap-1 border transition-all ${
+                        splitModal.team === 'NGHỊ'
+                          ? 'border-blue-500 bg-blue-50 text-blue-800 ring-2 ring-blue-400 font-black'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>🔵</span>
+                      <span>Đội Nghị</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSplitModal((prev) => ({ ...prev, team: 'NGUYÊN' }))}
+                      className={`rounded-lg py-1.5 px-2 font-bold text-xs flex items-center justify-center gap-1 border transition-all ${
+                        splitModal.team === 'NGUYÊN'
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-400 font-black'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>🟢</span>
+                      <span>Đội Nguyên</span>
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Đội nhận mẻ / phần việc này
+                  </span>
+                </div>
+              </div>
+
+              {/* Hàng 2: Số tấn & Cân sấy (kg) & Đơn giá */}
+              <div className="grid grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Số tấn <span className="text-rose-500">*</span>:
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    placeholder="VD: 14"
+                    value={splitModal.tons}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const num = parseFloat(val.replace(/[^\d.]/g, '')) || 0;
+                      setSplitModal((prev) => ({
+                        ...prev,
+                        tons: val,
+                        kg: num > 0 ? String(Math.round(num * 1000)) : prev.kg,
+                      }));
+                    }}
+                    className="w-full rounded-lg border-2 border-rose-300 bg-rose-50/30 px-3 py-1.5 font-mono font-bold text-rose-700 focus:border-rose-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Cân sấy (kg):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="VD: 14000"
+                    value={splitModal.kg}
+                    onChange={(e) => setSplitModal((prev) => ({ ...prev, kg: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-slate-700 focus:border-orange-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Đơn giá (đ/tấn):
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={splitModal.pricePerTon}
+                    onChange={(e) => setSplitModal((prev) => ({ ...prev, pricePerTon: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-mono font-semibold text-emerald-700 focus:border-orange-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Thành tiền tính nhẩm */}
+              {(() => {
+                const tNum = parseFloat(splitModal.tons.replace(/[^\d.]/g, '')) || 0;
+                const pNum = parseInt(splitModal.pricePerTon.replace(/\D/g, ''), 10) || 0;
+                const totalMoney = tNum * pNum;
+                return (
+                  <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 border border-emerald-200">
+                    <span className="font-semibold text-emerald-800">Thành tiền tạm tính:</span>
+                    <span className="font-mono font-bold text-emerald-700 text-sm">
+                      {formatMoney(totalMoney)} đ
+                    </span>
+                  </div>
+                );
+              })()}
+
+              {/* Hàng 3: Khách hàng & Loại lúa & Phương tiện */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Khách hàng:</label>
+                  <input
+                    type="text"
+                    value={splitModal.customerName}
+                    onChange={(e) => setSplitModal((prev) => ({ ...prev, customerName: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-slate-800 focus:border-orange-500 focus:outline-none uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Loại lúa:</label>
+                  <input
+                    type="text"
+                    value={splitModal.riceType}
+                    onChange={(e) => {
+                      const rt = e.target.value;
+                      const matchedPrice = getPriceForRice(rt);
+                      setSplitModal((prev) => ({
+                        ...prev,
+                        riceType: rt,
+                        pricePerTon: String(matchedPrice),
+                      }));
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-slate-800 focus:border-orange-500 focus:outline-none uppercase font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Phương tiện / Xe:</label>
+                  <input
+                    type="text"
+                    value={splitModal.vehicleName}
+                    onChange={(e) => setSplitModal((prev) => ({ ...prev, vehicleName: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-slate-800 focus:border-orange-500 focus:outline-none uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* Ghi chú */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Ghi chú:</label>
+                <input
+                  type="text"
+                  placeholder="VD: Ngày 16/11 làm chưa hết, ngày 17/11 Đội Nguyên vào làm tiếp"
+                  value={splitModal.note}
+                  onChange={(e) => setSplitModal((prev) => ({ ...prev, note: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 focus:border-orange-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Tùy chọn tự động trừ số tấn khỏi mẻ gốc (chỉ hiển thị khi SPLIT) */}
+              {splitModal.mode === 'SPLIT' && splitModal.sourceBatch && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={splitModal.autoDeductOrigin}
+                      onChange={(e) => setSplitModal((prev) => ({ ...prev, autoDeductOrigin: e.target.checked }))}
+                      className="mt-0.5 h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="text-slate-700">
+                      <span className="font-bold text-blue-900 block">
+                        Tự động trừ số tấn của mẻ gốc
+                      </span>
+                      {(() => {
+                        const originTons = splitModal.sourceBatch.roundedTons;
+                        const splitTons = parseFloat(splitModal.tons.replace(/[^\d.]/g, '')) || 0;
+                        const remain = Math.max(0, originTons - splitTons);
+                        return (
+                          <span className="text-[11px] text-blue-800 block mt-0.5">
+                            Khi chọn, mẻ gốc ({originTons} tấn) sẽ tự động trừ đi {splitTons} tấn và còn lại{' '}
+                            <strong className="text-rose-700 font-mono font-bold">{remain} tấn</strong>. Dòng mẻ mới này nhận{' '}
+                            <strong className="text-emerald-700 font-mono font-bold">{splitTons} tấn</strong>.
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              {/* Modal Footer / Actions */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSplitModal((prev) => ({ ...prev, isOpen: false }))}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-all"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-orange-600 hover:bg-orange-700 text-white px-5 py-2 text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+                >
+                  <span>✓</span>
+                  <span>
+                    {splitModal.mode === 'SPLIT' ? 'Xác Nhận Tách / Thêm Mẻ Này' : 'Thêm Mẻ Vào Bảng'}
+                  </span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
