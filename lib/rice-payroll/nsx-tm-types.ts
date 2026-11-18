@@ -61,6 +61,9 @@ export interface NSXTMEntry {
   tongThanhTien: number;     // Tổng cộng các khoản tiền
   note?: string;
   facility?: string;
+  isManual?: boolean;
+  splitFromId?: string;
+  originalTonsBeforeSplit?: number;
 }
 
 export interface NSXTMPayload {

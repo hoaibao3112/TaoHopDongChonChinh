@@ -30,6 +30,7 @@ import {
   autoAssignAlternating2Days,
   autoAssignAlternating1Day,
 } from '@/lib/rice-payroll/nsx-tm-utils';
+import { roundRiceTons } from '@/lib/rice-payroll/rounding';
 
 function formatMoney(num: number): string {
   if (num === 0 || isNaN(num) || !num) return '0';
@@ -62,6 +63,68 @@ export default function RiceNhapNSXTMView() {
   const [manualDesc, setManualDesc] = useState('');
   const [manualKg, setManualKg] = useState('');
   const [manualType, setManualType] = useState<'TRAU' | 'GAO' | 'VO_BON' | 'SAY'>('TRAU');
+
+  // ── State: Modal Tách Mẻ / Thêm Thông Tin Mẻ Sấy (NSX TM) ───────────────
+  const [splitModal, setSplitModal] = useState<{
+    isOpen: boolean;
+    mode: 'SPLIT' | 'ADD_NEW';
+    sourceEntry?: NSXTMEntry;
+    date: string;
+    team: NSXTMTeamKey;
+    customerName: string;
+    riceType: string;
+    vehicleName: string;
+    vehicleType: 'XE' | 'GHE';
+    sourceType: 'LUA_TUOI' | 'LUA_KHO';
+    tons: string;
+    kg: string;
+    unitPrice: string;
+    jobDescription: string;
+    note: string;
+    autoDeductOrigin: boolean;
+  }>({
+    isOpen: false,
+    mode: 'SPLIT',
+    date: '',
+    team: 'QUÝ',
+    customerName: '',
+    riceType: 'OM18',
+    vehicleName: '',
+    vehicleType: 'XE',
+    sourceType: 'LUA_TUOI',
+    tons: '',
+    kg: '',
+    unitPrice: '25000',
+    jobDescription: '',
+    note: '',
+    autoDeductOrigin: true,
+  });
+
+  // ── State: Sổ tay ghi chú nhanh NSX TM (Góc dưới cùng bên phải) ───────────
+  const [quickNoteOpen, setQuickNoteOpen] = useState(false);
+  const [quickNoteText, setQuickNoteText] = useState('');
+  const [quickNoteSavedAt, setQuickNoteSavedAt] = useState<string>('');
+
+  useEffect(() => {
+    try {
+      const savedNote = localStorage.getItem('nsx_tm_quick_notes');
+      if (savedNote !== null) setQuickNoteText(savedNote);
+      const savedTime = localStorage.getItem('nsx_tm_quick_notes_time');
+      if (savedTime) setQuickNoteSavedAt(savedTime);
+    } catch (e) {
+      console.warn('Lỗi đọc ghi chú NSX TM từ localStorage:', e);
+    }
+  }, []);
+
+  const handleUpdateQuickNote = (text: string) => {
+    setQuickNoteText(text);
+    const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setQuickNoteSavedAt(timeStr);
+    try {
+      localStorage.setItem('nsx_tm_quick_notes', text);
+      localStorage.setItem('nsx_tm_quick_notes_time', timeStr);
+    } catch {}
+  };
 
   // Nhận dữ liệu phiếu cân chuyển từ tab "Quét Phiếu Cân AI"
   const [transferredSlips, setTransferredSlips] = useState<NSXTMEntry[]>([]);
@@ -435,6 +498,216 @@ export default function RiceNhapNSXTMView() {
     setManualDesc('');
     setManualKg('');
     setShowAddManual(false);
+  };
+
+  // ─── Xử lý Tách Mẻ & Điền Thêm Thông Tin Mẻ Sấy Dở Dang (NSX TM) ──────────
+  // 1. Mở modal khi bấm dấu + ở trước Ngày Nhập của 1 mẻ cụ thể
+  const handleOpenSplitModal = (entry: NSXTMEntry) => {
+    const otherTeam: NSXTMTeamKey = entry.team === 'ĐỨC' ? 'QUÝ' : 'ĐỨC';
+    const teamLabel = otherTeam === 'ĐỨC' ? 'Đội Đức' : 'Đội Quý';
+    const isKho = entry.source === 'LUA_KHO';
+    const unitPrice = isKho
+      ? 20000
+      : (entry.vehicleType === 'XE' ? 25000 : 15000);
+
+    const autoDesc = isKho
+      ? `Nhập ${entry.vehicleName || 'ghe'} Lúa khô ${entry.riceType || ''} của ${entry.customerName || ''} (Làm tiếp)`
+      : `Nhập ${entry.vehicleType === 'XE' ? '1 xe' : 'ghe'} ${entry.vehicleName || ''} ${entry.riceType || ''} của ${entry.customerName || ''} (Làm tiếp)`;
+
+    setSplitModal({
+      isOpen: true,
+      mode: 'SPLIT',
+      sourceEntry: entry,
+      date: entry.date,
+      team: otherTeam,
+      customerName: entry.customerName || '',
+      riceType: entry.riceType || '',
+      vehicleName: entry.vehicleName || '',
+      vehicleType: entry.vehicleType || 'XE',
+      sourceType: isKho ? 'LUA_KHO' : 'LUA_TUOI',
+      tons: '',
+      kg: '',
+      unitPrice: String(unitPrice),
+      jobDescription: autoDesc,
+      note: `Làm tiếp mẻ ${entry.customerName || ''} (${entry.roundedTons}t) ngày ${entry.date || ''} cho ${teamLabel}`,
+      autoDeductOrigin: true,
+    });
+  };
+
+  // 2. Mở modal khi bấm dấu + ở Header nhóm ngày
+  const handleOpenAddDayModal = (dateStr: string) => {
+    setSplitModal({
+      isOpen: true,
+      mode: 'ADD_NEW',
+      sourceEntry: undefined,
+      date: dateStr,
+      team: 'ĐỨC',
+      customerName: '',
+      riceType: 'OM18',
+      vehicleName: '',
+      vehicleType: 'XE',
+      sourceType: 'LUA_TUOI',
+      tons: '',
+      kg: '',
+      unitPrice: '25000',
+      jobDescription: 'Nhập 1 xe L5451 phát sinh',
+      note: `Nhập sấy phát sinh ngày ${dateStr} - Đội Đức`,
+      autoDeductOrigin: false,
+    });
+  };
+
+  // 2b. Chuyển đổi đội trong modal và tự động cập nhật lại câu ghi chú
+  const handleSelectTeamInModal = (newTeam: NSXTMTeamKey) => {
+    setSplitModal((prev) => {
+      let nextNote = prev.note;
+      const teamLabel = newTeam === 'ĐỨC' ? 'Đội Đức' : 'Đội Quý';
+      const prevTeamLabel = newTeam === 'ĐỨC' ? 'Đội Quý' : 'Đội Đức';
+
+      if (!nextNote.trim() || nextNote.includes(prevTeamLabel)) {
+        if (prev.mode === 'SPLIT' && prev.sourceEntry) {
+          nextNote = `Làm tiếp mẻ ${prev.sourceEntry.customerName || ''} (${prev.sourceEntry.roundedTons}t) ngày ${prev.sourceEntry.date || ''} cho ${teamLabel}`;
+        } else {
+          nextNote = `Nhập sấy phát sinh ngày ${prev.date} - ${teamLabel}`;
+        }
+      }
+
+      return {
+        ...prev,
+        team: newTeam,
+        note: nextNote,
+      };
+    });
+  };
+
+  // 3. Xác nhận thêm / tách mẻ từ modal
+  const handleSubmitSplitModal = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const tonsNum = parseFloat(splitModal.tons.replace(/[^\d.]/g, '')) || 0;
+    if (!splitModal.date.trim()) {
+      alert('Vui lòng nhập Ngày nhập sấy!');
+      return;
+    }
+    if (tonsNum <= 0) {
+      alert('Vui lòng nhập Số tấn lớn hơn 0!');
+      return;
+    }
+
+    const priceNum = parseInt(splitModal.unitPrice.replace(/\D/g, ''), 10) || 25000;
+    const kgNum = parseInt(splitModal.kg.replace(/\D/g, ''), 10) || Math.round(tonsNum * 1000);
+    const money = tonsNum * priceNum;
+
+    if (splitModal.mode === 'SPLIT' && splitModal.sourceEntry) {
+      const src = splitModal.sourceEntry;
+      const originTons = src.roundedTons;
+
+      // Nếu tick tự động trừ mẻ gốc
+      if (splitModal.autoDeductOrigin) {
+        const remainingTons = Math.max(0, originTons - tonsNum);
+        setAllEntries((prev) =>
+          prev.map((item) => {
+            if (item.id !== src.id) return item;
+            const updated = { ...item };
+            updated.roundedTons = remainingTons;
+            updated.weightKg = Math.max(0, updated.weightKg - kgNum);
+            if (updated.source === 'LUA_TUOI') {
+              const uPrice = updated.vehicleType === 'XE' ? 25000 : 15000;
+              updated.thanhTienSay = remainingTons * uPrice;
+              updated.tongThanhTien = updated.thanhTienSay;
+            } else if (updated.source === 'LUA_KHO') {
+              updated.thanhTienLuaKho = remainingTons * 20000;
+              updated.tongThanhTien = updated.thanhTienLuaKho;
+            }
+            return updated;
+          })
+        );
+      }
+
+      const newEntryId = `split-nsxtm-${src.id}-${Date.now()}`;
+      const newEntry: NSXTMEntry = {
+        id: newEntryId,
+        source: splitModal.sourceType,
+        date: splitModal.date.trim(),
+        team: splitModal.team,
+        customerName: splitModal.customerName.trim() || src.customerName,
+        riceType: splitModal.riceType.trim() || src.riceType,
+        vehicleName: splitModal.vehicleName.trim() || src.vehicleName,
+        vehicleType: splitModal.vehicleType,
+        jobDescription: splitModal.jobDescription.trim() || src.jobDescription,
+        weightKg: kgNum,
+        roundedTons: tonsNum,
+        unitPriceSayXe: splitModal.sourceType === 'LUA_TUOI' && splitModal.vehicleType === 'XE' ? priceNum : 0,
+        unitPriceSayGhe: splitModal.sourceType === 'LUA_TUOI' && splitModal.vehicleType === 'GHE' ? priceNum : 0,
+        thanhTienSay: splitModal.sourceType === 'LUA_TUOI' ? money : 0,
+        unitPriceLuaKho: splitModal.sourceType === 'LUA_KHO' ? priceNum : 0,
+        thanhTienLuaKho: splitModal.sourceType === 'LUA_KHO' ? money : 0,
+        tongThanhTien: money,
+        note: splitModal.note.trim() || 'Tách mẻ làm tiếp',
+        isManual: true,
+        splitFromId: src.id,
+        originalTonsBeforeSplit: originTons,
+        facility: 'NSX TÂN MỸ',
+      };
+
+      setAllEntries((prev) => [newEntry, ...prev]);
+    } else {
+      const newEntryId = `manual-nsxtm-${Date.now()}`;
+      const newEntry: NSXTMEntry = {
+        id: newEntryId,
+        source: splitModal.sourceType,
+        date: splitModal.date.trim(),
+        team: splitModal.team,
+        customerName: splitModal.customerName.trim() || 'Khách thêm ngoài',
+        riceType: splitModal.riceType.trim() || 'OM18',
+        vehicleName: splitModal.vehicleName.trim(),
+        vehicleType: splitModal.vehicleType,
+        jobDescription: splitModal.jobDescription.trim() || `Nhập ${splitModal.vehicleName || ''} ${splitModal.riceType || ''}`,
+        weightKg: kgNum,
+        roundedTons: tonsNum,
+        unitPriceSayXe: splitModal.sourceType === 'LUA_TUOI' && splitModal.vehicleType === 'XE' ? priceNum : 0,
+        unitPriceSayGhe: splitModal.sourceType === 'LUA_TUOI' && splitModal.vehicleType === 'GHE' ? priceNum : 0,
+        thanhTienSay: splitModal.sourceType === 'LUA_TUOI' ? money : 0,
+        unitPriceLuaKho: splitModal.sourceType === 'LUA_KHO' ? priceNum : 0,
+        thanhTienLuaKho: splitModal.sourceType === 'LUA_KHO' ? money : 0,
+        tongThanhTien: money,
+        note: splitModal.note.trim(),
+        isManual: true,
+        facility: 'NSX TÂN MỸ',
+      };
+
+      setAllEntries((prev) => [newEntry, ...prev]);
+    }
+
+    setSplitModal((prev) => ({ ...prev, isOpen: false }));
+  };
+
+  // 4. Xóa mẻ và khôi phục số tấn nếu là mẻ tách
+  const handleDeleteEntryWithRestore = (entry: NSXTMEntry) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa dòng "${entry.jobDescription || entry.customerName}" (${entry.roundedTons} tấn) không?`)) return;
+
+    if (entry.splitFromId && entry.originalTonsBeforeSplit !== undefined) {
+      if (window.confirm(`Mẻ này được tách từ mẻ gốc. Bạn có muốn hoàn trả lại ${entry.roundedTons} tấn cho mẻ gốc không?`)) {
+        setAllEntries((prev) =>
+          prev.map((item) => {
+            if (item.id !== entry.splitFromId) return item;
+            const updated = { ...item };
+            const restoredTons = updated.roundedTons + entry.roundedTons;
+            updated.roundedTons = restoredTons;
+            updated.weightKg = updated.weightKg + entry.weightKg;
+            if (updated.source === 'LUA_TUOI') {
+              const uPrice = updated.vehicleType === 'XE' ? 25000 : 15000;
+              updated.thanhTienSay = restoredTons * uPrice;
+              updated.tongThanhTien = updated.thanhTienSay;
+            } else if (updated.source === 'LUA_KHO') {
+              updated.thanhTienLuaKho = restoredTons * 20000;
+              updated.tongThanhTien = updated.thanhTienLuaKho;
+            }
+            return updated;
+          })
+        );
+      }
+    }
+
+    handleRemoveEntry(entry.id);
   };
 
   // ─── Nạp dữ liệu mẫu tháng 10 ──────────────────────────────────────────
@@ -1142,6 +1415,15 @@ export default function RiceNhapNSXTMView() {
                       <tr className="bg-indigo-50/40 border-y border-indigo-100 font-semibold text-slate-800">
                         <td colSpan={5} className="py-2 px-3">
                           <div className="flex flex-wrap items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAddDayModal(dateStr)}
+                              className="inline-flex items-center gap-1 rounded bg-orange-600 hover:bg-orange-700 text-white px-2 py-0.5 text-[11px] font-bold transition-all shadow-2xs cursor-pointer mr-0.5"
+                              title={`Thêm mẻ mới vào ngày ${dateStr}`}
+                            >
+                              <span>+</span>
+                              <span>Thêm mẻ</span>
+                            </button>
                             <span className="inline-flex items-center gap-1.5 font-bold text-indigo-900">
                               <span>📅</span>
                               <span>Ngày nhập: {dateStr}</span>
@@ -1196,7 +1478,17 @@ export default function RiceNhapNSXTMView() {
                               {String(idx + 1).padStart(2, '0')}
                             </td>
                             <td className="py-2 px-2.5 text-center font-mono text-slate-700">
-                              {e.date}
+                              <div className="inline-flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenSplitModal(e)}
+                                  className="w-5 h-5 rounded-full bg-orange-100 hover:bg-orange-600 hover:text-white text-orange-700 text-xs font-black flex items-center justify-center border border-orange-300 transition-all shadow-2xs cursor-pointer"
+                                  title="Bấm dấu + để điền thêm thông tin / tách mẻ sấy dở dang cho đội khác"
+                                >
+                                  +
+                                </button>
+                                <span>{e.date}</span>
+                              </div>
                             </td>
                             <td className="py-2 px-2 text-center">
                               <button
@@ -1229,14 +1521,34 @@ export default function RiceNhapNSXTMView() {
                               </span>
                             </td>
                             <td className="py-2 px-3">
-                              <input
-                                type="text"
-                                value={e.jobDescription}
-                                onChange={(evt) =>
-                                  handleUpdateEntryField(e.id, 'jobDescription', evt.target.value)
-                                }
-                                className="w-full rounded border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-slate-800 hover:border-slate-300 focus:bg-white focus:border-indigo-500 focus:outline-none"
-                              />
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={e.jobDescription}
+                                    onChange={(evt) =>
+                                      handleUpdateEntryField(e.id, 'jobDescription', evt.target.value)
+                                    }
+                                    className="w-full rounded border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-slate-800 hover:border-slate-300 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                                  />
+                                  {e.isManual && (
+                                    <span
+                                      className={`shrink-0 rounded px-1.5 py-0.2 text-[10px] font-bold ${
+                                        e.splitFromId
+                                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                          : 'bg-indigo-100 text-indigo-800 border border-indigo-300'
+                                      }`}
+                                    >
+                                      {e.splitFromId ? '🏷️ Tách mẻ' : '🏷️ Thêm tay'}
+                                    </span>
+                                  )}
+                                </div>
+                                {e.note && (
+                                  <span className="text-[10px] text-slate-400 italic px-1.5">
+                                    📝 {e.note}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-2 px-2 text-right font-mono font-medium text-slate-600">
                               {formatMoney(e.weightKg)}
@@ -1260,9 +1572,9 @@ export default function RiceNhapNSXTMView() {
                             <td className="py-2 px-1.5 text-center">
                               <button
                                 type="button"
-                                onClick={() => handleRemoveEntry(e.id)}
-                                className="rounded p-1 text-slate-300 hover:bg-rose-50 hover:text-rose-600 transition-all"
-                                title="Xóa dòng này"
+                                onClick={() => handleDeleteEntryWithRestore(e)}
+                                className="rounded p-1 text-slate-300 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+                                title="Xóa dòng này (có tùy chọn khôi phục số tấn nếu là mẻ tách)"
                               >
                                 ✕
                               </button>
@@ -1301,6 +1613,412 @@ export default function RiceNhapNSXTMView() {
           </div>
         </div>
       )}
+      {/* ─── Modal Điền Thêm Thông Tin / Tách Mẻ Sấy Dở Dang (NSX TM) ──────── */}
+      {splitModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden space-y-0">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-orange-600 to-amber-600 px-5 py-4 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-base font-bold">
+                  ➕
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold tracking-tight">
+                    {splitModal.mode === 'SPLIT'
+                      ? 'Điền Thêm Thông Tin / Tách Mẻ Sấy Dở Dang (NSX Tân Mỹ)'
+                      : 'Thêm Mẻ Nhập Sấy Mới Vào Ngày (NSX Tân Mỹ)'}
+                  </h3>
+                  <p className="text-[11px] text-orange-100">
+                    {splitModal.mode === 'SPLIT'
+                      ? 'Bữa đó sấy chưa hết hoặc qua ngày đội khác vào làm tiếp'
+                      : `Thêm dòng mẻ thủ công vào ngày ${splitModal.date}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSplitModal((prev) => ({ ...prev, isOpen: false }))}
+                className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-bold text-sm transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSubmitSplitModal} className="p-5 space-y-4 text-xs">
+              {/* Thẻ thông tin mẻ gốc nếu là SPLIT */}
+              {splitModal.mode === 'SPLIT' && splitModal.sourceEntry && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                      🌾 Thông tin mẻ gốc đang tách:
+                    </span>
+                    <span className="rounded bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 font-mono">
+                      {splitModal.sourceEntry.source === 'LUA_TUOI' ? 'Lúa Tươi' : 'Lúa Khô'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-slate-700 pt-1">
+                    <div>
+                      <span className="text-slate-500">Khách hàng: </span>
+                      <strong className="text-slate-900">{splitModal.sourceEntry.customerName || '-'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Loại lúa: </span>
+                      <strong className="text-slate-900">{splitModal.sourceEntry.riceType || '-'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Phương tiện: </span>
+                      <span className="text-slate-800">{splitModal.sourceEntry.vehicleName || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Ngày sấy gốc: </span>
+                      <strong className="text-orange-700">{splitModal.sourceEntry.date}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Đội ban đầu: </span>
+                      <span className={`inline-flex items-center gap-1 font-bold ${
+                        splitModal.sourceEntry.team === 'ĐỨC' ? 'text-blue-700' : 'text-emerald-700'
+                      }`}>
+                        {splitModal.sourceEntry.team === 'ĐỨC' ? '🔵 Đội Đức' : '🟢 Đội Quý'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Sản lượng gốc: </span>
+                      <strong className="text-rose-700 text-sm font-mono">{splitModal.sourceEntry.roundedTons} tấn</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Hàng 1: Ngày nhập sấy + Chọn Đội */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Ngày nhập sấy <span className="text-rose-500">*</span>:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="dd/mm/yyyy (vd: 16/11/2026)"
+                    value={splitModal.date}
+                    onChange={(e) => setSplitModal((prev) => ({ ...prev, date: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-800 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Có thể là cùng ngày hoặc ngày hôm sau khi đội khác vào làm
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Đội phụ trách <span className="text-rose-500">*</span>:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTeamInModal('ĐỨC')}
+                      className={`rounded-lg py-1.5 px-2 font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                        splitModal.team === 'ĐỨC'
+                          ? 'border-blue-500 bg-blue-50 text-blue-800 ring-2 ring-blue-400 font-black'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>🔵</span>
+                      <span>Đội Đức</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTeamInModal('QUÝ')}
+                      className={`rounded-lg py-1.5 px-2 font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                        splitModal.team === 'QUÝ'
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-400 font-black'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>🟢</span>
+                      <span>Đội Quý</span>
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Đội nhận mẻ / phần việc này
+                  </span>
+                </div>
+              </div>
+
+              {/* Hàng 2: Cân sấy (kg) & Số tấn & Đơn giá */}
+              <div className="grid grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Cân sấy (kg):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="VD: 56355"
+                    value={splitModal.kg}
+                    onChange={(e) => {
+                      const kgVal = e.target.value;
+                      const kgNum = parseFloat(kgVal.replace(/[^\d.]/g, '')) || 0;
+                      const autoTons = kgNum > 0 ? roundRiceTons(kgNum) : 0;
+                      setSplitModal((prev) => ({
+                        ...prev,
+                        kg: kgVal,
+                        tons: autoTons > 0 ? String(autoTons) : (kgVal.trim() === '' ? '' : prev.tons),
+                      }));
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-slate-800 focus:border-orange-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Nhập kg sẽ tự đổi ra tấn
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Số tấn <span className="text-rose-500">*</span>:
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    placeholder="VD: 56"
+                    value={splitModal.tons}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const num = parseFloat(val.replace(/[^\d.]/g, '')) || 0;
+                      setSplitModal((prev) => ({
+                        ...prev,
+                        tons: val,
+                        kg: prev.kg ? prev.kg : (num > 0 ? String(Math.round(num * 1000)) : ''),
+                      }));
+                    }}
+                    className="w-full rounded-lg border-2 border-rose-300 bg-rose-50/30 px-3 py-1.5 font-mono font-bold text-rose-700 focus:border-rose-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-rose-600 font-semibold mt-0.5 block">
+                    ✏️ Có thể sửa trực tiếp
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Đơn giá (đ/tấn):
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={splitModal.unitPrice}
+                    onChange={(e) => setSplitModal((prev) => ({ ...prev, unitPrice: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-mono font-semibold text-emerald-700 focus:border-orange-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    {splitModal.sourceType === 'LUA_KHO' ? 'Khô 20.000' : (splitModal.vehicleType === 'XE' ? 'Xe 25.000' : 'Ghe 15.000')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Thành tiền tính nhẩm */}
+              {(() => {
+                const tNum = parseFloat(splitModal.tons.replace(/[^\d.]/g, '')) || 0;
+                const pNum = parseInt(splitModal.unitPrice.replace(/\D/g, ''), 10) || 0;
+                const totalMoney = tNum * pNum;
+                return (
+                  <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 border border-emerald-200">
+                    <span className="font-semibold text-emerald-800">Thành tiền tạm tính:</span>
+                    <span className="font-mono font-bold text-emerald-700 text-sm">
+                      {formatMoney(totalMoney)} đ
+                    </span>
+                  </div>
+                );
+              })()}
+
+              {/* Hàng 3: Khách hàng & Loại lúa & Phương tiện */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Khách hàng:</label>
+                  <input
+                    type="text"
+                    value={splitModal.customerName}
+                    onChange={(e) => setSplitModal((prev) => ({ ...prev, customerName: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-slate-800 focus:border-orange-500 focus:outline-none uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Loại lúa:</label>
+                  <input
+                    type="text"
+                    value={splitModal.riceType}
+                    onChange={(e) => setSplitModal((prev) => ({ ...prev, riceType: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-slate-800 focus:border-orange-500 focus:outline-none uppercase font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Phương tiện / Xe:</label>
+                  <input
+                    type="text"
+                    value={splitModal.vehicleName}
+                    onChange={(e) => setSplitModal((prev) => ({ ...prev, vehicleName: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-slate-800 focus:border-orange-500 focus:outline-none uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* Ghi chú */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700">Ghi chú (Tự động điền &amp; Có thể sửa):</label>
+                  <span className="text-[10px] text-emerald-600 font-medium">✓ Đã tự điền nội dung</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="VD: Ngày 16/11 làm chưa hết, ngày 17/11 Đội Quý vào làm tiếp"
+                  value={splitModal.note}
+                  onChange={(e) => setSplitModal((prev) => ({ ...prev, note: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 focus:border-orange-500 focus:outline-none"
+                />
+                {/* Các nút bấm chọn nhanh ghi chú */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  <span className="text-[10px] font-bold text-slate-400">Chọn nhanh:</span>
+                  {[
+                    'Sấy chưa hết hôm sau làm tiếp',
+                    'Xe đến trễ qua ngày sấy tiếp',
+                    'Đổi ca Đội khác phụ trách',
+                    'Nhập phát sinh ngoài bảng master',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setSplitModal((prev) => ({ ...prev, note: preset }))}
+                      className="rounded bg-slate-100 hover:bg-orange-100 hover:text-orange-800 text-slate-600 px-2 py-0.5 text-[10px] border border-slate-200 transition-all cursor-pointer font-medium"
+                    >
+                      + {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tùy chọn tự động trừ số tấn khỏi mẻ gốc (chỉ hiển thị khi SPLIT) */}
+              {splitModal.mode === 'SPLIT' && splitModal.sourceEntry && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={splitModal.autoDeductOrigin}
+                      onChange={(e) => setSplitModal((prev) => ({ ...prev, autoDeductOrigin: e.target.checked }))}
+                      className="mt-0.5 h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="text-slate-700">
+                      <span className="font-bold text-blue-900 block">
+                        Tự động trừ số tấn của mẻ gốc
+                      </span>
+                      {(() => {
+                        const originTons = splitModal.sourceEntry.roundedTons;
+                        const splitTons = parseFloat(splitModal.tons.replace(/[^\d.]/g, '')) || 0;
+                        const remain = Math.max(0, originTons - splitTons);
+                        return (
+                          <span className="text-[11px] text-blue-800 block mt-0.5">
+                            Khi chọn, mẻ gốc ({originTons} tấn) sẽ tự động trừ đi {splitTons} tấn và còn lại{' '}
+                            <strong className="text-rose-700 font-mono font-bold">{remain} tấn</strong>. Dòng mẻ mới này nhận{' '}
+                            <strong className="text-emerald-700 font-mono font-bold">{splitTons} tấn</strong>.
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              {/* Modal Footer / Actions */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSplitModal((prev) => ({ ...prev, isOpen: false }))}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-orange-600 hover:bg-orange-700 text-white px-5 py-2 text-xs font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>✓</span>
+                  <span>
+                    {splitModal.mode === 'SPLIT' ? 'Xác Nhận Tách / Thêm Mẻ Này' : 'Thêm Mẻ Vào Bảng'}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Nút Nổi & Sổ Tay Ghi Chú Nhanh NSX TM (Góc dưới cùng bên phải) ── */}
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end">
+        {quickNoteOpen ? (
+          <div className="w-80 sm:w-96 rounded-2xl bg-white shadow-2xl border-2 border-amber-300 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-base">📝</span>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider">Sổ Ghi Chú NSX Tân Mỹ</h4>
+                  <span className="text-[10px] text-amber-100">Lưu tự động trên máy này</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickNoteOpen(false)}
+                className="h-6 w-6 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-xs font-bold transition-all cursor-pointer"
+                title="Đóng ghi chú"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-3.5 space-y-2.5">
+              <textarea
+                value={quickNoteText}
+                onChange={(e) => handleUpdateQuickNote(e.target.value)}
+                placeholder="Ghi chú lại bất cứ thông tin cần nhớ tại NSX Tân Mỹ (vd: Ngày 16/10 xe anh Đức sấy dở 10 tấn qua ngày 17 đội anh Quý làm tiếp; lưu ý công nợ; dặn dò thợ lò...)"
+                rows={6}
+                className="w-full rounded-xl border border-amber-200 bg-amber-50/30 p-2.5 text-xs text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:bg-white focus:outline-none resize-none"
+              />
+
+              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                <span>
+                  {quickNoteSavedAt ? `💾 Đã lưu lúc ${quickNoteSavedAt}` : '💾 Tự động lưu'}
+                </span>
+                {quickNoteText && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Bạn có muốn xóa sạch nội dung sổ ghi chú này không?')) {
+                        handleUpdateQuickNote('');
+                      }
+                    }}
+                    className="text-rose-500 hover:text-rose-700 font-semibold cursor-pointer"
+                  >
+                    Xóa ghi chú
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setQuickNoteOpen(true)}
+            className="group flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 border-2 border-white ring-4 ring-amber-200/60 transition-all cursor-pointer font-bold text-xs"
+            title="Mở sổ ghi chú NSX TM (Lưu trên máy)"
+          >
+            <span className="text-base group-hover:rotate-12 transition-transform">📝</span>
+            <span>Ghi chú NSX TM</span>
+            {quickNoteText.trim() && (
+              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-300 ring-2 ring-white animate-pulse" />
+            )}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
