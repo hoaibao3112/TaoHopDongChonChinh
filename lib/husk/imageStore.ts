@@ -26,21 +26,51 @@ function getDB(): Promise<IDBDatabase> {
 }
 
 /**
- * Lưu ảnh gốc (Blob, File hoặc DataURL) theo mã phiếu (slipId) hoặc tên file.
+ * Lưu ảnh gốc (Blob, File, ArrayBuffer hoặc DataURL) theo mã phiếu (slipId) hoặc tên file.
+ * Tự động chuyển đổi File sang Blob thuần để tương thích 100% với structured clone trên mọi trình duyệt.
  */
-export async function saveSlipOriginalImage(key: string, data: Blob | File | string): Promise<void> {
-  if (!key) return;
+export async function saveSlipOriginalImage(key: string, data: Blob | File | ArrayBuffer | string): Promise<void> {
+  if (!key || !data) return;
   try {
+    let toStore: Blob | string;
+
+    if (typeof File !== 'undefined' && data instanceof File) {
+      try {
+        const buffer = await data.arrayBuffer();
+        toStore = new Blob([buffer], { type: data.type || 'image/jpeg' });
+      } catch {
+        toStore = data;
+      }
+    } else if (data instanceof ArrayBuffer) {
+      toStore = new Blob([data], { type: 'image/jpeg' });
+    } else {
+      toStore = data as Blob | string;
+    }
+
     const db = await getDB();
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put(data, key);
+    return new Promise<void>((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => {
+        console.warn('[ImageStore] Lỗi transaction IndexedDB khi lưu key:', key, tx.error);
+        resolve();
+      };
+      tx.onabort = () => resolve();
+
+      try {
+        tx.objectStore(STORE_NAME).put(toStore, key);
+      } catch (putErr) {
+        console.warn('[ImageStore] Lỗi put IndexedDB:', putErr);
+        resolve();
+      }
+    });
   } catch (err) {
     console.warn('[ImageStore] Không thể lưu ảnh vào IndexedDB:', err);
   }
 }
 
 /**
- * Lấy URL ảnh gốc từ IndexedDB để xem phóng to rõ nét 100%.
+ * Lấy URL ảnh gốc từ IndexedDB theo key (slipId hoặc fileName).
  */
 export async function getSlipOriginalImageUrl(key: string): Promise<string | null> {
   if (!key) return null;
@@ -48,13 +78,16 @@ export async function getSlipOriginalImageUrl(key: string): Promise<string | nul
     const db = await getDB();
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
+      tx.onerror = () => resolve(null);
       const req = tx.objectStore(STORE_NAME).get(key);
       req.onsuccess = () => {
         const result = req.result;
         if (!result) {
           resolve(null);
-        } else if (result instanceof Blob || result instanceof File) {
+        } else if (result instanceof Blob || (typeof File !== 'undefined' && result instanceof File)) {
           resolve(URL.createObjectURL(result));
+        } else if (result instanceof ArrayBuffer) {
+          resolve(URL.createObjectURL(new Blob([result], { type: 'image/jpeg' })));
         } else if (typeof result === 'string') {
           resolve(result);
         } else {
@@ -66,6 +99,18 @@ export async function getSlipOriginalImageUrl(key: string): Promise<string | nul
   } catch {
     return null;
   }
+}
+
+/**
+ * Tìm và lấy URL ảnh gốc từ danh sách các keys dự phòng (id, fileName, fileName lowercase).
+ */
+export async function getSlipOriginalImageUrlWithFallback(keys: (string | undefined | null)[]): Promise<string | null> {
+  const validKeys = keys.filter((k): k is string => Boolean(k && k.trim()));
+  for (const k of validKeys) {
+    const url = await getSlipOriginalImageUrl(k);
+    if (url) return url;
+  }
+  return null;
 }
 
 /**

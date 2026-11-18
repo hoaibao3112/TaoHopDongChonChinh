@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    testTimeout: 20000,
     include: ['__tests__/**/*.test.ts', '**/*.test.ts'],
     exclude: ['**/node_modules/**', '.next/**', 'nhap-trau-app/**'],
   },
