@@ -131,6 +131,37 @@ export default function RiceNhapCS1View() {
     autoDeductOrigin: true,
   });
 
+  // ── State: Sổ tay ghi chú nhanh CS1 (Góc dưới cùng bên phải) ───────────────
+  const [quickNoteOpen, setQuickNoteOpen] = useState(false);
+  const [quickNoteText, setQuickNoteText] = useState('');
+  const [quickNoteSavedAt, setQuickNoteSavedAt] = useState<string>('');
+
+  // Đọc ghi chú nhanh từ localStorage khi mount
+  useEffect(() => {
+    try {
+      const savedNote = localStorage.getItem('cs1_quick_notes');
+      if (savedNote !== null) {
+        setQuickNoteText(savedNote);
+      }
+      const savedTime = localStorage.getItem('cs1_quick_notes_time');
+      if (savedTime) {
+        setQuickNoteSavedAt(savedTime);
+      }
+    } catch (e) {
+      console.warn('Lỗi đọc ghi chú CS1 từ localStorage:', e);
+    }
+  }, []);
+
+  const handleUpdateQuickNote = (text: string) => {
+    setQuickNoteText(text);
+    const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setQuickNoteSavedAt(timeStr);
+    try {
+      localStorage.setItem('cs1_quick_notes', text);
+      localStorage.setItem('cs1_quick_notes_time', timeStr);
+    } catch {}
+  };
+
   // ── State: Xuất Excel ───────────────────────────────────────────────────
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatusText, setExportStatusText] = useState<string>('');
@@ -438,6 +469,7 @@ export default function RiceNhapCS1View() {
   const handleOpenSplitModal = (batch: CS1Batch) => {
     const otherTeam: CS1TeamKey = batch.doiNhap === 'NGHỊ' ? 'NGUYÊN' : 'NGHỊ';
     const price = batch.pricePerTon || getPriceForRice(batch.riceType);
+    const teamLabel = otherTeam === 'NGHỊ' ? 'Đội Nghị' : 'Đội Nguyên';
     setSplitModal({
       isOpen: true,
       mode: 'SPLIT',
@@ -450,7 +482,7 @@ export default function RiceNhapCS1View() {
       tons: '',
       kg: '',
       pricePerTon: String(price),
-      note: `Làm tiếp mẻ ${batch.customerName || ''} (${batch.roundedTons}t) chưa hết`,
+      note: `Làm tiếp mẻ ${batch.customerName || ''} (${batch.roundedTons}t) ngày ${batch.dryDate || ''} cho ${teamLabel}`,
       autoDeductOrigin: true,
     });
   };
@@ -469,8 +501,31 @@ export default function RiceNhapCS1View() {
       tons: '',
       kg: '',
       pricePerTon: '20000',
-      note: '',
+      note: `Nhập sấy phát sinh ngày ${dateStr} - Đội Nghị`,
       autoDeductOrigin: false,
+    });
+  };
+
+  // 2b. Chuyển đổi đội trong modal và tự động cập nhật lại câu ghi chú nếu đang dùng ghi chú mặc định
+  const handleSelectTeamInModal = (newTeam: CS1TeamKey) => {
+    setSplitModal((prev) => {
+      let nextNote = prev.note;
+      const teamLabel = newTeam === 'NGHỊ' ? 'Đội Nghị' : 'Đội Nguyên';
+      const prevTeamLabel = newTeam === 'NGHỊ' ? 'Đội Nguyên' : 'Đội Nghị';
+
+      if (!nextNote.trim() || nextNote.includes(prevTeamLabel)) {
+        if (prev.mode === 'SPLIT' && prev.sourceBatch) {
+          nextNote = `Làm tiếp mẻ ${prev.sourceBatch.customerName || ''} (${prev.sourceBatch.roundedTons}t) ngày ${prev.sourceBatch.dryDate || ''} cho ${teamLabel}`;
+        } else {
+          nextNote = `Nhập sấy phát sinh ngày ${prev.date} - ${teamLabel}`;
+        }
+      }
+
+      return {
+        ...prev,
+        team: newTeam,
+        note: nextNote,
+      };
     });
   };
 
@@ -1771,7 +1826,7 @@ export default function RiceNhapCS1View() {
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => setSplitModal((prev) => ({ ...prev, team: 'NGHỊ' }))}
+                      onClick={() => handleSelectTeamInModal('NGHỊ')}
                       className={`rounded-lg py-1.5 px-2 font-bold text-xs flex items-center justify-center gap-1 border transition-all ${
                         splitModal.team === 'NGHỊ'
                           ? 'border-blue-500 bg-blue-50 text-blue-800 ring-2 ring-blue-400 font-black'
@@ -1783,7 +1838,7 @@ export default function RiceNhapCS1View() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSplitModal((prev) => ({ ...prev, team: 'NGUYÊN' }))}
+                      onClick={() => handleSelectTeamInModal('NGUYÊN')}
                       className={`rounded-lg py-1.5 px-2 font-bold text-xs flex items-center justify-center gap-1 border transition-all ${
                         splitModal.team === 'NGUYÊN'
                           ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-400 font-black'
@@ -1800,8 +1855,33 @@ export default function RiceNhapCS1View() {
                 </div>
               </div>
 
-              {/* Hàng 2: Số tấn & Cân sấy (kg) & Đơn giá */}
+              {/* Hàng 2: Cân sấy (kg) & Số tấn (quy đổi tự động / cho phép sửa) & Đơn giá */}
               <div className="grid grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Cân sấy (kg):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="VD: 56355"
+                    value={splitModal.kg}
+                    onChange={(e) => {
+                      const kgVal = e.target.value;
+                      const kgNum = parseFloat(kgVal.replace(/[^\d.]/g, '')) || 0;
+                      const autoTons = kgNum > 0 ? roundRiceTons(kgNum) : 0;
+                      setSplitModal((prev) => ({
+                        ...prev,
+                        kg: kgVal,
+                        tons: autoTons > 0 ? String(autoTons) : (kgVal.trim() === '' ? '' : prev.tons),
+                      }));
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-slate-800 focus:border-orange-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Nhập kg sẽ tự đổi ra tấn
+                  </span>
+                </div>
+
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
                     Số tấn <span className="text-rose-500">*</span>:
@@ -1810,7 +1890,7 @@ export default function RiceNhapCS1View() {
                     type="text"
                     inputMode="numeric"
                     required
-                    placeholder="VD: 14"
+                    placeholder="VD: 56"
                     value={splitModal.tons}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -1818,24 +1898,14 @@ export default function RiceNhapCS1View() {
                       setSplitModal((prev) => ({
                         ...prev,
                         tons: val,
-                        kg: num > 0 ? String(Math.round(num * 1000)) : prev.kg,
+                        kg: prev.kg ? prev.kg : (num > 0 ? String(Math.round(num * 1000)) : ''),
                       }));
                     }}
                     className="w-full rounded-lg border-2 border-rose-300 bg-rose-50/30 px-3 py-1.5 font-mono font-bold text-rose-700 focus:border-rose-500 focus:outline-none"
                   />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Cân sấy (kg):
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="VD: 14000"
-                    value={splitModal.kg}
-                    onChange={(e) => setSplitModal((prev) => ({ ...prev, kg: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-slate-700 focus:border-orange-500 focus:outline-none"
-                  />
+                  <span className="text-[10px] text-rose-600 font-semibold mt-0.5 block">
+                    ✏️ Có thể sửa trực tiếp
+                  </span>
                 </div>
 
                 <div>
@@ -1849,6 +1919,9 @@ export default function RiceNhapCS1View() {
                     onChange={(e) => setSplitModal((prev) => ({ ...prev, pricePerTon: e.target.value }))}
                     className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-mono font-semibold text-emerald-700 focus:border-orange-500 focus:outline-none"
                   />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Theo giá loại lúa
+                  </span>
                 </div>
               </div>
 
@@ -1908,7 +1981,10 @@ export default function RiceNhapCS1View() {
 
               {/* Ghi chú */}
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Ghi chú:</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700">Ghi chú (Tự động điền &amp; Có thể sửa):</label>
+                  <span className="text-[10px] text-emerald-600 font-medium">✓ Đã tự điền nội dung</span>
+                </div>
                 <input
                   type="text"
                   placeholder="VD: Ngày 16/11 làm chưa hết, ngày 17/11 Đội Nguyên vào làm tiếp"
@@ -1916,6 +1992,25 @@ export default function RiceNhapCS1View() {
                   onChange={(e) => setSplitModal((prev) => ({ ...prev, note: e.target.value }))}
                   className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 focus:border-orange-500 focus:outline-none"
                 />
+                {/* Các nút bấm chọn nhanh ghi chú */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  <span className="text-[10px] font-bold text-slate-400">Chọn nhanh:</span>
+                  {[
+                    'Sấy chưa hết hôm sau làm tiếp',
+                    'Xe đến trễ qua ngày sấy tiếp',
+                    'Đổi ca Đội khác phụ trách',
+                    'Nhập phát sinh ngoài bảng master',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setSplitModal((prev) => ({ ...prev, note: preset }))}
+                      className="rounded bg-slate-100 hover:bg-orange-100 hover:text-orange-800 text-slate-600 px-2 py-0.5 text-[10px] border border-slate-200 transition-all cursor-pointer font-medium"
+                    >
+                      + {preset}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Tùy chọn tự động trừ số tấn khỏi mẻ gốc (chỉ hiển thị khi SPLIT) */}
@@ -1972,6 +2067,75 @@ export default function RiceNhapCS1View() {
           </div>
         </div>
       )}
+
+      {/* ─── Nút Nổi & Sổ Tay Ghi Chú Nhanh CS1 (Góc dưới cùng bên phải) ── */}
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end">
+        {quickNoteOpen ? (
+          <div className="w-80 sm:w-96 rounded-2xl bg-white shadow-2xl border-2 border-amber-300 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-base">📝</span>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider">Sổ Ghi Chú CS1</h4>
+                  <span className="text-[10px] text-amber-100">Lưu tự động trên máy này</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickNoteOpen(false)}
+                className="h-6 w-6 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-xs font-bold transition-all cursor-pointer"
+                title="Đóng ghi chú"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-3.5 space-y-2.5">
+              <textarea
+                value={quickNoteText}
+                onChange={(e) => handleUpdateQuickNote(e.target.value)}
+                placeholder="Ghi chú lại bất cứ thông tin cần nhớ tại CS1 (vd: Ngày 16/11 xe 70C 12017 anh Nghị sấy dở 14 tấn qua ngày 17 anh Nguyên làm tiếp; lưu ý công nợ; dặn dò thợ lò...)"
+                rows={6}
+                className="w-full rounded-xl border border-amber-200 bg-amber-50/30 p-2.5 text-xs text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:bg-white focus:outline-none resize-none"
+              />
+
+              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                <span>
+                  {quickNoteSavedAt ? `💾 Đã lưu lúc ${quickNoteSavedAt}` : '💾 Tự động lưu'}
+                </span>
+                {quickNoteText && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Bạn có muốn xóa sạch nội dung sổ ghi chú này không?')) {
+                        handleUpdateQuickNote('');
+                      }
+                    }}
+                    className="text-rose-500 hover:text-rose-700 font-semibold cursor-pointer"
+                  >
+                    Xóa ghi chú
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setQuickNoteOpen(true)}
+            className="group flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 border-2 border-white ring-4 ring-amber-200/60 transition-all cursor-pointer font-bold text-xs"
+            title="Mở sổ ghi chú CS1 (Lưu trên máy)"
+          >
+            <span className="text-base group-hover:rotate-12 transition-transform">📝</span>
+            <span>Ghi chú CS1</span>
+            {quickNoteText.trim() && (
+              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-300 ring-2 ring-white animate-pulse" />
+            )}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
