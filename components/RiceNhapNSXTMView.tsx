@@ -289,14 +289,29 @@ export default function RiceNhapNSXTMView() {
     }
   }, [availableMonths, selectedMonthKey]);
 
-  // ─── Lọc theo tháng sấy đã chọn ─────────────────────────────────────────
+  // ─── Lọc theo tháng sấy đã chọn và SẮP XẾP TỪ NGÀY 1 ĐẾN 30/31 ─────────
   const monthEntries = useMemo(() => {
     if (!selectedMonthKey) return allEntries;
-    return allEntries.filter((e) => {
+    const filtered = allEntries.filter((e) => {
       const parts = (e.date || '').split('/');
       if (parts.length !== 3) return false;
       return `${parts[1]}/${parts[2]}` === selectedMonthKey;
     });
+
+    const parseDateKey = (dateStr?: string) => {
+      if (!dateStr) return 0;
+      const parts = dateStr.trim().split('/');
+      if (parts.length >= 3) {
+        const d = parseInt(parts[0], 10) || 0;
+        const m = parseInt(parts[1], 10) || 0;
+        let y = parseInt(parts[2], 10) || 0;
+        if (y < 100) y += 2000;
+        return y * 10000 + m * 100 + d;
+      }
+      return 0;
+    };
+
+    return filtered.sort((a, b) => parseDateKey(a.date) - parseDateKey(b.date));
   }, [allEntries, selectedMonthKey]);
 
   // Lọc theo chế độ xem (ALL / ĐỨC / QUÝ)

@@ -104,13 +104,51 @@ function buildTeamSheets(
   const isNghi = teamName === 'NGHỊ';
   const teamLabel = isNghi ? 'ĐỘI NGHỊ' : 'ĐỘI NGUYÊN';
 
+  const parseDateSortKey = (dateVal?: any): number => {
+    if (!dateVal) return 0;
+    const str = String(dateVal).trim();
+    if (str.includes('/')) {
+      const parts = str.split('/');
+      if (parts.length >= 3) {
+        const d = parseInt(parts[0], 10) || 0;
+        const m = parseInt(parts[1], 10) || 0;
+        let y = parseInt(parts[2], 10) || 0;
+        if (y < 100) y += 2000;
+        return y * 10000 + m * 100 + d;
+      }
+    }
+    return 0;
+  };
+
+  // Sắp xếp các mẻ sấy theo thứ tự từ ngày 1 đến ngày 30/31
+  const sortedBatches = [...teamBatches]
+    .map((b, originalIndex) => ({ b, originalIndex }))
+    .sort((a, b) => {
+      const kA = parseDateSortKey(a.b.dryDate || a.b.weighDate);
+      const kB = parseDateSortKey(b.b.dryDate || b.b.weighDate);
+      if (kA !== kB) return kA - kB;
+      return a.originalIndex - b.originalIndex;
+    })
+    .map(({ b }) => b);
+
+  // Sắp xếp các chuyến trấu theo thứ tự ngày từ 1 đến 30/31
+  const sortedTrau = [...trauItems]
+    .map((t, originalIndex) => ({ t, originalIndex }))
+    .sort((a, b) => {
+      const kA = parseDateSortKey(a.t.date);
+      const kB = parseDateSortKey(b.t.date);
+      if (kA !== kB) return kA - kB;
+      return a.originalIndex - b.originalIndex;
+    })
+    .map(({ t }) => t);
+
   // Thống kê lúa theo nhóm giá động từ dữ liệu mẻ sấy
   let totalFreshKg = 0;
   let totalDryKg = 0;
   let totalTons = 0;
   let totalMoneyLua = 0;
 
-  teamBatches.forEach((b) => {
+  sortedBatches.forEach((b) => {
     totalFreshKg += b.freshWeightKg || 0;
     totalDryKg += b.dryWeightKg;
     totalTons += b.roundedTons;
@@ -118,12 +156,12 @@ function buildTeamSheets(
   });
 
   // Thống kê Trấu
-  const trauOng5 = trauItems.filter((t) => t.phuongTien.toUpperCase().includes('ÔNG 5'));
+  const trauOng5 = sortedTrau.filter((t) => t.phuongTien.toUpperCase().includes('ÔNG 5'));
   const tonsTrauOng5 = trauOng5.reduce((s, t) => s + t.soLuong, 0);
   const moneyTrauOng5 = trauOng5.reduce((s, t) => s + t.thanhTien, 0);
   const unitPriceOng5 = tonsTrauOng5 > 0 ? Math.round(moneyTrauOng5 / tonsTrauOng5) : 27273;
 
-  const trauNgoai = trauItems.filter((t) => !t.phuongTien.toUpperCase().includes('ÔNG 5'));
+  const trauNgoai = sortedTrau.filter((t) => !t.phuongTien.toUpperCase().includes('ÔNG 5'));
   const tonsTrauNgoai = trauNgoai.reduce((s, t) => s + t.soLuong, 0);
   const moneyTrauNgoai = trauNgoai.reduce((s, t) => s + t.thanhTien, 0);
   const unitPriceNgoai = tonsTrauNgoai > 0 ? Math.round(moneyTrauNgoai / tonsTrauNgoai) : 27000;
@@ -204,10 +242,10 @@ function buildTeamSheets(
   }
 
   // Rows 4.. Data
-  teamBatches.forEach((b, idx) => {
+  sortedBatches.forEach((b, idx) => {
     const r = idx + 4;
     ws1['!rows']!.push({ hpt: 20 });
-    setCell(ws1, `A${r}`, 's', b.contractNo || String(idx + 1).padStart(2, '0'), styleData('center'));
+    setCell(ws1, `A${r}`, 's', String(idx + 1).padStart(2, '0'), styleData('center'));
     setCell(ws1, `B${r}`, 's', b.weighDate || '', styleData('center'));
     setCell(ws1, `C${r}`, 's', teamName, styleData('center'));
     setCell(ws1, `D${r}`, 's', b.customerName || '', styleData('left'));
@@ -223,7 +261,7 @@ function buildTeamSheets(
     setCell(ws1, `N${r}`, 'n', b.thanhTien, styleMoney(true));
   });
 
-  const signRow1 = teamBatches.length + 6;
+  const signRow1 = sortedBatches.length + 6;
   const nameRow1 = signRow1 + 4;
   setCell(ws1, `D${signRow1}`, 's', 'Người lập bảng', { font: { name: FONT_NAME, bold: true, sz: 11 }, alignment: { horizontal: 'center' } });
   setCell(ws1, `J${signRow1}`, 's', 'Xác nhận', { font: { name: FONT_NAME, bold: true, sz: 11 }, alignment: { horizontal: 'center' } });
@@ -284,7 +322,7 @@ function buildTeamSheets(
   ];
   for (const [addr, text] of headers2) setCell(ws2, addr, 's', text, styleHeader());
 
-  trauItems.forEach((t, idx) => {
+  sortedTrau.forEach((t, idx) => {
     const r = idx + 4;
     ws2['!rows']!.push({ hpt: 20 });
     setCell(ws2, `A${r}`, 'n', idx + 1, styleData('center'));
@@ -297,7 +335,7 @@ function buildTeamSheets(
   });
 
   ws2['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }];
-  ws2['!ref'] = `A1:G${trauItems.length + 5}`;
+  ws2['!ref'] = `A1:G${sortedTrau.length + 5}`;
   const sheet2Name = isNghi ? 'Nhập Trấu' : 'Nhập Trấu Nguyên';
   XLSX.utils.book_append_sheet(wb, ws2, sheet2Name);
 

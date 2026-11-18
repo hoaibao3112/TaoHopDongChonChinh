@@ -124,3 +124,55 @@ export function autoAssignAlternating1Day(entries: NSXTMEntry[]): NSXTMEntry[] {
   });
 }
 
+/**
+ * Chuyển đổi chuỗi ngày thành khóa sắp xếp số (dd/mm/yyyy -> yyyymmdd)
+ */
+export function parseDateSortKey(dateVal?: any): number {
+  if (!dateVal) return 0;
+  if (typeof dateVal === 'number') return dateVal;
+  const str = String(dateVal).trim();
+  if (str.includes('/')) {
+    const parts = str.split('/');
+    if (parts.length >= 3) {
+      const d = parseInt(parts[0], 10) || 0;
+      const m = parseInt(parts[1], 10) || 0;
+      let y = parseInt(parts[2], 10) || 0;
+      if (y < 100) y += 2000;
+      return y * 10000 + m * 100 + d;
+    }
+  } else if (str.includes('-')) {
+    const parts = str.split('-');
+    if (parts.length >= 3) {
+      if (parts[0].length === 4) {
+        const y = parseInt(parts[0], 10) || 0;
+        const m = parseInt(parts[1], 10) || 0;
+        const d = parseInt(parts[2], 10) || 0;
+        return y * 10000 + m * 100 + d;
+      } else {
+        const d = parseInt(parts[0], 10) || 0;
+        const m = parseInt(parts[1], 10) || 0;
+        let y = parseInt(parts[2], 10) || 0;
+        if (y < 100) y += 2000;
+        return y * 10000 + m * 100 + d;
+      }
+    }
+  }
+  return 0;
+}
+
+/**
+ * Sắp xếp danh sách mẻ nhập sấy NSX TM theo thứ tự ngày tăng dần từ 1 đến 30/31
+ */
+export function sortEntriesByDate(list: NSXTMEntry[]): NSXTMEntry[] {
+  return list
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .sort((a, b) => {
+      const kA = parseDateSortKey(a.item.date);
+      const kB = parseDateSortKey(b.item.date);
+      if (kA !== kB) return kA - kB;
+      return a.originalIndex - b.originalIndex;
+    })
+    .map(({ item }) => item);
+}
+
+

@@ -3,6 +3,7 @@ import XLSX from 'xlsx-js-style';
 import { finalizeWorkbookWithPrintSetup } from '@/lib/excel/excelPrintHelper';
 import { isRequestAuthenticated } from '@/lib/auth';
 import { NSXTMEntry, NSXTMPayload } from '@/lib/rice-payroll/nsx-tm-types';
+import { parseDateSortKey, sortEntriesByDate } from '@/lib/rice-payroll/nsx-tm-utils';
 
 export const runtime = 'nodejs';
 
@@ -96,6 +97,7 @@ function buildSheetQuy(
   preparerName = 'Võ Hoàng Cẩm Tiên',
   approverName = 'Huỳnh Anh Phát Thịnh'
 ) {
+  const sortedEntries = sortEntriesByDate(entries);
   const mm = String(month).padStart(2, '0');
   const yyyy = String(year);
   const ws: XLSX.WorkSheet = {};
@@ -175,7 +177,7 @@ function buildSheetQuy(
 
   // Data rows
   const startRow = 8;
-  const endRow = startRow + Math.max(entries.length, 1) - 1;
+  const endRow = startRow + Math.max(sortedEntries.length, 1) - 1;
 
   let totKg = 0;
   let totTons = 0;
@@ -187,7 +189,7 @@ function buildSheetQuy(
   let totTrau = 0;
   let grandTotal = 0;
 
-  entries.forEach((e, idx) => {
+  sortedEntries.forEach((e, idx) => {
     const r = startRow + idx;
     ws['!rows']!.push({ hpt: 22 });
 
@@ -242,7 +244,7 @@ function buildSheetQuy(
   for (const c of ['A','C','D']) setCell(ws, `${c}5`, 's', '', totStyle);
   for (const c of ['H','I','K','M','O','Q']) setCell(ws, `${c}5`, 'n', 0, { ...totStyle, numFmt: FMT_MONEY });
   setCell(ws, 'B5', 's', 'TỔNG CỘNG:', totStyle);
-  const hasRows = entries.length > 0;
+  const hasRows = sortedEntries.length > 0;
   setCell(ws, 'E5', 'n', totKg, { ...totStyle, numFmt: FMT_NUMBER }, undefined, hasRows ? `SUBTOTAL(109,E8:E${endRow})` : undefined);
   setCell(ws, 'F5', 'n', totTons, { ...totStyle, numFmt: FMT_NUMBER }, undefined, hasRows ? `SUBTOTAL(109,F8:F${endRow})` : undefined);
   setCell(ws, 'G5', 'n', totBao, { ...totStyle, numFmt: FMT_NUMBER }, undefined, hasRows ? `SUBTOTAL(109,G8:G${endRow})` : undefined);
@@ -294,6 +296,7 @@ function buildSheetDuc(
   preparerName = 'Võ Hoàng Cẩm Tiên',
   approverName = 'Huỳnh Anh Phát Thịnh'
 ) {
+  const sortedEntries = sortEntriesByDate(entries);
   const mm = String(month).padStart(2, '0');
   const yyyy = String(year);
   const ws: XLSX.WorkSheet = {};
@@ -382,7 +385,7 @@ function buildSheetDuc(
 
   // Data rows
   const startRow = 8;
-  const endRow = startRow + Math.max(entries.length, 1) - 1;
+  const endRow = startRow + Math.max(sortedEntries.length, 1) - 1;
 
   let totKg = 0;
   let totTons = 0;
@@ -394,7 +397,7 @@ function buildSheetDuc(
   let totTrau = 0;
   let grandTotal = 0;
 
-  entries.forEach((e, idx) => {
+  sortedEntries.forEach((e, idx) => {
     const r = startRow + idx;
     ws['!rows']!.push({ hpt: 22 });
 
@@ -452,7 +455,7 @@ function buildSheetDuc(
   for (const c of ['A','C','D','E','F','G']) setCell(ws, `${c}5`, 's', '', totStyle);
   for (const c of ['K','L','N','P','R','T']) setCell(ws, `${c}5`, 'n', 0, { ...totStyle, numFmt: FMT_MONEY });
   setCell(ws, 'B5', 's', 'TỔNG CỘNG:', totStyle);
-  const hasRows = entries.length > 0;
+  const hasRows = sortedEntries.length > 0;
   setCell(ws, 'H5', 'n', totKg, { ...totStyle, numFmt: FMT_NUMBER }, undefined, hasRows ? `SUBTOTAL(109,H8:H${endRow})` : undefined);
   setCell(ws, 'I5', 'n', totTons, { ...totStyle, numFmt: FMT_NUMBER }, undefined, hasRows ? `SUBTOTAL(109,I8:I${endRow})` : undefined);
   setCell(ws, 'J5', 'n', totBao, { ...totStyle, numFmt: FMT_NUMBER }, undefined, hasRows ? `SUBTOTAL(109,J8:J${endRow})` : undefined);

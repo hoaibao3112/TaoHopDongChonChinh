@@ -140,6 +140,32 @@ export async function POST(req: NextRequest) {
     const [month, year] = monthKey.includes('/') ? monthKey.split('/') : ['10', '2026'];
     const safeMonth = month.padStart(2, '0');
 
+    const parseDateSortKey = (dateVal?: any): number => {
+      if (!dateVal) return 0;
+      const str = String(dateVal).trim();
+      if (str.includes('/')) {
+        const parts = str.split('/');
+        if (parts.length >= 3) {
+          const d = parseInt(parts[0], 10) || 0;
+          const m = parseInt(parts[1], 10) || 0;
+          let y = parseInt(parts[2], 10) || 0;
+          if (y < 100) y += 2000;
+          return y * 10000 + m * 100 + d;
+        }
+      }
+      return 0;
+    };
+
+    const sortedEntries = [...entries]
+      .map((item, originalIndex) => ({ item, originalIndex }))
+      .sort((a, b) => {
+        const kA = parseDateSortKey(a.item.ngayXuongLuaKho || a.item.ngayNhapSay || a.item.ngayCan);
+        const kB = parseDateSortKey(b.item.ngayXuongLuaKho || b.item.ngayNhapSay || b.item.ngayCan);
+        if (kA !== kB) return kA - kB;
+        return a.originalIndex - b.originalIndex;
+      })
+      .map(({ item }) => item);
+
     const pCoTro = unitPrices?.priceCoTro ?? 17000;
     const pKhongTro = unitPrices?.priceKhongTro ?? 11000;
     const pChumLua = unitPrices?.priceChumLua ?? 8000;
@@ -158,7 +184,7 @@ export async function POST(req: NextRequest) {
     const titleText = `BẢNG KÊ TÍNH LƯƠNG THÁNG ${safeMonth}/${year} ĐỘI NAM-XUẤT-NSX TM`;
     setCell(ws1, 'A1', 's', titleText, styleTitle());
 
-    const numRows = entries.length;
+    const numRows = sortedEntries.length;
     const startDataRow = 4;
     const endDataRow = numRows > 0 ? startDataRow + numRows - 1 : startDataRow;
 
@@ -290,7 +316,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Dữ liệu từng dòng mẻ lúa (Bắt đầu từ Hàng 4)
-    entries.forEach((row, i) => {
+    sortedEntries.forEach((row, i) => {
       const r = startDataRow + i;
 
       // Col A: NGÀY CÂN

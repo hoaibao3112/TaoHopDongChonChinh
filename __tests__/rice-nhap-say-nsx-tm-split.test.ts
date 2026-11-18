@@ -89,4 +89,39 @@ describe('Rice Nhập Sấy NSX TM - Tách Mẻ và Thêm Dòng Thủ Công', ()
     expect(restoredSource.roundedTons).toBe(56);
     expect(restoredSource.tongThanhTien).toBe(1400000);
   });
+
+  it('sắp xếp danh sách mẻ nhập sấy NSX TM theo thứ tự ngày tăng dần từ ngày 1 đến 30/31 (không bị nhảy lộn xộn)', async () => {
+    const { parseDateSortKey, sortEntriesByDate } = await import('@/lib/rice-payroll/nsx-tm-utils');
+
+    // Kiểm tra parseDateSortKey
+    expect(parseDateSortKey('05/11/2026')).toBe(20261105);
+    expect(parseDateSortKey('16/11/2026')).toBe(20261116);
+    expect(parseDateSortKey('10/11/2026')).toBe(20261110);
+
+    // Giả lập danh sách mẻ nhập lộn xộn y hệt như trên ảnh của user:
+    // Mẻ tươi (14/11, 15/11, 16/11) đứng trước, mẻ khô (05/11, 06/11, 09/11, 10/11) đứng sau
+    const unsortedList: NSXTMEntry[] = [
+      { id: '1', date: '14/11/2026', team: 'QUÝ', customerName: 'A', riceType: 'OM18', vehicleName: '', vehicleType: 'XE', jobDescription: '', weightKg: 1000, roundedTons: 1, thanhTienSay: 25000, thanhTienLuaKho: 0, tongThanhTien: 25000, source: 'LUA_TUOI' },
+      { id: '2', date: '15/11/2026', team: 'QUÝ', customerName: 'B', riceType: 'OM18', vehicleName: '', vehicleType: 'XE', jobDescription: '', weightKg: 1000, roundedTons: 1, thanhTienSay: 25000, thanhTienLuaKho: 0, tongThanhTien: 25000, source: 'LUA_TUOI' },
+      { id: '3', date: '16/11/2026', team: 'QUÝ', customerName: 'C', riceType: 'OM18', vehicleName: '', vehicleType: 'XE', jobDescription: '', weightKg: 1000, roundedTons: 1, thanhTienSay: 25000, thanhTienLuaKho: 0, tongThanhTien: 25000, source: 'LUA_TUOI' },
+      { id: '4', date: '05/11/2026', team: 'QUÝ', customerName: 'D', riceType: 'OM18', vehicleName: '', vehicleType: 'XE', jobDescription: '', weightKg: 1000, roundedTons: 1, thanhTienSay: 0, thanhTienLuaKho: 20000, tongThanhTien: 20000, source: 'LUA_KHO' },
+      { id: '5', date: '06/11/2026', team: 'QUÝ', customerName: 'E', riceType: 'OM18', vehicleName: '', vehicleType: 'XE', jobDescription: '', weightKg: 1000, roundedTons: 1, thanhTienSay: 0, thanhTienLuaKho: 20000, tongThanhTien: 20000, source: 'LUA_KHO' },
+      { id: '6', date: '09/11/2026', team: 'QUÝ', customerName: 'F', riceType: 'OM18', vehicleName: '', vehicleType: 'XE', jobDescription: '', weightKg: 1000, roundedTons: 1, thanhTienSay: 0, thanhTienLuaKho: 20000, tongThanhTien: 20000, source: 'LUA_KHO' },
+      { id: '7', date: '10/11/2026', team: 'QUÝ', customerName: 'G', riceType: 'OM18', vehicleName: '', vehicleType: 'XE', jobDescription: '', weightKg: 1000, roundedTons: 1, thanhTienSay: 0, thanhTienLuaKho: 20000, tongThanhTien: 20000, source: 'LUA_KHO' },
+    ];
+
+    const sorted = sortEntriesByDate(unsortedList);
+    const resultDates = sorted.map((e) => e.date);
+
+    // Phải theo đúng thứ tự 1-30: 05 -> 06 -> 09 -> 10 -> 14 -> 15 -> 16
+    expect(resultDates).toEqual([
+      '05/11/2026',
+      '06/11/2026',
+      '09/11/2026',
+      '10/11/2026',
+      '14/11/2026',
+      '15/11/2026',
+      '16/11/2026',
+    ]);
+  });
 });

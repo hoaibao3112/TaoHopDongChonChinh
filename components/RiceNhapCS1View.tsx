@@ -387,7 +387,24 @@ export default function RiceNhapCS1View() {
         };
       });
 
-    return [...fromMaster, ...fromManual];
+    const parseDateKey = (dateStr?: string) => {
+      if (!dateStr) return 0;
+      const parts = dateStr.trim().split('/');
+      if (parts.length >= 3) {
+        const d = parseInt(parts[0], 10) || 0;
+        const m = parseInt(parts[1], 10) || 0;
+        let y = parseInt(parts[2], 10) || 0;
+        if (y < 100) y += 2000;
+        return y * 10000 + m * 100 + d;
+      }
+      return 0;
+    };
+
+    return [...fromMaster, ...fromManual].sort((a, b) => {
+      const kA = parseDateKey(a.dryDate || a.weighDate);
+      const kB = parseDateKey(b.dryDate || b.weighDate);
+      return kA - kB;
+    });
   }, [allBatches, selectedMonthKey, customTonsMap, getPriceForRice, teamAssignmentMap, manualBatches]);
 
   // Lọc theo chế độ xem (ALL / NGHỊ / NGUYÊN)

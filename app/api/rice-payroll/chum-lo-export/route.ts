@@ -106,11 +106,38 @@ export async function POST(req: NextRequest) {
     const mm = String(month).padStart(2, '0');
     const yyyy = String(year);
 
+    const parseDateSortKey = (dateVal?: any): number => {
+      if (!dateVal) return 0;
+      const str = String(dateVal).trim();
+      if (str.includes('/')) {
+        const parts = str.split('/');
+        if (parts.length >= 3) {
+          const d = parseInt(parts[0], 10) || 0;
+          const m = parseInt(parts[1], 10) || 0;
+          let y = parseInt(parts[2], 10) || 0;
+          if (y < 100) y += 2000;
+          return y * 10000 + m * 100 + d;
+        }
+      }
+      return 0;
+    };
+
+    // Sắp xếp các mẻ sấy theo thứ tự từ ngày 1 đến ngày 30/31
+    const sortedBatches = [...batches]
+      .map((b, originalIndex) => ({ b, originalIndex }))
+      .sort((a, b) => {
+        const kA = parseDateSortKey(a.b.dryDate || a.b.weighDate);
+        const kB = parseDateSortKey(b.b.dryDate || b.b.weighDate);
+        if (kA !== kB) return kA - kB;
+        return a.originalIndex - b.originalIndex;
+      })
+      .map(({ b }) => b);
+
     // Tính toán tổng số liệu
-    const totalKg = batches.reduce((sum, b) => sum + (b.dryWeightKg || 0), 0);
-    const totalTons = batches.reduce((sum, b) => sum + (b.roundedTons || 0), 0);
-    const totalThanhTien = batches.reduce((sum, b) => sum + (b.thanhTien || 0), 0);
-    const totalFreshKg = batches.reduce((sum, b) => sum + (b.freshWeightKg || 0), 0);
+    const totalKg = sortedBatches.reduce((sum, b) => sum + (b.dryWeightKg || 0), 0);
+    const totalTons = sortedBatches.reduce((sum, b) => sum + (b.roundedTons || 0), 0);
+    const totalThanhTien = sortedBatches.reduce((sum, b) => sum + (b.thanhTien || 0), 0);
+    const totalFreshKg = sortedBatches.reduce((sum, b) => sum + (b.freshWeightKg || 0), 0);
     const totalAdvance = workers.reduce((sum, w) => sum + (w.advanceSalary || 0), 0);
     const remainingSalary = totalThanhTien - totalAdvance;
 
@@ -190,10 +217,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Rows 4+: Dữ liệu mẻ
-    batches.forEach((b, idx) => {
+    sortedBatches.forEach((b, idx) => {
       const r = idx + 4;
       ws1['!rows']!.push({ hpt: 20 });
-      setCell(ws1, `A${r}`, 's', b.contractNo || String(idx + 1).padStart(2, '0'), styleData('center'));
+      setCell(ws1, `A${r}`, 's', String(idx + 1).padStart(2, '0'), styleData('center'));
       setCell(ws1, `B${r}`, 's', b.weighDate || '', styleData('center'));
       setCell(ws1, `C${r}`, 's', b.doiNhap || '', styleData('center'));
       setCell(ws1, `D${r}`, 's', b.customerName || '', styleData('left'));
@@ -209,7 +236,7 @@ export async function POST(req: NextRequest) {
       setCell(ws1, `N${r}`, 'n', b.thanhTien, styleMoney(true));
     });
 
-    const lastDataRow1 = batches.length + 3;
+    const lastDataRow1 = sortedBatches.length + 3;
     const signRow1 = lastDataRow1 + 2;
     const nameRow1 = signRow1 + 4;
 
