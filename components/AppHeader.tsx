@@ -92,7 +92,7 @@ export default function AppHeader() {
                     }`}
                 >
                   <span>🌾</span>
-                  <span>Xuất Lúa (CS1 & CS2)</span>
+                  <span>Xuất Lúa CS1</span>
                 </Link>
 
                 <Link
@@ -116,7 +116,7 @@ export default function AppHeader() {
                   }`}
                 >
                   <span>🔥</span>
-                  <span>Nhập Sấy CS2</span>
+                  <span>Lương Đội Dương (CS2)</span>
                 </Link>
 
                 <Link

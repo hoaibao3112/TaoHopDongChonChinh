@@ -5,8 +5,8 @@ import AppHeader from '@/components/AppHeader';
 import RiceNhapCS2View from '@/components/RiceNhapCS2View';
 
 export const metadata = {
-  title: 'Nhập Sấy Đội Dương CS2 | XNK Chơn Chính',
-  description: 'Hệ thống bảng kê và tính lương nhập sấy lúa Cơ Sở II - Đội Dương',
+  title: 'Lương Đội Dương CS2 (Nhập Sấy & Xuất Lúa) | XNK Chơn Chính',
+  description: 'Hệ thống bảng kê và tính lương trọn gói Đội Dương Cơ Sở II (Nhập sấy, Xuất lúa, Trấu, Chụm lò & Quyết toán chi lương)',
 };
 
 export default async function NhapSayPage() {
