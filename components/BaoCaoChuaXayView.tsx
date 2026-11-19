@@ -46,21 +46,20 @@ export default function BaoCaoChuaXayView() {
   const [uploadingTuoi, setUploadingTuoi] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Bộ lọc
-  const [reportDate, setReportDate] = useState<string>(() => {
+  // Bộ lọc — khởi tạo bằng giá trị tĩnh, cập nhật sau mount để tránh hydration mismatch
+  const [reportDate, setReportDate] = useState<string>('');
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'SUMMARY' | 'KHO' | 'TUOI' | 'UPLOAD'>('SUMMARY');
+
+  // Set ngày/tháng hiện tại sau khi mount (client-only) để tránh SSR mismatch
+  useEffect(() => {
     const today = new Date();
     const d = String(today.getDate()).padStart(2, '0');
     const m = String(today.getMonth() + 1).padStart(2, '0');
     const y = today.getFullYear();
-    return `${d}/${m}/${y}`;
-  });
-  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-    const today = new Date();
-    const m = String(today.getMonth() + 1).padStart(2, '0');
-    const y = today.getFullYear();
-    return `${m}/${y}`;
-  });
-  const [activeTab, setActiveTab] = useState<'SUMMARY' | 'KHO' | 'TUOI' | 'UPLOAD'>('SUMMARY');
+    setReportDate(`${d}/${m}/${y}`);
+    setSelectedMonth(`${m}/${y}`);
+  }, []);
 
   // Bản đồ tùy chỉnh % hao hụt cho từng loại lúa
   const [customLossMap, setCustomLossMap] = useState<Record<string, number>>({});
@@ -119,6 +118,13 @@ export default function BaoCaoChuaXayView() {
     });
     return Array.from(set).sort().reverse();
   }, [tuoiBatches]);
+
+  // Khi danh sách tháng load xong, nếu selectedMonth chưa có trong danh sách → chọn tháng mới nhất
+  useEffect(() => {
+    if (availableMonths.length > 0 && selectedMonth !== 'ALL' && !availableMonths.includes(selectedMonth)) {
+      setSelectedMonth(availableMonths[0]);
+    }
+  }, [availableMonths, selectedMonth]);
 
   // Lọc lúa tươi theo tháng đã chọn (nếu chọn 'ALL' thì lấy hết)
   const filteredTuoiBatches = useMemo(() => {

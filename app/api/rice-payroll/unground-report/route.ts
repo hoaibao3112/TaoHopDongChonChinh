@@ -11,18 +11,24 @@ import {
   UngroundTuoiBatch,
 } from '@/lib/rice-payroll/unground-report-parser';
 
-/** Tên file lúa khô/tươi mà server sẽ đọc (ưu tiên file người dùng upload) */
+/** Tên file lúa khô/tươi sau khi người dùng upload lên server */
 const FILE_KHO_NAME = 'THINH_LUA_KHO.xlsx';
 const FILE_TUOI_NAME = 'THINH_LUA_TUOI.xlsx';
+/** Tên file gốc (legacy) — dùng làm fallback nếu chưa upload file mới */
 const FILE_KHO_LEGACY = 'THỊNH_TỔNG NHẬP LÚA KHÔ NĂM 2026.xlsx';
 const FILE_TUOI_LEGACY = 'THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx';
-const META_FILE = path.join(process.cwd(), 'data', 'unground-file-meta.json');
+
+/** Đường dẫn metadata — phải gọi trong request handler, không gọi ở module level */
+function getMetaFilePath(): string {
+  return path.join(process.cwd(), 'data', 'unground-file-meta.json');
+}
 
 /** Đọc metadata file đã lưu (tên gốc, thời gian upload) */
 function readFileMeta(): { kho?: { name: string; updatedAt: string }; tuoi?: { name: string; updatedAt: string } } {
   try {
-    if (fs.existsSync(META_FILE)) {
-      return JSON.parse(fs.readFileSync(META_FILE, 'utf-8'));
+    const metaFile = getMetaFilePath();
+    if (fs.existsSync(metaFile)) {
+      return JSON.parse(fs.readFileSync(metaFile, 'utf-8'));
     }
   } catch {}
   return {};
@@ -31,9 +37,10 @@ function readFileMeta(): { kho?: { name: string; updatedAt: string }; tuoi?: { n
 /** Lưu metadata */
 function writeFileMeta(meta: { kho?: { name: string; updatedAt: string }; tuoi?: { name: string; updatedAt: string } }) {
   try {
-    const dir = path.dirname(META_FILE);
+    const metaFile = getMetaFilePath();
+    const dir = path.dirname(metaFile);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(META_FILE, JSON.stringify(meta, null, 2), 'utf-8');
+    fs.writeFileSync(metaFile, JSON.stringify(meta, null, 2), 'utf-8');
   } catch (e) {
     console.warn('Không thể ghi metadata file lúa:', e);
   }
