@@ -11,7 +11,7 @@ export const DEFAULT_OCTOBER_TRAU_ITEMS: NhapTrauItem[] = [
     doiNhap: 'DƯƠNG',
     phuongTien: 'ÔNG 5',
     soLuong: 22,
-    donGia: 27000,
+    donGia: 27273,
     thanhTien: 600000,
   },
   {
@@ -20,7 +20,7 @@ export const DEFAULT_OCTOBER_TRAU_ITEMS: NhapTrauItem[] = [
     doiNhap: 'DƯƠNG',
     phuongTien: 'ÔNG 5',
     soLuong: 11,
-    donGia: 27000,
+    donGia: 27273,
     thanhTien: 300000,
   },
   {
@@ -29,7 +29,7 @@ export const DEFAULT_OCTOBER_TRAU_ITEMS: NhapTrauItem[] = [
     doiNhap: 'DƯƠNG',
     phuongTien: 'ÔNG 5',
     soLuong: 22,
-    donGia: 27000,
+    donGia: 27273,
     thanhTien: 600000,
   },
   {

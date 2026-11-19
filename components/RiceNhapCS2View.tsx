@@ -99,8 +99,11 @@ export default function RiceNhapCS2View() {
   const [newTrauMoney, setNewTrauMoney] = useState('');
   const [editingTrauId, setEditingTrauId] = useState<string | null>(null);
 
-  // ── State: Xuất lúa overrides (toggle Có trở / Không trở) ────────────────
+  // ── State: Xuất lúa overrides (toggle Có trở / Không trở) & Đơn giá xuất ─
   const [xuatTroOverrides, setXuatTroOverrides] = useState<Record<string, boolean>>({});
+  const [priceCoTro, setPriceCoTro] = useState<number>(20_000);
+  const [priceKhongTro, setPriceKhongTro] = useState<number>(16_000);
+  const [customBatchPrices, setCustomBatchPrices] = useState<Record<string, number>>({});
 
   // ── State: Quản lý lương & tạm ứng 20 công nhân ─────────────────────────
   const [workerAdvances, setWorkerAdvances] = useState<Record<string, number>>(() => {
@@ -306,7 +309,11 @@ export default function RiceNhapCS2View() {
             ? xuatTroOverrides[b.id]
             : getDefaultClassification(b);
         const tons = getDefaultTons(b);
-        const unitPrice = isCoTro ? 20_000 : 16_000;
+        const defaultPrice = isCoTro ? priceCoTro : priceKhongTro;
+        const unitPrice =
+          customBatchPrices[b.id] !== undefined
+            ? customBatchPrices[b.id]
+            : defaultPrice;
         const thanhTien = tons * unitPrice;
         const kg = b.dryWeightKg || 0;
         return {
@@ -315,11 +322,12 @@ export default function RiceNhapCS2View() {
           customIsCoTro: isCoTro,
           calculatedTons: tons,
           unitPrice,
+          customUnitPrice: unitPrice,
           thanhTien,
           displayKg: kg,
         };
       });
-  }, [monthXuatRawBatches, xuatTroOverrides]);
+  }, [monthXuatRawBatches, xuatTroOverrides, priceCoTro, priceKhongTro, customBatchPrices]);
 
   const xuatSummary = useMemo(() => {
     let tonsCoTro = 0;
@@ -491,19 +499,24 @@ export default function RiceNhapCS2View() {
   };
 
   // Quản lý chuyến trấu
-  const computeTrauMoney = (tonsNum: number, priceNum: number): number => {
-    if (isNaN(tonsNum) || tonsNum <= 0 || isNaN(priceNum) || priceNum <= 0) return 0;
-    if (Math.abs(tonsNum - 11) < 0.01) return 300000;
-    if (Math.abs(tonsNum - 22) < 0.01) return 600000;
+  const computeTrauMoney = (vehicle: string, tonsNum: number, priceNum: number): number => {
+    if (isNaN(tonsNum) || tonsNum <= 0) return 0;
+    const isOng5 = (vehicle || '').toUpperCase().includes('ÔNG 5');
+    if (isOng5) {
+      if (Math.abs(tonsNum - 11) < 0.01) return 300000;
+      if (Math.abs(tonsNum - 22) < 0.01) return 600000;
+      return Math.round((tonsNum * (priceNum || 27273)) / 1000) * 1000;
+    }
     return Math.round((tonsNum * priceNum) / 1000) * 1000;
   };
 
   const handleTrauTonsChange = (val: string) => {
     setNewTrauTons(val);
     const tons = parseFloat(val);
-    const price = parseInt(newTrauPrice.replace(/\D/g, ''), 10) || 0;
-    if (!isNaN(tons) && tons > 0 && price > 0) {
-      const money = computeTrauMoney(tons, price);
+    const isOng5 = newTrauVehicle.toUpperCase().includes('ÔNG 5');
+    const price = parseInt(newTrauPrice.replace(/\D/g, ''), 10) || (isOng5 ? 27273 : 27000);
+    if (!isNaN(tons) && tons > 0) {
+      const money = computeTrauMoney(newTrauVehicle, tons, price);
       setNewTrauMoney(money > 0 ? String(money) : '');
     } else {
       setNewTrauMoney('');
@@ -515,10 +528,8 @@ export default function RiceNhapCS2View() {
     const price = parseInt(val.replace(/\D/g, ''), 10) || 0;
     const tons = parseFloat(newTrauTons);
     if (!isNaN(tons) && tons > 0 && price > 0) {
-      const money = computeTrauMoney(tons, price);
+      const money = Math.round((tons * price) / 1000) * 1000;
       setNewTrauMoney(money > 0 ? String(money) : '');
-    } else {
-      setNewTrauMoney('');
     }
   };
 
@@ -539,7 +550,9 @@ export default function RiceNhapCS2View() {
     setNewTrauDate(item.date);
     setNewTrauVehicle(item.phuongTien);
     setNewTrauTons(String(item.soLuong));
-    setNewTrauPrice(String(item.donGia));
+    const isOng5 = (item.phuongTien || '').toUpperCase().includes('ÔNG 5');
+    const defaultDonGia = isOng5 ? 27273 : (item.donGia || 27000);
+    setNewTrauPrice(String(defaultDonGia));
     setNewTrauMoney(String(item.thanhTien));
   };
 
@@ -548,18 +561,26 @@ export default function RiceNhapCS2View() {
     setNewTrauDate('');
     setNewTrauVehicle('ÔNG 5');
     setNewTrauTons('');
-    setNewTrauPrice('27000');
+    setNewTrauPrice('27273');
     setNewTrauMoney('');
   };
 
   const handleSaveTrauItem = () => {
     const tons = parseFloat(newTrauTons);
-    const price = parseInt(newTrauPrice.replace(/\D/g, ''), 10);
+    const vehicle = newTrauVehicle.trim() || 'ÔNG 5';
+    const isOng5 = vehicle.toUpperCase().includes('ÔNG 5');
+    const price = parseInt(newTrauPrice.replace(/\D/g, ''), 10) || (isOng5 ? 27273 : 27000);
     const manualMoney = parseInt(newTrauMoney.replace(/\D/g, ''), 10);
-    if (!newTrauDate || isNaN(tons) || tons <= 0 || isNaN(price) || price <= 0) return;
+    if (!newTrauDate || isNaN(tons) || tons <= 0) return;
 
     const thanhTien =
-      !isNaN(manualMoney) && manualMoney > 0 ? manualMoney : computeTrauMoney(tons, price);
+      !isNaN(manualMoney) && manualMoney > 0
+        ? manualMoney
+        : computeTrauMoney(vehicle, tons, price);
+
+    const calculatedPrice = isOng5
+      ? 27273
+      : (price > 0 ? price : (tons > 0 ? Math.round(thanhTien / tons) : 27000));
 
     const monthKey = selectedMonthKey || 'custom';
 
@@ -571,9 +592,9 @@ export default function RiceNhapCS2View() {
             ? {
                 ...t,
                 date: newTrauDate.trim(),
-                phuongTien: newTrauVehicle.trim() || 'ÔNG 5',
+                phuongTien: vehicle,
                 soLuong: tons,
-                donGia: price,
+                donGia: calculatedPrice,
                 thanhTien,
               }
             : t,
@@ -585,9 +606,9 @@ export default function RiceNhapCS2View() {
         id: `trau-${Date.now()}`,
         date: newTrauDate.trim(),
         doiNhap: 'DƯƠNG',
-        phuongTien: newTrauVehicle.trim() || 'ÔNG 5',
+        phuongTien: vehicle,
         soLuong: tons,
-        donGia: price,
+        donGia: calculatedPrice,
         thanhTien,
       };
       setTrauItemsByMonth((prev) => ({
@@ -617,6 +638,36 @@ export default function RiceNhapCS2View() {
     setXuatTroOverrides((prev) => ({
       ...prev,
       [batchId]: !currentVal,
+    }));
+  };
+
+  // Thao tác hàng loạt nhanh cho Xuất lúa
+  const handleSetAllCoTro = () => {
+    const overrides: Record<string, boolean> = {};
+    xuatBatches.forEach((b) => {
+      overrides[b.id] = true;
+    });
+    setXuatTroOverrides(overrides);
+  };
+
+  const handleSetAllKhongTro = () => {
+    const overrides: Record<string, boolean> = {};
+    xuatBatches.forEach((b) => {
+      overrides[b.id] = false;
+    });
+    setXuatTroOverrides(overrides);
+  };
+
+  const handleResetTroOverrides = () => {
+    setXuatTroOverrides({});
+    setCustomBatchPrices({});
+  };
+
+  // Cập nhật đơn giá riêng lẻ cho 1 mẻ xuất lúa
+  const handleUpdateBatchPrice = (batchId: string, val: number) => {
+    setCustomBatchPrices((prev) => ({
+      ...prev,
+      [batchId]: val,
     }));
   };
 
@@ -651,6 +702,8 @@ export default function RiceNhapCS2View() {
         xuatBatches,
         trauItems,
         chumLoUnitPrice: chumLoPrice,
+        priceCoTro,
+        priceKhongTro,
         managementSalary,
         iceUnitPricePerDay,
         workDaysCount,
@@ -1101,81 +1154,165 @@ export default function RiceNhapCS2View() {
                 {showTrauPanel && (
                   <div className="p-4 space-y-3">
                     {/* Danh sách chuyến trấu */}
-                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                      {trauItems.map((t) => (
-                        <div
-                          key={t.id}
-                          className="flex items-center justify-between p-2 rounded-xl bg-yellow-50/40 border border-yellow-200 text-xs"
-                        >
-                          <div>
-                            <div className="font-bold text-slate-800">{t.phuongTien}</div>
-                            <div className="text-[11px] text-slate-500">
-                              📅 {t.date} · ⚖️ {t.soLuong} tấn
+                    <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                      {trauItems.map((t) => {
+                        const isOng5 = (t.phuongTien || '').toUpperCase().includes('ÔNG 5');
+                        return (
+                          <div
+                            key={t.id}
+                            className="flex items-center justify-between p-2 rounded-xl bg-yellow-50/50 border border-yellow-200 text-xs"
+                          >
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-800">{t.phuongTien}</span>
+                                <span
+                                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                    isOng5 ? 'bg-amber-100 text-amber-800' : 'bg-teal-100 text-teal-800'
+                                  }`}
+                                >
+                                  {isOng5 ? 'Xe Ông 5 (27.273đ)' : 'Ghe ngoài'}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                📅 {t.date} · ⚖️ <strong className="text-slate-700">{t.soLuong} tấn</strong> · Đơn giá: <strong className="text-amber-900">{formatMoney(t.donGia)}đ</strong>/tấn
+                              </div>
+                            </div>
+                            <div className="text-right flex items-center gap-2">
+                              <span className="font-extrabold text-amber-900">{formatMoney(t.thanhTien)}đ</span>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditTrau(t)}
+                                className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold cursor-pointer hover:bg-amber-200"
+                              >
+                                Sửa
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTrauItem(t.id)}
+                                className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-bold cursor-pointer hover:bg-rose-200"
+                              >
+                                Xóa
+                              </button>
                             </div>
                           </div>
-                          <div className="text-right flex items-center gap-2">
-                            <span className="font-extrabold text-amber-800">{formatMoney(t.thanhTien)}đ</span>
-                            <button
-                              type="button"
-                              onClick={() => handleStartEditTrau(t)}
-                              className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold"
-                            >
-                              Sửa
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteTrauItem(t.id)}
-                              className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-bold"
-                            >
-                              Xóa
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
-                    {/* Form thêm chuyến trấu */}
+                    {/* Nút chọn nhanh mẫu xe/ghe trấu */}
+                    <div className="pt-2 border-t border-yellow-200 space-y-1">
+                      <span className="text-[11px] font-bold text-slate-600 block">⚡ Điền nhanh chuyến trấu:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleSelectTrauPreset('ÔNG 5', 11, 27273, 300000)}
+                          className="px-2 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold border border-amber-300 transition-colors cursor-pointer"
+                        >
+                          🚐 Nửa xe Ông 5 (11t = 300k · 27.273đ)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectTrauPreset('ÔNG 5', 22, 27273, 600000)}
+                          className="px-2 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold border border-amber-300 transition-colors cursor-pointer"
+                        >
+                          🚛 Nguyên xe Ông 5 (22t = 600k · 27.273đ)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectTrauPreset('NGUYÊN NGUYÊN 18', 20, 27000, 540000)}
+                          className="px-2 py-1 rounded-lg bg-teal-100 hover:bg-teal-200 text-teal-900 text-[11px] font-bold border border-teal-300 transition-colors cursor-pointer"
+                        >
+                          🚤 Ghe N.Nguyên 18 (20t = 540k · 27.000đ)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Form thêm / sửa chuyến trấu */}
                     <div className="pt-2 border-t border-yellow-200 space-y-2 text-xs">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="dd/mm/yyyy"
-                          value={newTrauDate}
-                          onChange={(e) => setNewTrauDate(e.target.value)}
-                          className="w-1/3 rounded-lg border border-amber-200 px-2 py-1"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Xe / Ghe"
-                          value={newTrauVehicle}
-                          onChange={(e) => setNewTrauVehicle(e.target.value)}
-                          className="w-1/3 rounded-lg border border-amber-200 px-2 py-1"
-                        />
-                        <input
-                          type="number"
-                          step="any"
-                          placeholder="Tấn"
-                          value={newTrauTons}
-                          onChange={(e) => handleTrauTonsChange(e.target.value)}
-                          className="w-1/3 rounded-lg border border-amber-200 px-2 py-1 font-bold text-amber-800"
-                        />
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Ngày nhập:</label>
+                          <input
+                            type="text"
+                            placeholder="dd/mm/yyyy"
+                            value={newTrauDate}
+                            onChange={(e) => setNewTrauDate(e.target.value)}
+                            className="w-full rounded-lg border border-amber-200 px-2 py-1 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Xe / Ghe:</label>
+                          <input
+                            type="text"
+                            placeholder="vd: ÔNG 5"
+                            value={newTrauVehicle}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewTrauVehicle(val);
+                              const isO5 = val.toUpperCase().includes('ÔNG 5');
+                              const p = isO5 ? 27273 : (parseInt(newTrauPrice.replace(/\D/g, ''), 10) || 27000);
+                              setNewTrauPrice(String(p));
+                              const tons = parseFloat(newTrauTons);
+                              if (!isNaN(tons) && tons > 0) {
+                                const m = computeTrauMoney(val, tons, p);
+                                setNewTrauMoney(m > 0 ? String(m) : '');
+                              }
+                            }}
+                            className="w-full rounded-lg border border-amber-200 px-2 py-1 text-xs font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Số lượng (tấn):</label>
+                          <input
+                            type="number"
+                            step="any"
+                            placeholder="vd: 11 hoặc 20"
+                            value={newTrauTons}
+                            onChange={(e) => handleTrauTonsChange(e.target.value)}
+                            className="w-full rounded-lg border border-amber-200 px-2 py-1 text-xs font-black text-amber-800 text-right"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Đơn giá (đ/tấn):</label>
+                          <input
+                            type="number"
+                            step={500}
+                            placeholder="vd: 27273 hoặc 27000"
+                            value={newTrauPrice}
+                            onChange={(e) => handleTrauPriceChange(e.target.value)}
+                            className="w-full rounded-lg border border-amber-200 px-2 py-1 text-xs font-bold text-slate-800 text-right"
+                          />
+                        </div>
                       </div>
                       <div className="flex gap-2 items-center">
-                        <input
-                          type="text"
-                          placeholder="Thành tiền"
-                          value={newTrauMoney ? parseInt(newTrauMoney, 10).toLocaleString('vi-VN') : ''}
-                          onChange={(e) => handleTrauMoneyChange(e.target.value)}
-                          className="flex-1 rounded-lg border border-amber-200 px-2 py-1 font-bold text-amber-900"
-                        />
+                        <div className="flex-1 flex items-center gap-1.5">
+                          <label className="text-[11px] font-bold text-slate-600 whitespace-nowrap">Thành tiền:</label>
+                          <input
+                            type="text"
+                            placeholder="Thành tiền VNĐ"
+                            value={newTrauMoney ? parseInt(newTrauMoney, 10).toLocaleString('vi-VN') : ''}
+                            onChange={(e) => handleTrauMoneyChange(e.target.value)}
+                            className="flex-1 rounded-lg border border-amber-200 bg-amber-50/50 px-2.5 py-1 text-xs font-black text-amber-900"
+                          />
+                          <span className="text-xs text-slate-500 font-bold">đ</span>
+                        </div>
                         <button
                           type="button"
                           onClick={handleSaveTrauItem}
                           disabled={!newTrauDate || !newTrauTons}
-                          className="rounded-lg bg-amber-600 px-3 py-1 font-bold text-white hover:bg-amber-700 disabled:opacity-40"
+                          className="rounded-lg bg-amber-600 px-4 py-1.5 font-bold text-xs text-white hover:bg-amber-700 disabled:opacity-40 cursor-pointer shadow-2xs"
                         >
-                          {editingTrauId ? 'Lưu' : '+ Thêm'}
+                          {editingTrauId ? '✓ Lưu sửa' : '+ Thêm chuyến'}
                         </button>
+                        {editingTrauId && (
+                          <button
+                            type="button"
+                            onClick={handleCancelEditTrau}
+                            className="rounded-lg bg-slate-200 px-3 py-1.5 font-bold text-xs text-slate-700 hover:bg-slate-300 cursor-pointer"
+                          >
+                            Hủy
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1263,16 +1400,127 @@ export default function RiceNhapCS2View() {
       ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'XUAT' && (
         <div className="space-y-6 animate-in fade-in">
+          {/* Panel Cài đặt nhanh đơn giá xuất lúa & Thao tác hàng loạt */}
+          <div className="rounded-2xl border-2 border-amber-300/80 bg-gradient-to-r from-amber-50/90 via-orange-50/70 to-amber-50/90 p-4 shadow-xs">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+              {/* Bên trái: 2 ô đơn giá + nút chọn nhanh */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 w-full">
+                {/* Đơn giá Có Trở */}
+                <div className="bg-white rounded-xl border border-blue-200 p-3 shadow-2xs">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-black text-blue-900 flex items-center gap-1.5">
+                      <span>🔄</span> ĐƠN GIÁ CÓ TRỞ:
+                    </span>
+                    <span className="text-[11px] font-bold text-blue-700">
+                      {formatMoney(priceCoTro)} đ/tấn
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="number"
+                      step={1000}
+                      value={priceCoTro}
+                      onChange={(e) => setPriceCoTro(parseInt(e.target.value) || 0)}
+                      className="w-24 rounded-lg border border-blue-300 bg-blue-50/40 px-2 py-1 text-xs font-black text-blue-900 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {[18000, 20000, 22000, 25000].map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setPriceCoTro(p)}
+                          className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                            priceCoTro === p
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                          }`}
+                        >
+                          {p / 1000}k
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Đơn giá Không Trở */}
+                <div className="bg-white rounded-xl border border-teal-200 p-3 shadow-2xs">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-black text-teal-900 flex items-center gap-1.5">
+                      <span>⚪</span> ĐƠN GIÁ KHÔNG TRỞ:
+                    </span>
+                    <span className="text-[11px] font-bold text-teal-700">
+                      {formatMoney(priceKhongTro)} đ/tấn
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="number"
+                      step={1000}
+                      value={priceKhongTro}
+                      onChange={(e) => setPriceKhongTro(parseInt(e.target.value) || 0)}
+                      className="w-24 rounded-lg border border-teal-300 bg-teal-50/40 px-2 py-1 text-xs font-black text-teal-900 text-right focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    />
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {[14000, 15000, 16000, 18000].map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setPriceKhongTro(p)}
+                          className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                            priceKhongTro === p
+                              ? 'bg-teal-600 text-white shadow-2xs'
+                              : 'bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100'
+                          }`}
+                        >
+                          {p / 1000}k
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bên phải: Nút thao tác nhanh hàng loạt */}
+              <div className="flex flex-col sm:flex-row lg:flex-col gap-1.5 shrink-0 w-full lg:w-auto">
+                <span className="text-[11px] font-extrabold text-slate-700 uppercase">⚡ Thao tác hàng loạt:</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleSetAllCoTro}
+                    className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs cursor-pointer transition-all"
+                  >
+                    Tất cả Có trở
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSetAllKhongTro}
+                    className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-2xs cursor-pointer transition-all"
+                  >
+                    Tất cả Không trở
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetTroOverrides}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold cursor-pointer transition-all"
+                    title="Khôi phục trạng thái nhận diện ban đầu"
+                  >
+                    Khôi phục
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Thẻ thống kê xuất lúa */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4">
-              <div className="text-xs text-blue-700 font-semibold">Xuất Có Trở (20.000đ/tấn)</div>
+              <div className="text-xs text-blue-700 font-semibold">Xuất Có Trở ({formatMoney(priceCoTro)}đ/tấn)</div>
               <div className="text-xl font-black text-blue-900 mt-1">{xuatSummary.tonsCoTro} <span className="text-xs font-bold">tấn</span></div>
               <div className="text-xs font-bold text-blue-800 mt-0.5">{formatMoney(xuatSummary.moneyCoTro)}đ</div>
             </div>
 
             <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-4">
-              <div className="text-xs text-teal-700 font-semibold">Xuất Không Trở (16.000đ/tấn)</div>
+              <div className="text-xs text-teal-700 font-semibold">Xuất Không Trở ({formatMoney(priceKhongTro)}đ/tấn)</div>
               <div className="text-xl font-black text-teal-900 mt-1">{xuatSummary.tonsKhongTro} <span className="text-xs font-bold">tấn</span></div>
               <div className="text-xs font-bold text-teal-800 mt-0.5">{formatMoney(xuatSummary.moneyKhongTro)}đ</div>
             </div>
@@ -1298,7 +1546,7 @@ export default function RiceNhapCS2View() {
                   Bảng Kê Chi Tiết Xuất Lúa Cơ Sở II — Tháng {selectedMonth}/{selectedYear}
                 </h2>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Lọc tự động từ dữ liệu master theo ngày xuống lúa khô. Bấm vào nút Có trở / Không trở để chuyển đổi nếu cần.
+                  Lọc tự động theo ngày xuống lúa khô. Bấm nút Có trở / Không trở hoặc chỉnh sửa trực tiếp đơn giá từng dòng để điền nhanh.
                 </p>
               </div>
             </div>
@@ -1347,14 +1595,27 @@ export default function RiceNhapCS2View() {
                           className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer ${
                             batch.isCoTro
                               ? 'bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-200'
-                              : 'bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200'
+                              : 'bg-teal-100 text-teal-800 border border-teal-300 hover:bg-teal-200'
                           }`}
-                          title="Bấm để chuyển đổi Có trở / Không trở"
+                          title="Bấm để chuyển đổi nhanh Có trở / Không trở"
                         >
-                          {batch.isCoTro ? '🔄 Có Trở (20k)' : '⚪ Không Trở (16k)'}
+                          {batch.isCoTro ? `🔄 Có Trở (${formatMoney(batch.unitPrice)}đ)` : `⚪ Không Trở (${formatMoney(batch.unitPrice)}đ)`}
                         </button>
                       </td>
-                      <td className="px-2.5 py-2.5 text-right font-semibold text-slate-700">{formatMoney(batch.unitPrice)}đ</td>
+                      <td className="px-2.5 py-2.5 text-right font-semibold text-slate-700">
+                        <div className="inline-flex items-center justify-end gap-1">
+                          <input
+                            type="number"
+                            step={500}
+                            value={batch.unitPrice}
+                            onChange={(e) =>
+                              handleUpdateBatchPrice(batch.id, parseInt(e.target.value) || 0)
+                            }
+                            className="w-20 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-right font-bold text-slate-800 focus:outline-none focus:border-amber-400"
+                          />
+                          <span className="text-[11px] text-slate-400">đ</span>
+                        </div>
+                      </td>
                       <td className="px-3 py-2.5 text-right font-black text-emerald-800 bg-amber-100/40">
                         {formatMoney(batch.thanhTien)}đ
                       </td>
@@ -1458,7 +1719,7 @@ export default function RiceNhapCS2View() {
                   <tr className="hover:bg-slate-50">
                     <td className="px-4 py-2 font-medium text-slate-800">5. Xuất lúa có trở</td>
                     <td className="px-4 py-2 text-center font-bold text-slate-700">{xuatSummary.tonsCoTro}</td>
-                    <td className="px-4 py-2 text-right text-slate-600">20.000đ</td>
+                    <td className="px-4 py-2 text-right text-slate-600">{formatMoney(priceCoTro)}đ</td>
                     <td className="px-4 py-2 text-right font-bold text-slate-900">{formatMoney(xuatSummary.moneyCoTro)}đ</td>
                   </tr>
 
@@ -1466,7 +1727,7 @@ export default function RiceNhapCS2View() {
                   <tr className="hover:bg-slate-50">
                     <td className="px-4 py-2 font-medium text-slate-800">6. Xuất lúa không trở</td>
                     <td className="px-4 py-2 text-center font-bold text-slate-700">{xuatSummary.tonsKhongTro}</td>
-                    <td className="px-4 py-2 text-right text-slate-600">16.000đ</td>
+                    <td className="px-4 py-2 text-right text-slate-600">{formatMoney(priceKhongTro)}đ</td>
                     <td className="px-4 py-2 text-right font-bold text-slate-900">{formatMoney(xuatSummary.moneyKhongTro)}đ</td>
                   </tr>
 

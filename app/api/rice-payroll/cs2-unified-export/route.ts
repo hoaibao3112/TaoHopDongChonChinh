@@ -96,6 +96,8 @@ export interface CS2UnifiedExportPayload {
   xuatBatches?: RiceBatch[];
   trauItems?: NhapTrauItem[];
   chumLoUnitPrice?: number;
+  priceCoTro?: number;
+  priceKhongTro?: number;
   managementSalary?: number;
   iceUnitPricePerDay?: number;
   workDaysCount?: number;
@@ -116,6 +118,8 @@ export async function POST(req: NextRequest) {
       nhapBatches = [],
       xuatBatches = [],
       chumLoUnitPrice = 11_000,
+      priceCoTro = 20_000,
+      priceKhongTro = 16_000,
       managementSalary = 6_000_000,
       iceUnitPricePerDay = 10_000,
       workerAdvances = {},
@@ -185,8 +189,8 @@ export async function POST(req: NextRequest) {
       else tonsKhongTro += t;
     });
 
-    const moneyCoTro = tonsCoTro * 20_000;
-    const moneyKhongTro = tonsKhongTro * 16_000;
+    const moneyCoTro = tonsCoTro * priceCoTro;
+    const moneyKhongTro = tonsKhongTro * priceKhongTro;
     const totalXuatMoney = moneyCoTro + moneyKhongTro;
     const totalXuatTons = tonsCoTro + tonsKhongTro;
     const totalXuatKg = sortedXuat.reduce((s, b) => s + (b.dryWeightKg || 0), 0);
@@ -366,9 +370,9 @@ export async function POST(req: NextRequest) {
       ['M4', 'PHƯƠNG TIỆN CHỞ LÚA KHÔ\n(TĂNG BO SAU SẤY)'],
       ['N4', 'TRỞ MẺ\n6.000/TẤN'],
       ['O4', 'THÀNH TIỀN'],
-      ['P4', 'ĐƠN GIÁ \nXUẤT+TRỞ\n(20.000đ/TẤN)'],
+      ['P4', `ĐƠN GIÁ \nXUẤT+TRỞ\n(${priceCoTro.toLocaleString('vi-VN')}đ/TẤN)`],
       ['Q4', 'THÀNH TIỀN XUẤT+TRỞ\n'],
-      ['R4', 'XUẤT KHÔNG TRỞ\n16.000/TẤN'],
+      ['R4', `XUẤT KHÔNG TRỞ\n${priceKhongTro.toLocaleString('vi-VN')}/TẤN`],
       ['S4', 'THÀNH TIỀN\nXUẤT KHÔNG TRỞ'],
       ['T4', 'TỔNG\nTHÀNH TIỀN'],
     ];
@@ -383,8 +387,11 @@ export async function POST(req: NextRequest) {
       const tons = (batch as unknown as { customTons?: number }).customTons !== undefined
         ? Number((batch as unknown as { customTons?: number }).customTons)
         : getDefaultTons(batch);
+      const unitPrice = (batch as unknown as { customUnitPrice?: number }).customUnitPrice !== undefined
+        ? Number((batch as unknown as { customUnitPrice?: number }).customUnitPrice)
+        : (isCo ? priceCoTro : priceKhongTro);
       const kg = batch.dryWeightKg || 0;
-      const thanhTien = isCo ? tons * 20_000 : tons * 16_000;
+      const thanhTien = tons * unitPrice;
 
       setCell(ws2, `A${row}`, 's', batch.weighDate || '',       styleData('center'));
       setCell(ws2, `B${row}`, 's', batch.purchaser || batch.customerName || '', styleData('left'));
@@ -401,10 +408,10 @@ export async function POST(req: NextRequest) {
       setCell(ws2, `M${row}`, 's', batch.dryVehicle || '',      styleData('center'));
       setCell(ws2, `N${row}`, 's', '',                          styleData('center'));
       setCell(ws2, `O${row}`, 's', '',                          styleData('center'));
-      setCell(ws2, `P${row}`, 'n', isCo ? 20000 : 0,            { ...styleMoney(), numFmt: FMT_MONEY });
-      setCell(ws2, `Q${row}`, 'n', isCo ? tons * 20000 : 0,     { ...styleMoney(), numFmt: FMT_MONEY });
-      setCell(ws2, `R${row}`, 'n', !isCo ? 16000 : 0,           { ...styleMoney(), numFmt: FMT_MONEY });
-      setCell(ws2, `S${row}`, 'n', !isCo ? tons * 16000 : 0,    { ...styleMoney(), numFmt: FMT_MONEY });
+      setCell(ws2, `P${row}`, 'n', isCo ? unitPrice : 0,        { ...styleMoney(), numFmt: FMT_MONEY });
+      setCell(ws2, `Q${row}`, 'n', isCo ? thanhTien : 0,        { ...styleMoney(), numFmt: FMT_MONEY });
+      setCell(ws2, `R${row}`, 'n', !isCo ? unitPrice : 0,       { ...styleMoney(), numFmt: FMT_MONEY });
+      setCell(ws2, `S${row}`, 'n', !isCo ? thanhTien : 0,       { ...styleMoney(), numFmt: FMT_MONEY });
       setCell(ws2, `T${row}`, 'n', thanhTien,                   { ...styleMoney(true), numFmt: FMT_MONEY });
     });
 
@@ -453,11 +460,21 @@ export async function POST(req: NextRequest) {
     trauItems.forEach((t, idx) => {
       const row = idx + 5;
       ws3['!rows']!.push({ hpt: 20 });
+      const isOng5 = (t.phuongTien || '').toUpperCase().includes('ÔNG 5');
+      // Xe Ông 5 thì đơn giá chuẩn 27.273đ (11t = 300k, 22t = 600k)
+      // Xe / Ghe ngoài khác thì lấy đơn giá thực tế (vd: 27.000đ hoặc thanhTien / soLuong), không bị cào bằng 27.273
+      let itemDonGia = t.donGia;
+      if (isOng5) {
+        itemDonGia = 27273;
+      } else if (!itemDonGia || itemDonGia === 27273) {
+        itemDonGia = t.soLuong > 0 ? Math.round(t.thanhTien / t.soLuong) : 27000;
+      }
+
       setCell(ws3, `A${row}`, 's', t.date || (t as unknown as { ngay?: string }).ngay || '', styleData('center'));
       setCell(ws3, `B${row}`, 's', t.doiNhap || 'DƯƠNG', styleData('center'));
       setCell(ws3, `C${row}`, 's', t.phuongTien,   styleData('center'));
       setCell(ws3, `D${row}`, 'n', t.soLuong,      styleTons());
-      setCell(ws3, `E${row}`, 'n', t.donGia,       { ...styleMoney(), numFmt: FMT_MONEY });
+      setCell(ws3, `E${row}`, 'n', itemDonGia,     { ...styleMoney(), numFmt: FMT_MONEY });
       setCell(ws3, `F${row}`, 'n', t.thanhTien,    { ...styleMoney(true), numFmt: FMT_MONEY });
     });
 
@@ -652,13 +669,13 @@ export async function POST(req: NextRequest) {
     // Row 36: XUẤT CÓ TRỞ
     setCell(ws5, 'B36', 's', 'XUẤT CÓ TRỞ', styleData('left'));
     setCell(ws5, 'C36', 'n', tonsCoTro,         { ...styleData('center'), numFmt: FMT_NUMBER });
-    setCell(ws5, 'D36', 'n', 20000,             { ...styleMoney(), numFmt: FMT_MONEY });
+    setCell(ws5, 'D36', 'n', priceCoTro,         { ...styleMoney(), numFmt: FMT_MONEY });
     setCell(ws5, 'E36', 'n', moneyCoTro,        { ...styleMoney(), numFmt: FMT_MONEY });
 
     // Row 37: XUẤT KHÔNG TRỞ
     setCell(ws5, 'B37', 's', 'XUẤT KHÔNG TRỞ', styleData('left'));
     setCell(ws5, 'C37', 'n', tonsKhongTro,      { ...styleData('center'), numFmt: FMT_NUMBER });
-    setCell(ws5, 'D37', 'n', 16000,             { ...styleMoney(), numFmt: FMT_MONEY });
+    setCell(ws5, 'D37', 'n', priceKhongTro,     { ...styleMoney(), numFmt: FMT_MONEY });
     setCell(ws5, 'E37', 'n', moneyKhongTro,     { ...styleMoney(), numFmt: FMT_MONEY });
 
     // Row 38: TỔNG CỘNG NHẬP+XUẤT

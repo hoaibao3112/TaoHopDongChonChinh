@@ -115,6 +115,11 @@ describe('Rice Payroll CS2: Phân Hệ Gộp Nhập & Xuất Đội Dương (Cơ
     expect(ws3['A1'].v).toContain('NHẬP TRẤU ĐỘI DƯƠNG CS2 2026');
     expect(ws3['D3'].v).toBe(75); // 75 tấn trấu
     expect(ws3['F3'].v).toBe(2040000); // 2.040.000 đ
+    // Kiểm tra đơn giá từng dòng: Xe Ông 5 đơn giá là 27.273, còn Ghe ngoài (Nguyên Nguyên 18) là 27.000, không bị cào bằng!
+    expect(ws3['E5'].v).toBe(27273); // Ông 5
+    expect(ws3['E6'].v).toBe(27273); // Ông 5
+    expect(ws3['E7'].v).toBe(27273); // Ông 5
+    expect(ws3['E8'].v).toBe(27000); // Nguyên Nguyên 18 (20t * 27.000 = 540.000đ)
 
     // Sheet 4: Ứng lương (20 công nhân)
     const ws4 = wb.Sheets['ỨL ĐỘI DƯƠNG-CS2-T10.26'];
@@ -255,5 +260,53 @@ describe('Rice Payroll CS2: Phân Hệ Gộp Nhập & Xuất Đội Dương (Cơ
     // Tạm ứng tháng 11 mặc định là 0 (không mang 29 triệu của T10 sang)
     const ws4 = wb.Sheets['ỨL ĐỘI DƯƠNG-CS2-T11.26'];
     expect(ws4['C23'].v).toBe(0);
+  });
+
+  // ── TEST 5: Kiểm tra tùy chỉnh đơn giá Có Trở & Không Trở động ────────────
+  it('5. Kiểm tra tùy chỉnh đơn giá Có Trở & Không Trở linh hoạt (điền nhanh & tính chuẩn)', async () => {
+    const customPriceCo = 22000;
+    const customPriceKhong = 17000;
+
+    const req = new NextRequest('http://localhost:3000/api/rice-payroll/cs2-unified-export', {
+      method: 'POST',
+      headers: {
+        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        month: 10,
+        year: 2026,
+        nhapBatches: nhapList,
+        xuatBatches: octXuatBatches,
+        trauItems: DEFAULT_OCTOBER_TRAU_ITEMS,
+        priceCoTro: customPriceCo,
+        priceKhongTro: customPriceKhong,
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(Buffer.from(buf), { type: 'buffer' });
+
+    // Sheet 2: Header phản ánh giá mới
+    const ws2 = wb.Sheets['XUẤT LÚA'];
+    expect(ws2['P4'].v).toContain('22.000');
+    expect(ws2['R4'].v).toContain('17.000');
+
+    // 1323 tấn có trở * 22.000 = 29.106.000 đ
+    // 393 tấn ko trở * 17.000 = 6.681.000 đ
+    // Tổng tiền xuất = 35.787.000 đ
+    expect(ws2['Q3'].v).toBe(1323 * customPriceCo);
+    expect(ws2['S3'].v).toBe(393 * customPriceKhong);
+    expect(ws2['T3'].v).toBe(1323 * customPriceCo + 393 * customPriceKhong);
+
+    // Sheet 5: Bảng kê quyết toán 10 mục
+    const ws5 = wb.Sheets['CL ĐỘI DƯƠNG-CS2-10.26'];
+    expect(ws5['D36'].v).toBe(customPriceCo);
+    expect(ws5['E36'].v).toBe(1323 * customPriceCo);
+    expect(ws5['D37'].v).toBe(customPriceKhong);
+    expect(ws5['E37'].v).toBe(393 * customPriceKhong);
   });
 });
