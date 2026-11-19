@@ -152,15 +152,15 @@ describe('Rice Chụm Lò CS1: Đội Nguyên - Cơ Sở I', () => {
     const ws1 = wb.Sheets['Chụm Lò'];
     expect(ws1['A1'].v).toContain('NHẬP SẤY CƠ SỞ I XNK ĐỘI NHẬP ANH NGHỊ VÀ ANH NGUYÊN   T10/2026');
     expect(ws1['E2'].v).toBe('TỔNG CỘNG');
-    expect(ws1['K2'].v).toBe(100698 + 36189); // 136.887 kg
-    expect(ws1['L2'].v).toBe(101 + 36);       // 137 tấn
-    expect(ws1['N2'].v).toBe(505000 + 180000); // 685.000 đ
+    expect(ws1['J2'].v).toBe(100698 + 36189); // 136.887 kg (Cột J sau khi bỏ cột số lượng thừa)
+    expect(ws1['K2'].v).toBe(101 + 36);       // 137 tấn (Cột K)
+    expect(ws1['M2'].v).toBe(505000 + 180000); // 685.000 đ (Cột M)
 
     // Chữ ký xác nhận
     expect(ws1['D7'].v).toBe('Người lập bảng');
-    expect(ws1['J7'].v).toBe('Xác nhận');
+    expect(ws1['I7'].v).toBe('Xác nhận');
     expect(ws1['D11'].v).toBe('Võ Hoàng Cẩm Tiên');
-    expect(ws1['J11'].v).toBe('Huỳnh Hải Long Hồ');
+    expect(ws1['I11'].v).toBe('Huỳnh Hải Long Hồ');
 
     // ─── Sheet 2: ỨL ĐỘI NGUYÊN ─────────────────────────────────────────
     const ws2 = wb.Sheets['ỨL ĐỘI NGUYÊN T010.2026'];

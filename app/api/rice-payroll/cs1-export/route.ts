@@ -184,14 +184,13 @@ function buildTeamSheets(
     { wch: 24 }, // D: KHÁCH HÀNG
     { wch: 15 }, // E: PHƯƠNG TIỆN
     { wch: 16 }, // F: LOẠI LÚA
-    { wch: 14 }, // G: SỐ LƯỢNG (KG)
-    { wch: 24 }, // H: PHƯƠNG TIỆN TĂNG BO LÚA TƯƠI
-    { wch: 14 }, // I: NGÀY NHẬP SẤY
-    { wch: 15 }, // J: ĐỊA ĐIỂM SẤY
-    { wch: 15 }, // K: CÂN NHẬP SẤY (KG)
-    { wch: 14 }, // L: CÂN NHẬP SẤY (TẤN)
-    { wch: 16 }, // M: ĐƠN GIÁ SẤY
-    { wch: 18 }, // N: THÀNH TIỀN
+    { wch: 24 }, // G: PHƯƠNG TIỆN TĂNG BO LÚA TƯƠI
+    { wch: 14 }, // H: NGÀY NHẬP SẤY
+    { wch: 15 }, // I: ĐỊA ĐIỂM SẤY
+    { wch: 15 }, // J: CÂN NHẬP SẤY (KG)
+    { wch: 14 }, // K: CÂN NHẬP SẤY (TẤN)
+    { wch: 16 }, // L: ĐƠN GIÁ SẤY
+    { wch: 18 }, // M: THÀNH TIỀN
   ];
   ws1['!rows'] = [{ hpt: 36 }, { hpt: 26 }, { hpt: 45 }];
 
@@ -204,7 +203,7 @@ function buildTeamSheets(
     fill: { fgColor: { rgb: 'BDD7EE' }, patternType: 'solid' },
     border: BORDER_THIN,
   });
-  for (const c of ['B','C','D','E','F','G','H','I','J','K','L','M','N']) {
+  for (const c of ['B','C','D','E','F','G','H','I','J','K','L','M']) {
     setCell(ws1, `${c}1`, 's', '', { fill: { fgColor: { rgb: 'BDD7EE' }, patternType: 'solid' }, border: BORDER_THIN });
   }
 
@@ -213,12 +212,11 @@ function buildTeamSheets(
   for (const c of ['A','B','C','D']) setCell(ws1, `${c}2`, 's', '', totStyle);
   setCell(ws1, 'E2', 's', 'TỔNG CỘNG', totStyle);
   setCell(ws1, 'F2', 's', '', totStyle);
-  setCell(ws1, 'G2', 'n', totalFreshKg > 0 ? totalFreshKg : 0, { ...totStyle, numFmt: FMT_NUMBER });
-  for (const c of ['H','I','J']) setCell(ws1, `${c}2`, 's', '', totStyle);
-  setCell(ws1, 'K2', 'n', totalDryKg, { ...totStyle, numFmt: FMT_NUMBER });
-  setCell(ws1, 'L2', 'n', totalTons, { ...totStyle, numFmt: FMT_NUMBER });
-  setCell(ws1, 'M2', 's', '', totStyle);
-  setCell(ws1, 'N2', 'n', totalMoneyLua, { ...totStyle, numFmt: FMT_MONEY });
+  for (const c of ['G','H','I']) setCell(ws1, `${c}2`, 's', '', totStyle);
+  setCell(ws1, 'J2', 'n', totalDryKg, { ...totStyle, numFmt: FMT_NUMBER });
+  setCell(ws1, 'K2', 'n', totalTons, { ...totStyle, numFmt: FMT_NUMBER });
+  setCell(ws1, 'L2', 's', '', totStyle);
+  setCell(ws1, 'M2', 'n', totalMoneyLua, { ...totStyle, numFmt: FMT_MONEY });
 
   // Row 3: Headers
   const headers1: [string, string][] = [
@@ -228,14 +226,13 @@ function buildTeamSheets(
     ['D3', 'KHÁCH HÀNG'],
     ['E3', 'PHƯƠNG TIỆN'],
     ['F3', 'LOẠI LÚA'],
-    ['G3', 'SỐ LƯỢNG\n(KG)'],
-    ['H3', 'PHƯƠNG TIỆN TĂNG BO\nLÚA TƯƠI NHẬP SẤY'],
-    ['I3', 'NGÀY NHẬP SẤY'],
-    ['J3', 'ĐỊA ĐIỂM SẤY\n(CƠ SỞ SẤY)'],
-    ['K3', 'CÂN NHẬP SẤY\n(KG)'],
-    ['L3', 'CÂN NHẬP SẤY\n(TẤN)'],
-    ['M3', 'ĐƠN GIÁ SẤY\n(VNĐ)'],
-    ['N3', 'THÀNH TIỀN\n(VNĐ)'],
+    ['G3', 'PHƯƠNG TIỆN TĂNG BO\nLÚA TƯƠI NHẬP SẤY'],
+    ['H3', 'NGÀY NHẬP SẤY'],
+    ['I3', 'ĐỊA ĐIỂM SẤY\n(CƠ SỞ SẤY)'],
+    ['J3', 'CÂN NHẬP SẤY\n(KG)'],
+    ['K3', 'CÂN NHẬP SẤY\n(TẤN)'],
+    ['L3', 'ĐƠN GIÁ SẤY\n(VNĐ)'],
+    ['M3', 'THÀNH TIỀN\n(VNĐ)'],
   ];
   for (const [addr, text] of headers1) {
     setCell(ws1, addr, 's', text, styleHeader());
@@ -251,25 +248,24 @@ function buildTeamSheets(
     setCell(ws1, `D${r}`, 's', b.customerName || '', styleData('left'));
     setCell(ws1, `E${r}`, 's', b.vehicleName || '', styleData('center'));
     setCell(ws1, `F${r}`, 's', b.riceType || '', styleData('center'));
-    setCell(ws1, `G${r}`, 'n', b.freshWeightKg || 0, styleNumber());
-    setCell(ws1, `H${r}`, 's', b.freshBoVehicle || '', styleData('center'));
-    setCell(ws1, `I${r}`, 's', b.dryDate || '', styleData('center'));
-    setCell(ws1, `J${r}`, 's', b.dryFacility || 'CƠ SỞ I', styleData('center'));
-    setCell(ws1, `K${r}`, 'n', b.dryWeightKg, styleNumber());
-    setCell(ws1, `L${r}`, 'n', b.roundedTons, styleNumber(true));
-    setCell(ws1, `M${r}`, 'n', b.pricePerTon, styleMoney());
-    setCell(ws1, `N${r}`, 'n', b.thanhTien, styleMoney(true));
+    setCell(ws1, `G${r}`, 's', b.freshBoVehicle || '', styleData('center'));
+    setCell(ws1, `H${r}`, 's', b.dryDate || '', styleData('center'));
+    setCell(ws1, `I${r}`, 's', b.dryFacility || 'CƠ SỞ I', styleData('center'));
+    setCell(ws1, `J${r}`, 'n', b.dryWeightKg, styleNumber());
+    setCell(ws1, `K${r}`, 'n', b.roundedTons, styleNumber(true));
+    setCell(ws1, `L${r}`, 'n', b.pricePerTon, styleMoney());
+    setCell(ws1, `M${r}`, 'n', b.thanhTien, styleMoney(true));
   });
 
   const signRow1 = sortedBatches.length + 6;
   const nameRow1 = signRow1 + 4;
   setCell(ws1, `D${signRow1}`, 's', 'Người lập bảng', { font: { name: FONT_NAME, bold: true, sz: 11 }, alignment: { horizontal: 'center' } });
-  setCell(ws1, `J${signRow1}`, 's', 'Xác nhận', { font: { name: FONT_NAME, bold: true, sz: 11 }, alignment: { horizontal: 'center' } });
+  setCell(ws1, `I${signRow1}`, 's', 'Xác nhận', { font: { name: FONT_NAME, bold: true, sz: 11 }, alignment: { horizontal: 'center' } });
   setCell(ws1, `D${nameRow1}`, 's', preparerName, { font: { name: FONT_NAME, bold: true, sz: 11 }, alignment: { horizontal: 'center' } });
-  setCell(ws1, `J${nameRow1}`, 's', approverName, { font: { name: FONT_NAME, bold: true, sz: 11 }, alignment: { horizontal: 'center' } });
+  setCell(ws1, `I${nameRow1}`, 's', approverName, { font: { name: FONT_NAME, bold: true, sz: 11 }, alignment: { horizontal: 'center' } });
 
-  ws1['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 13 } }];
-  ws1['!ref'] = `A1:N${nameRow1 + 1}`;
+  ws1['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 12 } }];
+  ws1['!ref'] = `A1:M${nameRow1 + 1}`;
   const sheet1Name = isNghi ? 'Nhập lúa Anh Nghị' : 'Nhap lua CS1';
   XLSX.utils.book_append_sheet(wb, ws1, sheet1Name);
 

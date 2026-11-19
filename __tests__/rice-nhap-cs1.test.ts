@@ -142,6 +142,16 @@ describe('Rice Nhập Sấy CS1: Đội Nghị & Đội Nguyên - Cơ Sở I', (
     expect(wbNguyen.SheetNames[1]).toBe('Nhập Trấu Nguyên');
     expect(wbNguyen.SheetNames[2]).toBe('ỨL ĐỘI NGUYÊN T10.2026');
     expect(wbNguyen.SheetNames[3]).toBe('CL ĐỘI NGUYÊN T10.2026');
+
+    // Kiểm tra đã bỏ cột SỐ LƯỢNG (KG) thừa khỏi sheet 1:
+    // Cột G hiện tại là Phương tiện tăng bo, cột J là Cân sấy (kg), cột K là Tấn, cột L là Đơn giá, cột M là Thành tiền
+    const wsNguyenLua = wbNguyen.Sheets['Nhap lua CS1'];
+    expect(wsNguyenLua['G3'].v).toContain('PHƯƠNG TIỆN TĂNG BO');
+    expect(wsNguyenLua['J3'].v).toContain('CÂN NHẬP SẤY\n(KG)');
+    expect(wsNguyenLua['K3'].v).toContain('CÂN NHẬP SẤY\n(TẤN)');
+    expect(wsNguyenLua['L3'].v).toContain('ĐƠN GIÁ SẤY');
+    expect(wsNguyenLua['M3'].v).toContain('THÀNH TIỀN');
+    expect(wsNguyenLua['N3']).toBeUndefined(); // Đã rút gọn còn A-M (13 cột)
   });
 
   it('hỗ trợ tách mẻ sấy dở dang và mẻ thủ công phân bổ chính xác cho 2 đội', async () => {
