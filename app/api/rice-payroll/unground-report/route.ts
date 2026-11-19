@@ -10,6 +10,7 @@ import {
   UngroundKhoBatch,
   UngroundTuoiBatch,
 } from '@/lib/rice-payroll/unground-report-parser';
+import sampleUngroundData from '@/data/sample-unground-data.json';
 
 /** Tên file lúa khô/tươi sau khi người dùng upload lên server */
 const FILE_KHO_NAME = 'THINH_LUA_KHO.xlsx';
@@ -18,7 +19,7 @@ const FILE_TUOI_NAME = 'THINH_LUA_TUOI.xlsx';
 const FILE_KHO_LEGACY = 'THỊNH_TỔNG NHẬP LÚA KHÔ NĂM 2026.xlsx';
 const FILE_TUOI_LEGACY = 'THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx';
 
-/** Đường dẫn metadata — phải gọi trong request handler, không gọi ở module level */
+/** Đường dẫn metadata — gọi trong request handler */
 function getMetaFilePath(): string {
   return path.join(process.cwd(), 'data', 'unground-file-meta.json');
 }
@@ -34,7 +35,7 @@ function readFileMeta(): { kho?: { name: string; updatedAt: string }; tuoi?: { n
   return {};
 }
 
-/** Lưu metadata */
+/** Lưu metadata (nếu hệ thống tệp cho phép ghi) */
 function writeFileMeta(meta: { kho?: { name: string; updatedAt: string }; tuoi?: { name: string; updatedAt: string } }) {
   try {
     const metaFile = getMetaFilePath();
@@ -42,16 +43,18 @@ function writeFileMeta(meta: { kho?: { name: string; updatedAt: string }; tuoi?:
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(metaFile, JSON.stringify(meta, null, 2), 'utf-8');
   } catch (e) {
-    console.warn('Không thể ghi metadata file lúa:', e);
+    console.warn('Hệ thống tệp read-only hoặc không thể ghi metadata:', e);
   }
 }
 
 /** Lấy đường dẫn file lúa (ưu tiên file người dùng upload, fallback sang file legacy) */
 function resolveFilePath(cwd: string, newName: string, legacyName: string): string | null {
-  const p1 = path.join(cwd, 'data', newName);
-  if (fs.existsSync(p1)) return p1;
-  const p2 = path.join(cwd, legacyName);
-  if (fs.existsSync(p2)) return p2;
+  try {
+    const p1 = path.join(cwd, 'data', newName);
+    if (fs.existsSync(p1)) return p1;
+    const p2 = path.join(cwd, legacyName);
+    if (fs.existsSync(p2)) return p2;
+  } catch {}
   return null;
 }
 
@@ -65,38 +68,41 @@ export async function GET(request: NextRequest) {
     let tuoiBatches: UngroundTuoiBatch[] = [];
 
     const cwd = process.cwd();
-    const pathSampleJson = path.join(cwd, 'data', 'sample-unground-data.json');
     const meta = readFileMeta();
 
-    // Ưu tiên đọc file người dùng đã upload, fallback sang file legacy có tên cũ
+    // Ưu tiên đọc file Excel nếu có trong môi trường
     const pathKho = resolveFilePath(cwd, FILE_KHO_NAME, FILE_KHO_LEGACY);
     const pathTuoi = resolveFilePath(cwd, FILE_TUOI_NAME, FILE_TUOI_LEGACY);
 
     if (pathKho) {
-      const bufKho = fs.readFileSync(pathKho);
-      khoBatches = parseUngroundKhoExcel(bufKho);
+      try {
+        const bufKho = fs.readFileSync(pathKho);
+        khoBatches = parseUngroundKhoExcel(bufKho);
+      } catch (errKho) {
+        console.warn('Lỗi đọc parse lúa khô:', errKho);
+      }
     }
     if (pathTuoi) {
-      const bufTuoi = fs.readFileSync(pathTuoi);
-      tuoiBatches = parseUngroundTuoiExcel(bufTuoi);
+      try {
+        const bufTuoi = fs.readFileSync(pathTuoi);
+        tuoiBatches = parseUngroundTuoiExcel(bufTuoi);
+      } catch (errTuoi) {
+        console.warn('Lỗi đọc parse lúa tươi:', errTuoi);
+      }
     }
 
-    // Nếu trên môi trường cloud không có 2 file lớn thì dùng fallback JSON
-    if ((khoBatches.length === 0 || tuoiBatches.length === 0) && fs.existsSync(pathSampleJson)) {
-      try {
-        const raw = JSON.parse(fs.readFileSync(pathSampleJson, 'utf-8'));
-        if (khoBatches.length === 0 && Array.isArray(raw.kho)) khoBatches = raw.kho;
-        if (tuoiBatches.length === 0 && Array.isArray(raw.tuoi)) tuoiBatches = raw.tuoi;
-      } catch (e) {
-        console.warn('Lỗi đọc sample unground json:', e);
-      }
+    // Luôn fallback an toàn sang sample data tĩnh nếu không có file hoặc file rỗng
+    if (khoBatches.length === 0 && Array.isArray(sampleUngroundData.kho)) {
+      khoBatches = sampleUngroundData.kho as UngroundKhoBatch[];
+    }
+    if (tuoiBatches.length === 0 && Array.isArray(sampleUngroundData.tuoi)) {
+      tuoiBatches = sampleUngroundData.tuoi as UngroundTuoiBatch[];
     }
 
     return NextResponse.json({
       success: true,
       kho: khoBatches,
       tuoi: tuoiBatches,
-      // Metadata để UI hiển thị trạng thái file
       fileMeta: {
         kho: meta.kho ?? null,
         tuoi: meta.tuoi ?? null,
@@ -106,17 +112,21 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Lỗi API unground-report GET:', error);
-    return NextResponse.json(
-      { error: 'Lỗi tải dữ liệu lúa chưa xay: ' + (error instanceof Error ? error.message : String(error)) },
-      { status: 500 }
-    );
+    // Vẫn trả về fallback an toàn kèm status 200 để client không bị trắng trang / lỗi 500
+    return NextResponse.json({
+      success: true,
+      kho: (sampleUngroundData.kho || []) as UngroundKhoBatch[],
+      tuoi: (sampleUngroundData.tuoi || []) as UngroundTuoiBatch[],
+      fileMeta: { kho: null, tuoi: null, khoPath: null, tuoiPath: null },
+      warning: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
 /**
  * PUT /api/rice-payroll/unground-report
- * Nhận FormData với fileKho và/hoặc fileTuoi, lưu vĩnh viễn vào server.
- * Lần sau GET sẽ tự đọc file đã lưu → không cần upload lại mỗi ngày.
+ * Nhận FormData với fileKho và/hoặc fileTuoi.
+ * Parse mẻ lúa và lưu vĩnh viễn (nếu filesystem cho phép) hoặc trả batches về để client lưu LocalStorage.
  */
 export async function PUT(request: NextRequest) {
   if (!isRequestAuthenticated(request)) {
@@ -134,32 +144,46 @@ export async function PUT(request: NextRequest) {
 
     const cwd = process.cwd();
     const dataDir = path.join(cwd, 'data');
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-
     const meta = readFileMeta();
     const result: { kho?: { name: string; count: number }; tuoi?: { name: string; count: number } } = {};
+    let parsedKhoBatches: UngroundKhoBatch[] | undefined;
+    let parsedTuoiBatches: UngroundTuoiBatch[] | undefined;
 
     if (fileKho && fileKho.size > 0) {
       const buf = Buffer.from(await fileKho.arrayBuffer());
-      // Kiểm tra parse được không trước khi lưu
-      const batches = parseUngroundKhoExcel(buf);
-      // Lưu file vào thư mục data/
-      fs.writeFileSync(path.join(dataDir, FILE_KHO_NAME), buf);
+      parsedKhoBatches = parseUngroundKhoExcel(buf);
+      try {
+        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+        fs.writeFileSync(path.join(dataDir, FILE_KHO_NAME), buf);
+      } catch (fsErr) {
+        console.warn('Serverless read-only, không thể ghi fileKho vào đĩa:', fsErr);
+      }
       meta.kho = { name: fileKho.name, updatedAt: new Date().toISOString() };
-      result.kho = { name: fileKho.name, count: batches.length };
+      result.kho = { name: fileKho.name, count: parsedKhoBatches.length };
     }
 
     if (fileTuoi && fileTuoi.size > 0) {
       const buf = Buffer.from(await fileTuoi.arrayBuffer());
-      const batches = parseUngroundTuoiExcel(buf);
-      fs.writeFileSync(path.join(dataDir, FILE_TUOI_NAME), buf);
+      parsedTuoiBatches = parseUngroundTuoiExcel(buf);
+      try {
+        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+        fs.writeFileSync(path.join(dataDir, FILE_TUOI_NAME), buf);
+      } catch (fsErr) {
+        console.warn('Serverless read-only, không thể ghi fileTuoi vào đĩa:', fsErr);
+      }
       meta.tuoi = { name: fileTuoi.name, updatedAt: new Date().toISOString() };
-      result.tuoi = { name: fileTuoi.name, count: batches.length };
+      result.tuoi = { name: fileTuoi.name, count: parsedTuoiBatches.length };
     }
 
     writeFileMeta(meta);
 
-    return NextResponse.json({ success: true, saved: result, fileMeta: meta });
+    return NextResponse.json({
+      success: true,
+      saved: result,
+      fileMeta: meta,
+      kho: parsedKhoBatches,
+      tuoi: parsedTuoiBatches,
+    });
   } catch (error) {
     console.error('Lỗi API unground-report PUT:', error);
     return NextResponse.json(

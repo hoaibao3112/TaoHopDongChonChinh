@@ -5,8 +5,15 @@ import {
   UngroundKhoBatch,
   UngroundTuoiBatch,
   buildUngroundReport,
+  parseUngroundKhoExcel,
+  parseUngroundTuoiExcel,
 } from '@/lib/rice-payroll/unground-report-parser';
 import sampleUngroundData from '@/data/sample-unground-data.json';
+
+const LOCAL_STORAGE_KHO = 'unground_kho_batches_v2';
+const LOCAL_STORAGE_TUOI = 'unground_tuoi_batches_v2';
+const LOCAL_STORAGE_META = 'unground_file_meta_v2';
+const LOCAL_STORAGE_LOSS = 'unground_custom_loss_v2';
 
 function formatMoney(num: number): string {
   return new Intl.NumberFormat('vi-VN').format(Math.round(num));
@@ -24,8 +31,9 @@ function formatVNDateTime(isoString: string): string {
 interface FileMeta {
   kho: { name: string; updatedAt: string } | null;
   tuoi: { name: string; updatedAt: string } | null;
-  khoPath: string | null;
-  tuoiPath: string | null;
+  khoPath?: string | null;
+  tuoiPath?: string | null;
+  savedSource?: 'BROWSER_STORAGE' | 'SERVER';
 }
 
 export default function BaoCaoChuaXayView() {
@@ -38,28 +46,30 @@ export default function BaoCaoChuaXayView() {
   const [khoBatches, setKhoBatches] = useState<UngroundKhoBatch[]>([]);
   const [tuoiBatches, setTuoiBatches] = useState<UngroundTuoiBatch[]>([]);
 
-  // Metadata file server
+  // Metadata file server / local
   const [fileMeta, setFileMeta] = useState<FileMeta | null>(null);
+  const [dataSource, setDataSource] = useState<'LOCAL_STORAGE' | 'SERVER' | 'SAMPLE'>('SERVER');
 
-  // Trạng thái upload lên server
+  // Trạng thái upload
   const [uploadingKho, setUploadingKho] = useState(false);
   const [uploadingTuoi, setUploadingTuoi] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
-  // Bộ lọc — khởi tạo bằng giá trị tĩnh, cập nhật sau mount để tránh hydration mismatch
-  const [reportDate, setReportDate] = useState<string>('');
-  const [selectedMonth, setSelectedMonth] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'SUMMARY' | 'KHO' | 'TUOI' | 'UPLOAD'>('SUMMARY');
-
-  // Set ngày/tháng hiện tại sau khi mount (client-only) để tránh SSR mismatch
-  useEffect(() => {
+  // Bộ lọc
+  const [reportDate, setReportDate] = useState<string>(() => {
     const today = new Date();
     const d = String(today.getDate()).padStart(2, '0');
     const m = String(today.getMonth() + 1).padStart(2, '0');
     const y = today.getFullYear();
-    setReportDate(`${d}/${m}/${y}`);
-    setSelectedMonth(`${m}/${y}`);
-  }, []);
+    return `${d}/${m}/${y}`;
+  });
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const today = new Date();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const y = today.getFullYear();
+    return `${m}/${y}`;
+  });
+  const [activeTab, setActiveTab] = useState<'SUMMARY' | 'KHO' | 'TUOI' | 'UPLOAD'>('SUMMARY');
 
   // Bản đồ tùy chỉnh % hao hụt cho từng loại lúa
   const [customLossMap, setCustomLossMap] = useState<Record<string, number>>({});
@@ -68,35 +78,68 @@ export default function BaoCaoChuaXayView() {
   const fileKhoInputRef = useRef<HTMLInputElement>(null);
   const fileTuoiInputRef = useRef<HTMLInputElement>(null);
 
-  // Nạp dữ liệu khi mở trang
+  // Nạp dữ liệu khi mở trang: Ưu tiên LocalStorage để người dùng KHÔNG CẦN nạp lại mỗi ngày
   useEffect(() => {
-    async function loadData() {
+    function loadData() {
       setIsLoading(true);
+
+      let loadedFromLocal = false;
       try {
-        const res = await fetch('/api/rice-payroll/unground-report');
-        if (res.ok) {
-          const json = await res.json();
-          if (Array.isArray(json.kho) && json.kho.length > 0) {
-            setKhoBatches(json.kho);
-          } else {
-            setKhoBatches(sampleUngroundData.kho as UngroundKhoBatch[]);
+        const rawKho = localStorage.getItem(LOCAL_STORAGE_KHO);
+        const rawTuoi = localStorage.getItem(LOCAL_STORAGE_TUOI);
+        const rawMeta = localStorage.getItem(LOCAL_STORAGE_META);
+        const rawLoss = localStorage.getItem(LOCAL_STORAGE_LOSS);
+
+        if (rawLoss) {
+          try { setCustomLossMap(JSON.parse(rawLoss)); } catch {}
+        }
+
+        if (rawKho && rawTuoi) {
+          const parsedKho = JSON.parse(rawKho);
+          const parsedTuoi = JSON.parse(rawTuoi);
+          if (Array.isArray(parsedKho) && Array.isArray(parsedTuoi) && (parsedKho.length > 0 || parsedTuoi.length > 0)) {
+            setKhoBatches(parsedKho);
+            setTuoiBatches(parsedTuoi);
+            if (rawMeta) {
+              try { setFileMeta(JSON.parse(rawMeta)); } catch {}
+            }
+            setDataSource('LOCAL_STORAGE');
+            loadedFromLocal = true;
           }
-          if (Array.isArray(json.tuoi) && json.tuoi.length > 0) {
-            setTuoiBatches(json.tuoi);
-          } else {
-            setTuoiBatches(sampleUngroundData.tuoi as UngroundTuoiBatch[]);
-          }
-          if (json.fileMeta) setFileMeta(json.fileMeta);
-        } else {
-          // Fallback static
-          setKhoBatches(sampleUngroundData.kho as UngroundKhoBatch[]);
-          setTuoiBatches(sampleUngroundData.tuoi as UngroundTuoiBatch[]);
         }
       } catch (e) {
-        console.warn('Lỗi fetch unground report, dùng fallback:', e);
-        setKhoBatches(sampleUngroundData.kho as UngroundKhoBatch[]);
-        setTuoiBatches(sampleUngroundData.tuoi as UngroundTuoiBatch[]);
-      } finally {
+        console.warn('Không thể đọc từ localStorage:', e);
+      }
+
+      // Nếu LocalStorage chưa có dữ liệu -> nạp từ Server API hoặc Fallback tĩnh
+      if (!loadedFromLocal) {
+        fetch('/api/rice-payroll/unground-report')
+          .then((res) => res.json())
+          .then((json) => {
+            const k = Array.isArray(json.kho) && json.kho.length > 0 ? json.kho : (sampleUngroundData.kho as UngroundKhoBatch[]);
+            const t = Array.isArray(json.tuoi) && json.tuoi.length > 0 ? json.tuoi : (sampleUngroundData.tuoi as UngroundTuoiBatch[]);
+            setKhoBatches(k);
+            setTuoiBatches(t);
+            if (json.fileMeta) setFileMeta(json.fileMeta);
+            setDataSource(json.fileMeta?.kho ? 'SERVER' : 'SAMPLE');
+
+            // Tự động ghi nhớ vào LocalStorage
+            try {
+              localStorage.setItem(LOCAL_STORAGE_KHO, JSON.stringify(k));
+              localStorage.setItem(LOCAL_STORAGE_TUOI, JSON.stringify(t));
+              if (json.fileMeta) localStorage.setItem(LOCAL_STORAGE_META, JSON.stringify(json.fileMeta));
+            } catch {}
+          })
+          .catch((err) => {
+            console.warn('Lỗi fetch server, dùng fallback sample data:', err);
+            setKhoBatches(sampleUngroundData.kho as UngroundKhoBatch[]);
+            setTuoiBatches(sampleUngroundData.tuoi as UngroundTuoiBatch[]);
+            setDataSource('SAMPLE');
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
+      } else {
         setIsLoading(false);
       }
     }
@@ -155,71 +198,131 @@ export default function BaoCaoChuaXayView() {
   const handleUpdateLoss = (loaiLua: string, valStr: string) => {
     const num = parseFloat(valStr.replace(/[^\d.]/g, ''));
     if (!isNaN(num) && num >= 0 && num <= 100) {
-      setCustomLossMap((prev) => ({ ...prev, [loaiLua]: num }));
+      setCustomLossMap((prev) => {
+        const next = { ...prev, [loaiLua]: num };
+        try { localStorage.setItem(LOCAL_STORAGE_LOSS, JSON.stringify(next)); } catch {}
+        return next;
+      });
     }
   };
 
   // Khôi phục % hao hụt mặc định
   const handleResetLossMap = () => {
     setCustomLossMap({});
+    try { localStorage.removeItem(LOCAL_STORAGE_LOSS); } catch {}
   };
 
-  // Upload file lúa khô lên server (lưu vĩnh viễn - tải trang sau vẫn đúng)
+  // Xóa dữ liệu đã lưu để làm mới hoàn toàn
+  const handleClearSavedData = () => {
+    if (!confirm('Bạn có chắc chắn muốn xóa dữ liệu đã lưu trên máy để quay về dữ liệu mẫu?')) return;
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KHO);
+      localStorage.removeItem(LOCAL_STORAGE_TUOI);
+      localStorage.removeItem(LOCAL_STORAGE_META);
+      localStorage.removeItem(LOCAL_STORAGE_LOSS);
+    } catch {}
+    setKhoBatches(sampleUngroundData.kho as UngroundKhoBatch[]);
+    setTuoiBatches(sampleUngroundData.tuoi as UngroundTuoiBatch[]);
+    setFileMeta(null);
+    setDataSource('SAMPLE');
+    setCustomLossMap({});
+    setUploadMessage({ type: 'info', text: 'ℹ️ Đã xóa dữ liệu lưu trên máy và khôi phục về dữ liệu mẫu mặc định.' });
+  };
+
+  // Nạp file lúa khô: Parse TRỰC TIẾP ở client + Lưu vĩnh viễn vào LocalStorage
   const handleUploadKho = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingKho(true);
     setUploadMessage(null);
     try {
-      const formData = new FormData();
-      formData.append('fileKho', file);
-      const res = await fetch('/api/rice-payroll/unground-report', {
-        method: 'PUT',
-        body: formData,
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Lỗi server');
-      // Reload dữ liệu từ server
-      const reloadRes = await fetch('/api/rice-payroll/unground-report');
-      if (reloadRes.ok) {
-        const reloaded = await reloadRes.json();
-        if (Array.isArray(reloaded.kho) && reloaded.kho.length > 0) setKhoBatches(reloaded.kho);
-        if (reloaded.fileMeta) setFileMeta(reloaded.fileMeta);
+      // 1. Đọc và parse TRỰC TIẾP ngay tại trình duyệt (cực nhanh, không sợ lỗi mạng)
+      const buf = await file.arrayBuffer();
+      const batches = parseUngroundKhoExcel(buf);
+      if (batches.length === 0) {
+        throw new Error('Không tìm thấy mẻ lúa khô nào có trạng thái chưa xay (cột Ngày xay trống). Vui lòng kiểm tra lại file!');
       }
-      setUploadMessage({ type: 'success', text: `✅ Đã lưu file lúa khô "${file.name}" lên server! (${json.saved?.kho?.count ?? 0} mẻ). Từ nay tải trang tự động cập nhật.` });
+
+      setKhoBatches(batches);
+      const newMeta: FileMeta = {
+        ...(fileMeta || { kho: null, tuoi: null }),
+        kho: { name: file.name, updatedAt: new Date().toISOString() },
+        savedSource: 'BROWSER_STORAGE',
+      };
+      setFileMeta(newMeta);
+      setDataSource('LOCAL_STORAGE');
+
+      // 2. Lưu VĨNH VIỄN vào LocalStorage của trình duyệt (mở máy ngày hôm sau vẫn còn)
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KHO, JSON.stringify(batches));
+        localStorage.setItem(LOCAL_STORAGE_META, JSON.stringify(newMeta));
+      } catch (stErr) {
+        console.warn('Lỗi ghi LocalStorage:', stErr);
+      }
+
+      setUploadMessage({
+        type: 'success',
+        text: `✅ ĐÃ LƯU FILE LÚA KHÔ "${file.name}" (${batches.length} mẻ)! Dữ liệu đã được ghi nhớ vĩnh viễn trên máy. Ngày mai bạn chỉ cần mở web lên là báo cáo tự động đúng, KHÔNG CẦN nạp lại!`,
+      });
+
+      // 3. Gửi đồng bộ lên Server ngầm (nếu server nhận được thì lưu, không block UI)
+      try {
+        const formData = new FormData();
+        formData.append('fileKho', file);
+        fetch('/api/rice-payroll/unground-report', { method: 'PUT', body: formData }).catch(() => {});
+      } catch {}
     } catch (err) {
-      setUploadMessage({ type: 'error', text: 'Lỗi lưu file lúa khô: ' + (err instanceof Error ? err.message : String(err)) });
+      setUploadMessage({ type: 'error', text: 'Lỗi đọc file lúa khô: ' + (err instanceof Error ? err.message : String(err)) });
     } finally {
       setUploadingKho(false);
       if (fileKhoInputRef.current) fileKhoInputRef.current.value = '';
     }
   };
 
-  // Upload file lúa tươi lên server (lưu vĩnh viễn)
+  // Nạp file lúa tươi: Parse TRỰC TIẾP ở client + Lưu vĩnh viễn vào LocalStorage
   const handleUploadTuoi = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingTuoi(true);
     setUploadMessage(null);
     try {
-      const formData = new FormData();
-      formData.append('fileTuoi', file);
-      const res = await fetch('/api/rice-payroll/unground-report', {
-        method: 'PUT',
-        body: formData,
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Lỗi server');
-      // Reload dữ liệu từ server
-      const reloadRes = await fetch('/api/rice-payroll/unground-report');
-      if (reloadRes.ok) {
-        const reloaded = await reloadRes.json();
-        if (Array.isArray(reloaded.tuoi) && reloaded.tuoi.length > 0) setTuoiBatches(reloaded.tuoi);
-        if (reloaded.fileMeta) setFileMeta(reloaded.fileMeta);
+      // 1. Đọc và parse TRỰC TIẾP ngay tại trình duyệt
+      const buf = await file.arrayBuffer();
+      const batches = parseUngroundTuoiExcel(buf);
+      if (batches.length === 0) {
+        throw new Error('Không tìm thấy mẻ lúa tươi nào chưa xay (cột Máy 1, Máy 2, NSX trống). Vui lòng kiểm tra lại file!');
       }
-      setUploadMessage({ type: 'success', text: `✅ Đã lưu file lúa tươi "${file.name}" lên server! (${json.saved?.tuoi?.count ?? 0} mẻ). Từ nay tải trang tự động cập nhật.` });
+
+      setTuoiBatches(batches);
+      const newMeta: FileMeta = {
+        ...(fileMeta || { kho: null, tuoi: null }),
+        tuoi: { name: file.name, updatedAt: new Date().toISOString() },
+        savedSource: 'BROWSER_STORAGE',
+      };
+      setFileMeta(newMeta);
+      setDataSource('LOCAL_STORAGE');
+
+      // 2. Lưu VĨNH VIỄN vào LocalStorage của trình duyệt
+      try {
+        localStorage.setItem(LOCAL_STORAGE_TUOI, JSON.stringify(batches));
+        localStorage.setItem(LOCAL_STORAGE_META, JSON.stringify(newMeta));
+      } catch (stErr) {
+        console.warn('Lỗi ghi LocalStorage:', stErr);
+      }
+
+      setUploadMessage({
+        type: 'success',
+        text: `✅ ĐÃ LƯU FILE LÚA TƯƠI "${file.name}" (${batches.length} mẻ)! Dữ liệu đã được ghi nhớ vĩnh viễn trên máy. Ngày mai bạn chỉ cần mở web lên là báo cáo tự động đúng, KHÔNG CẦN nạp lại!`,
+      });
+
+      // 3. Gửi đồng bộ lên Server ngầm
+      try {
+        const formData = new FormData();
+        formData.append('fileTuoi', file);
+        fetch('/api/rice-payroll/unground-report', { method: 'PUT', body: formData }).catch(() => {});
+      } catch {}
     } catch (err) {
-      setUploadMessage({ type: 'error', text: 'Lỗi lưu file lúa tươi: ' + (err instanceof Error ? err.message : String(err)) });
+      setUploadMessage({ type: 'error', text: 'Lỗi đọc file lúa tươi: ' + (err instanceof Error ? err.message : String(err)) });
     } finally {
       setUploadingTuoi(false);
       if (fileTuoiInputRef.current) fileTuoiInputRef.current.value = '';
@@ -304,23 +407,33 @@ export default function BaoCaoChuaXayView() {
           </div>
         </div>
 
-        {/* Trạng thái file server */}
-        {fileMeta && (fileMeta.kho || fileMeta.tuoi) && (
-          <div className="mt-3 flex flex-wrap gap-2 border-t border-white/20 pt-3">
-            {fileMeta.kho && (
-              <span className="rounded-lg bg-white/15 px-2.5 py-1 text-[11px] text-white/90 flex items-center gap-1">
-                🌾 <span className="font-bold">Khô:</span> <span className="truncate max-w-[180px]">{fileMeta.kho.name}</span>
-                <span className="opacity-70">· {formatVNDateTime(fileMeta.kho.updatedAt).split(',')[0]}</span>
-              </span>
-            )}
-            {fileMeta.tuoi && (
-              <span className="rounded-lg bg-white/15 px-2.5 py-1 text-[11px] text-white/90 flex items-center gap-1">
-                🌱 <span className="font-bold">Tươi:</span> <span className="truncate max-w-[180px]">{fileMeta.tuoi.name}</span>
-                <span className="opacity-70">· {formatVNDateTime(fileMeta.tuoi.updatedAt).split(',')[0]}</span>
-              </span>
-            )}
-          </div>
-        )}
+        {/* Trạng thái file server & LocalStorage */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/20 pt-3 text-xs">
+          {dataSource === 'LOCAL_STORAGE' && (
+            <span className="rounded-lg bg-emerald-500/30 text-emerald-100 px-3 py-1 font-bold ring-1 ring-emerald-300/40 flex items-center gap-1.5">
+              <span>💾</span>
+              <span>Đang dùng dữ liệu lưu trên máy (Tự động lưu — không cần nạp lại mỗi ngày)</span>
+            </span>
+          )}
+          {dataSource === 'SAMPLE' && (
+            <span className="rounded-lg bg-amber-500/30 text-amber-100 px-3 py-1 font-bold ring-1 ring-amber-300/40 flex items-center gap-1.5">
+              <span>ℹ️</span>
+              <span>Đang dùng dữ liệu mẫu (Hãy bấm &quot;Cập Nhật File&quot; để nạp file thực tế của bạn)</span>
+            </span>
+          )}
+          {fileMeta?.kho && (
+            <span className="rounded-lg bg-white/15 px-2.5 py-1 text-[11px] text-white/90 flex items-center gap-1">
+              🌾 <span className="font-bold">Khô:</span> <span className="truncate max-w-[180px]">{fileMeta.kho.name}</span>
+              <span className="opacity-70">· {formatVNDateTime(fileMeta.kho.updatedAt).split(',')[0]}</span>
+            </span>
+          )}
+          {fileMeta?.tuoi && (
+            <span className="rounded-lg bg-white/15 px-2.5 py-1 text-[11px] text-white/90 flex items-center gap-1">
+              🌱 <span className="font-bold">Tươi:</span> <span className="truncate max-w-[180px]">{fileMeta.tuoi.name}</span>
+              <span className="opacity-70">· {formatVNDateTime(fileMeta.tuoi.updatedAt).split(',')[0]}</span>
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ─── Thanh Tùy Chỉnh Ngày & Bộ Lọc ──────────────────────────────── */}
@@ -761,10 +874,14 @@ export default function BaoCaoChuaXayView() {
               className={`rounded-xl px-4 py-3 text-sm font-semibold flex items-start gap-2 ${
                 uploadMessage.type === 'success'
                   ? 'bg-emerald-50 border border-emerald-300 text-emerald-800'
+                  : uploadMessage.type === 'info'
+                  ? 'bg-blue-50 border border-blue-300 text-blue-800'
                   : 'bg-rose-50 border border-rose-300 text-rose-800'
               }`}
             >
-              <span className="mt-0.5 shrink-0">{uploadMessage.type === 'success' ? '✅' : '❌'}</span>
+              <span className="mt-0.5 shrink-0">
+                {uploadMessage.type === 'success' ? '✅' : uploadMessage.type === 'info' ? 'ℹ️' : '❌'}
+              </span>
               <span>{uploadMessage.text}</span>
               <button
                 type="button"
@@ -774,10 +891,25 @@ export default function BaoCaoChuaXayView() {
             </div>
           )}
 
-          {/* Hướng dẫn */}
-          <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 text-xs text-blue-800">
-            <p className="font-bold mb-1">💡 Hướng dẫn: Upload 1 lần — dùng mãi</p>
-            <p>Khi bạn upload file mới, hệ thống sẽ <strong>lưu vĩnh viễn vào server</strong>. Từ đó khi mở trang hoặc F5 trang sẽ tự động đọc file mới nhất — không cần upload lại mỗi ngày nữa.</p>
+          {/* Hướng dẫn thông minh */}
+          <div className="rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 p-4 text-xs text-emerald-900 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-sm flex items-center gap-1.5 text-emerald-950">
+                <span>💡</span> CƠ CHẾ TỰ ĐỘNG GHI NHỚ MẺ LÚA (KHÔNG CẦN NẠP LẠI MỖI NGÀY)
+              </span>
+              <button
+                type="button"
+                onClick={handleClearSavedData}
+                className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-50 transition-all cursor-pointer shadow-xs"
+              >
+                🗑️ Xóa bộ nhớ đã lưu (Đặt lại gốc)
+              </button>
+            </div>
+            <p className="leading-relaxed text-emerald-800">
+              Khi bạn nạp file lúa khô hoặc lúa tươi mới, trình duyệt sẽ <strong>tự động lưu vĩnh viễn dữ liệu</strong>.
+              Mỗi ngày bạn chỉ cần mở trang web là báo cáo đã có sẵn số liệu chuẩn nhất, <strong>hoàn toàn không cần phải nạp lại 2 file lúa mỗi ngày nữa</strong>.
+              Chỉ khi nào có file Excel mới phát sinh thì bạn mới cần vào đây nạp đè lên!
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -788,19 +920,19 @@ export default function BaoCaoChuaXayView() {
               </div>
               <h3 className="text-sm font-bold text-slate-900">Cập Nhật File Lúa Khô (.xlsx)</h3>
               <p className="text-xs text-slate-500">
-                Hệ thống sẽ tự động lọc cột <strong>Ngày xay</strong> thành blank để tìm lúa khô nằm tài.
+                Tự động lọc các mẻ có cột <strong>Ngày xay</strong> trống để tính lúa khô nằm tài.
               </p>
 
               {/* Trạng thái file đang dùng */}
               {fileMeta?.kho ? (
                 <div className="rounded-lg bg-amber-100 border border-amber-200 px-3 py-2 text-left">
-                  <p className="text-[11px] font-bold text-amber-900">📂 File đang dùng:</p>
+                  <p className="text-[11px] font-bold text-amber-900">📂 File đang ghi nhớ:</p>
                   <p className="text-[11px] text-amber-800 truncate font-mono">{fileMeta.kho.name}</p>
                   <p className="text-[10px] text-amber-600 mt-0.5">🕐 Cập nhật: {formatVNDateTime(fileMeta.kho.updatedAt)}</p>
                 </div>
               ) : (
                 <div className="rounded-lg bg-slate-100 border border-slate-200 px-3 py-2 text-left">
-                  <p className="text-[11px] text-slate-500">📂 Chưa có file lưu trên server (đang dùng file mặc định)</p>
+                  <p className="text-[11px] text-slate-500">📂 Đang dùng dữ liệu mẫu (Chưa nạp file riêng)</p>
                 </div>
               )}
 
@@ -815,12 +947,12 @@ export default function BaoCaoChuaXayView() {
                 type="button"
                 onClick={() => fileKhoInputRef.current?.click()}
                 disabled={uploadingKho}
-                className="rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white px-4 py-2 text-xs font-bold transition-all shadow-sm flex items-center gap-2 mx-auto"
+                className="rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white px-4 py-2 text-xs font-bold transition-all shadow-sm flex items-center gap-2 mx-auto cursor-pointer"
               >
                 {uploadingKho ? (
-                  <><span className="animate-spin">⏳</span> Đang lưu...</>
+                  <><span className="animate-spin">⏳</span> Đang đọc &amp; lưu...</>
                 ) : (
-                  <><span>📤</span> Cập Nhật File Lúa Khô</>
+                  <><span>📤</span> Nạp File Lúa Khô Mới</>
                 )}
               </button>
             </div>
@@ -832,19 +964,19 @@ export default function BaoCaoChuaXayView() {
               </div>
               <h3 className="text-sm font-bold text-slate-900">Cập Nhật File Lúa Tươi (.xlsx)</h3>
               <p className="text-xs text-slate-500">
-                Hệ thống sẽ lọc <strong>Ngày xay máy 1, máy 2, NSX</strong> thành blank và tính hao hụt KCS.
+                Tự động lọc các mẻ có <strong>Máy 1, Máy 2, NSX</strong> trống &amp; tính hao hụt KCS.
               </p>
 
               {/* Trạng thái file đang dùng */}
               {fileMeta?.tuoi ? (
                 <div className="rounded-lg bg-emerald-100 border border-emerald-200 px-3 py-2 text-left">
-                  <p className="text-[11px] font-bold text-emerald-900">📂 File đang dùng:</p>
+                  <p className="text-[11px] font-bold text-emerald-900">📂 File đang ghi nhớ:</p>
                   <p className="text-[11px] text-emerald-800 truncate font-mono">{fileMeta.tuoi.name}</p>
                   <p className="text-[10px] text-emerald-600 mt-0.5">🕐 Cập nhật: {formatVNDateTime(fileMeta.tuoi.updatedAt)}</p>
                 </div>
               ) : (
                 <div className="rounded-lg bg-slate-100 border border-slate-200 px-3 py-2 text-left">
-                  <p className="text-[11px] text-slate-500">📂 Chưa có file lưu trên server (đang dùng file mặc định)</p>
+                  <p className="text-[11px] text-slate-500">📂 Đang dùng dữ liệu mẫu (Chưa nạp file riêng)</p>
                 </div>
               )}
 
@@ -859,12 +991,12 @@ export default function BaoCaoChuaXayView() {
                 type="button"
                 onClick={() => fileTuoiInputRef.current?.click()}
                 disabled={uploadingTuoi}
-                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2 text-xs font-bold transition-all shadow-sm flex items-center gap-2 mx-auto"
+                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2 text-xs font-bold transition-all shadow-sm flex items-center gap-2 mx-auto cursor-pointer"
               >
                 {uploadingTuoi ? (
-                  <><span className="animate-spin">⏳</span> Đang lưu...</>
+                  <><span className="animate-spin">⏳</span> Đang đọc &amp; lưu...</>
                 ) : (
-                  <><span>📤</span> Cập Nhật File Lúa Tươi</>
+                  <><span>📤</span> Nạp File Lúa Tươi Mới</>
                 )}
               </button>
             </div>

@@ -102,6 +102,22 @@ export function parseKcsMaxLossPercent(raw: unknown): number {
 }
 
 /**
+ * Giới hạn phạm vi đọc của Worksheet để tránh trường hợp file Excel bị format
+ * phình to đến tận dòng 1,048,576 gây cạn kiệt RAM (Out of Memory) trên Serverless.
+ */
+function safeClampWorksheet(ws: XLSX.WorkSheet, maxRows = 20000, maxCols = 50): void {
+  if (!ws || !ws['!ref']) return;
+  try {
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    if (range.e.r > maxRows) range.e.r = maxRows;
+    if (range.e.c > maxCols) range.e.c = maxCols;
+    ws['!ref'] = XLSX.utils.encode_range(range);
+  } catch (e) {
+    console.warn('safeClampWorksheet error:', e);
+  }
+}
+
+/**
  * Trích xuất danh sách mẻ lúa khô CHƯA XAY (cột Ngày xay là blank)
  */
 export function parseUngroundKhoExcel(fileData: ArrayBuffer | Uint8Array | Buffer): UngroundKhoBatch[] {
@@ -115,6 +131,8 @@ export function parseUngroundKhoExcel(fileData: ArrayBuffer | Uint8Array | Buffe
   const sheetName = wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
   if (!ws) return [];
+
+  safeClampWorksheet(ws, 15000, 40);
 
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
   if (rows.length < 6) return [];
@@ -139,23 +157,34 @@ export function parseUngroundKhoExcel(fileData: ArrayBuffer | Uint8Array | Buffe
   });
 
   const batches: UngroundKhoBatch[] = [];
+  let consecutiveEmpty = 0;
   for (let i = 6; i < rows.length; i++) {
     const r = rows[i];
-    if (!r) continue;
+    if (!r || r.length === 0) {
+      consecutiveEmpty++;
+      if (consecutiveEmpty > 50) break;
+      continue;
+    }
     const riceType = String(r[colRiceType] || '').trim().toUpperCase();
     const sl = parseFloat(String(r[colQty])) || 0;
     const ngayXay = r[colMillingDate];
     const isBlank = !ngayXay || String(ngayXay).trim() === '' || String(ngayXay).trim() === '-';
 
-    if (riceType && sl > 0 && isBlank) {
-      batches.push({
-        id: `kho-${i}`,
-        ngayCan: formatExcelDate(r[colWeighDate]),
-        khachHang: String(r[colCustomer] || '').trim(),
-        xe: String(r[colVehicle] || '').trim(),
-        loaiLua: riceType,
-        slKg: sl,
-      });
+    if (riceType && sl > 0) {
+      consecutiveEmpty = 0;
+      if (isBlank) {
+        batches.push({
+          id: `kho-${i}`,
+          ngayCan: formatExcelDate(r[colWeighDate]),
+          khachHang: String(r[colCustomer] || '').trim(),
+          xe: String(r[colVehicle] || '').trim(),
+          loaiLua: riceType,
+          slKg: sl,
+        });
+      }
+    } else {
+      consecutiveEmpty++;
+      if (consecutiveEmpty > 50) break;
     }
   }
 
@@ -176,6 +205,8 @@ export function parseUngroundTuoiExcel(fileData: ArrayBuffer | Uint8Array | Buff
   const sheetName = wb.SheetNames.find((s) => s.toUpperCase().includes('LUA')) || wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
   if (!ws) return [];
+
+  safeClampWorksheet(ws, 20000, 45);
 
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
   if (rows.length < 3) return [];
@@ -213,30 +244,41 @@ export function parseUngroundTuoiExcel(fileData: ArrayBuffer | Uint8Array | Buff
   const isBlank = (v: unknown) =>
     !v || String(v).trim() === '' || String(v).trim() === '-' || String(v).trim() === '0';
 
+  let consecutiveEmpty = 0;
   for (let i = 3; i < rows.length; i++) {
     const r = rows[i];
-    if (!r) continue;
+    if (!r || r.length === 0) {
+      consecutiveEmpty++;
+      if (consecutiveEmpty > 50) break;
+      continue;
+    }
     const riceType = String(r[colRiceType] || '').trim().toUpperCase();
     const sl = parseFloat(String(r[colQty])) || parseFloat(String(r[colDryWeight])) || 0;
     const m1 = r[colM1];
     const m2 = r[colM2];
     const nsx = r[colNSX];
 
-    if (riceType && sl > 0 && isBlank(m1) && isBlank(m2) && isBlank(nsx)) {
-      const kcsRaw = r[colKcs];
-      const kcsPercent = parseKcsMaxLossPercent(kcsRaw);
+    if (riceType && sl > 0) {
+      consecutiveEmpty = 0;
+      if (isBlank(m1) && isBlank(m2) && isBlank(nsx)) {
+        const kcsRaw = r[colKcs];
+        const kcsPercent = parseKcsMaxLossPercent(kcsRaw);
 
-      batches.push({
-        id: `tuoi-${i}`,
-        ngayCan: formatExcelDate(r[colWeighDate]),
-        ngayNhapSay: formatExcelDate(r[colDryDate]),
-        khachHang: String(r[colCustomer] || '').trim(),
-        xe: String(r[colVehicle] || '').trim(),
-        loaiLua: riceType,
-        slKg: sl,
-        kcsPercent,
-        kcsRaw: kcsRaw !== undefined && kcsRaw !== null ? String(kcsRaw) : '',
-      });
+        batches.push({
+          id: `tuoi-${i}`,
+          ngayCan: formatExcelDate(r[colWeighDate]),
+          ngayNhapSay: formatExcelDate(r[colDryDate]),
+          khachHang: String(r[colCustomer] || '').trim(),
+          xe: String(r[colVehicle] || '').trim(),
+          loaiLua: riceType,
+          slKg: sl,
+          kcsPercent,
+          kcsRaw: kcsRaw !== undefined && kcsRaw !== null ? String(kcsRaw) : '',
+        });
+      }
+    } else {
+      consecutiveEmpty++;
+      if (consecutiveEmpty > 50) break;
     }
   }
 
