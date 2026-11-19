@@ -37,10 +37,15 @@ interface FileMeta {
 }
 
 export default function BaoCaoChuaXayView() {
+  const [mounted, setMounted] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Dữ liệu mẻ
   const [khoBatches, setKhoBatches] = useState<UngroundKhoBatch[]>([]);
@@ -362,6 +367,16 @@ export default function BaoCaoChuaXayView() {
       setIsExporting(false);
     }
   };
+
+  if (!mounted) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-emerald-800">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent shadow-sm" />
+        <p className="mt-4 text-sm font-bold text-slate-700">Đang chuẩn bị báo cáo lúa chưa xay...</p>
+        <p className="text-xs text-slate-500">Tự động nạp dữ liệu mẻ lúa đã lưu</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-200">
