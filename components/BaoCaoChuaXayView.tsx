@@ -5,13 +5,27 @@ import {
   UngroundKhoBatch,
   UngroundTuoiBatch,
   buildUngroundReport,
-  parseUngroundKhoExcel,
-  parseUngroundTuoiExcel,
 } from '@/lib/rice-payroll/unground-report-parser';
 import sampleUngroundData from '@/data/sample-unground-data.json';
 
 function formatMoney(num: number): string {
   return new Intl.NumberFormat('vi-VN').format(Math.round(num));
+}
+
+function formatVNDateTime(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    return d.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
+  } catch {
+    return isoString;
+  }
+}
+
+interface FileMeta {
+  kho: { name: string; updatedAt: string } | null;
+  tuoi: { name: string; updatedAt: string } | null;
+  khoPath: string | null;
+  tuoiPath: string | null;
 }
 
 export default function BaoCaoChuaXayView() {
@@ -24,9 +38,28 @@ export default function BaoCaoChuaXayView() {
   const [khoBatches, setKhoBatches] = useState<UngroundKhoBatch[]>([]);
   const [tuoiBatches, setTuoiBatches] = useState<UngroundTuoiBatch[]>([]);
 
+  // Metadata file server
+  const [fileMeta, setFileMeta] = useState<FileMeta | null>(null);
+
+  // Trạng thái upload lên server
+  const [uploadingKho, setUploadingKho] = useState(false);
+  const [uploadingTuoi, setUploadingTuoi] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   // Bộ lọc
-  const [reportDate, setReportDate] = useState<string>('16/11/2026');
-  const [selectedMonth, setSelectedMonth] = useState<string>('11/2026');
+  const [reportDate, setReportDate] = useState<string>(() => {
+    const today = new Date();
+    const d = String(today.getDate()).padStart(2, '0');
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const y = today.getFullYear();
+    return `${d}/${m}/${y}`;
+  });
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const today = new Date();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const y = today.getFullYear();
+    return `${m}/${y}`;
+  });
   const [activeTab, setActiveTab] = useState<'SUMMARY' | 'KHO' | 'TUOI' | 'UPLOAD'>('SUMMARY');
 
   // Bản đồ tùy chỉnh % hao hụt cho từng loại lúa
@@ -54,6 +87,7 @@ export default function BaoCaoChuaXayView() {
           } else {
             setTuoiBatches(sampleUngroundData.tuoi as UngroundTuoiBatch[]);
           }
+          if (json.fileMeta) setFileMeta(json.fileMeta);
         } else {
           // Fallback static
           setKhoBatches(sampleUngroundData.kho as UngroundKhoBatch[]);
@@ -124,31 +158,65 @@ export default function BaoCaoChuaXayView() {
     setCustomLossMap({});
   };
 
-  // Tải file lúa khô mới
+  // Upload file lúa khô lên server (lưu vĩnh viễn - tải trang sau vẫn đúng)
   const handleUploadKho = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploadingKho(true);
+    setUploadMessage(null);
     try {
-      const buf = await file.arrayBuffer();
-      const batches = parseUngroundKhoExcel(buf);
-      setKhoBatches(batches);
-      alert(`Đã nạp ${batches.length} mẻ lúa khô chưa xay từ file "${file.name}"!`);
+      const formData = new FormData();
+      formData.append('fileKho', file);
+      const res = await fetch('/api/rice-payroll/unground-report', {
+        method: 'PUT',
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Lỗi server');
+      // Reload dữ liệu từ server
+      const reloadRes = await fetch('/api/rice-payroll/unground-report');
+      if (reloadRes.ok) {
+        const reloaded = await reloadRes.json();
+        if (Array.isArray(reloaded.kho) && reloaded.kho.length > 0) setKhoBatches(reloaded.kho);
+        if (reloaded.fileMeta) setFileMeta(reloaded.fileMeta);
+      }
+      setUploadMessage({ type: 'success', text: `✅ Đã lưu file lúa khô "${file.name}" lên server! (${json.saved?.kho?.count ?? 0} mẻ). Từ nay tải trang tự động cập nhật.` });
     } catch (err) {
-      alert('Lỗi đọc file lúa khô: ' + (err instanceof Error ? err.message : String(err)));
+      setUploadMessage({ type: 'error', text: 'Lỗi lưu file lúa khô: ' + (err instanceof Error ? err.message : String(err)) });
+    } finally {
+      setUploadingKho(false);
+      if (fileKhoInputRef.current) fileKhoInputRef.current.value = '';
     }
   };
 
-  // Tải file lúa tươi mới
+  // Upload file lúa tươi lên server (lưu vĩnh viễn)
   const handleUploadTuoi = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploadingTuoi(true);
+    setUploadMessage(null);
     try {
-      const buf = await file.arrayBuffer();
-      const batches = parseUngroundTuoiExcel(buf);
-      setTuoiBatches(batches);
-      alert(`Đã nạp ${batches.length} mẻ lúa tươi chưa xay từ file "${file.name}"!`);
+      const formData = new FormData();
+      formData.append('fileTuoi', file);
+      const res = await fetch('/api/rice-payroll/unground-report', {
+        method: 'PUT',
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Lỗi server');
+      // Reload dữ liệu từ server
+      const reloadRes = await fetch('/api/rice-payroll/unground-report');
+      if (reloadRes.ok) {
+        const reloaded = await reloadRes.json();
+        if (Array.isArray(reloaded.tuoi) && reloaded.tuoi.length > 0) setTuoiBatches(reloaded.tuoi);
+        if (reloaded.fileMeta) setFileMeta(reloaded.fileMeta);
+      }
+      setUploadMessage({ type: 'success', text: `✅ Đã lưu file lúa tươi "${file.name}" lên server! (${json.saved?.tuoi?.count ?? 0} mẻ). Từ nay tải trang tự động cập nhật.` });
     } catch (err) {
-      alert('Lỗi đọc file lúa tươi: ' + (err instanceof Error ? err.message : String(err)));
+      setUploadMessage({ type: 'error', text: 'Lỗi lưu file lúa tươi: ' + (err instanceof Error ? err.message : String(err)) });
+    } finally {
+      setUploadingTuoi(false);
+      if (fileTuoiInputRef.current) fileTuoiInputRef.current.value = '';
     }
   };
 
@@ -224,11 +292,29 @@ export default function BaoCaoChuaXayView() {
               onClick={() => setActiveTab('UPLOAD')}
               className="rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-xs font-bold text-white hover:bg-white/20 transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <span>📁</span>
-              <span>Nạp File Khác</span>
+              <span>📤</span>
+              <span>Cập Nhật File</span>
             </button>
           </div>
         </div>
+
+        {/* Trạng thái file server */}
+        {fileMeta && (fileMeta.kho || fileMeta.tuoi) && (
+          <div className="mt-3 flex flex-wrap gap-2 border-t border-white/20 pt-3">
+            {fileMeta.kho && (
+              <span className="rounded-lg bg-white/15 px-2.5 py-1 text-[11px] text-white/90 flex items-center gap-1">
+                🌾 <span className="font-bold">Khô:</span> <span className="truncate max-w-[180px]">{fileMeta.kho.name}</span>
+                <span className="opacity-70">· {formatVNDateTime(fileMeta.kho.updatedAt).split(',')[0]}</span>
+              </span>
+            )}
+            {fileMeta.tuoi && (
+              <span className="rounded-lg bg-white/15 px-2.5 py-1 text-[11px] text-white/90 flex items-center gap-1">
+                🌱 <span className="font-bold">Tươi:</span> <span className="truncate max-w-[180px]">{fileMeta.tuoi.name}</span>
+                <span className="opacity-70">· {formatVNDateTime(fileMeta.tuoi.updatedAt).split(',')[0]}</span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ─── Thanh Tùy Chỉnh Ngày & Bộ Lọc ──────────────────────────────── */}
@@ -258,9 +344,9 @@ export default function BaoCaoChuaXayView() {
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none bg-white"
             >
-              {availableMonths.map((m) => (
+              {availableMonths.map((m, idx) => (
                 <option key={m} value={m}>
-                  Tháng {m} {m === '11/2026' ? '(Tháng mới nhất)' : ''}
+                  Tháng {m} {idx === 0 ? '(Tháng mới nhất)' : ''}
                 </option>
               ))}
               <option value="ALL">Tất cả các tháng ({tuoiBatches.length} mẻ)</option>
@@ -662,55 +748,120 @@ export default function BaoCaoChuaXayView() {
 
       {/* ─── TAB 4: NẠP FILE MỚI ────────────────────────────────────────── */}
       {activeTab === 'UPLOAD' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Box nạp file Lúa Khô */}
-          <div className="rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/30 p-6 text-center space-y-3">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-800 text-2xl font-bold">
-              🌾
-            </div>
-            <h3 className="text-sm font-bold text-slate-900">Tải File Lúa Khô Mới (.xlsx)</h3>
-            <p className="text-xs text-slate-500">
-              Hệ thống sẽ tự động lọc cột <strong>Ngày xay</strong> thành blank để tìm lúa khô nằm tài.
-            </p>
-            <input
-              type="file"
-              ref={fileKhoInputRef}
-              onChange={handleUploadKho}
-              accept=".xlsx,.xls"
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileKhoInputRef.current?.click()}
-              className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 text-xs font-bold transition-all shadow-sm"
+        <div className="space-y-4">
+          {/* Thông báo kết quả upload */}
+          {uploadMessage && (
+            <div
+              className={`rounded-xl px-4 py-3 text-sm font-semibold flex items-start gap-2 ${
+                uploadMessage.type === 'success'
+                  ? 'bg-emerald-50 border border-emerald-300 text-emerald-800'
+                  : 'bg-rose-50 border border-rose-300 text-rose-800'
+              }`}
             >
-              Chọn File Lúa Khô
-            </button>
+              <span className="mt-0.5 shrink-0">{uploadMessage.type === 'success' ? '✅' : '❌'}</span>
+              <span>{uploadMessage.text}</span>
+              <button
+                type="button"
+                onClick={() => setUploadMessage(null)}
+                className="ml-auto shrink-0 text-xs opacity-60 hover:opacity-100"
+              >✕</button>
+            </div>
+          )}
+
+          {/* Hướng dẫn */}
+          <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 text-xs text-blue-800">
+            <p className="font-bold mb-1">💡 Hướng dẫn: Upload 1 lần — dùng mãi</p>
+            <p>Khi bạn upload file mới, hệ thống sẽ <strong>lưu vĩnh viễn vào server</strong>. Từ đó khi mở trang hoặc F5 trang sẽ tự động đọc file mới nhất — không cần upload lại mỗi ngày nữa.</p>
           </div>
 
-          {/* Box nạp file Lúa Tươi */}
-          <div className="rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50/30 p-6 text-center space-y-3">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800 text-2xl font-bold">
-              🌱
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Box nạp file Lúa Khô */}
+            <div className="rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/30 p-6 text-center space-y-3">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-800 text-2xl font-bold">
+                🌾
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">Cập Nhật File Lúa Khô (.xlsx)</h3>
+              <p className="text-xs text-slate-500">
+                Hệ thống sẽ tự động lọc cột <strong>Ngày xay</strong> thành blank để tìm lúa khô nằm tài.
+              </p>
+
+              {/* Trạng thái file đang dùng */}
+              {fileMeta?.kho ? (
+                <div className="rounded-lg bg-amber-100 border border-amber-200 px-3 py-2 text-left">
+                  <p className="text-[11px] font-bold text-amber-900">📂 File đang dùng:</p>
+                  <p className="text-[11px] text-amber-800 truncate font-mono">{fileMeta.kho.name}</p>
+                  <p className="text-[10px] text-amber-600 mt-0.5">🕐 Cập nhật: {formatVNDateTime(fileMeta.kho.updatedAt)}</p>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-slate-100 border border-slate-200 px-3 py-2 text-left">
+                  <p className="text-[11px] text-slate-500">📂 Chưa có file lưu trên server (đang dùng file mặc định)</p>
+                </div>
+              )}
+
+              <input
+                type="file"
+                ref={fileKhoInputRef}
+                onChange={handleUploadKho}
+                accept=".xlsx,.xls"
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileKhoInputRef.current?.click()}
+                disabled={uploadingKho}
+                className="rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white px-4 py-2 text-xs font-bold transition-all shadow-sm flex items-center gap-2 mx-auto"
+              >
+                {uploadingKho ? (
+                  <><span className="animate-spin">⏳</span> Đang lưu...</>
+                ) : (
+                  <><span>📤</span> Cập Nhật File Lúa Khô</>
+                )}
+              </button>
             </div>
-            <h3 className="text-sm font-bold text-slate-900">Tải File Lúa Tươi Mới (.xlsx)</h3>
-            <p className="text-xs text-slate-500">
-              Hệ thống sẽ lọc <strong>Ngày xay máy 1, máy 2, NSX</strong> thành blank và tính hao hụt KCS.
-            </p>
-            <input
-              type="file"
-              ref={fileTuoiInputRef}
-              onChange={handleUploadTuoi}
-              accept=".xlsx,.xls"
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileTuoiInputRef.current?.click()}
-              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-xs font-bold transition-all shadow-sm"
-            >
-              Chọn File Lúa Tươi
-            </button>
+
+            {/* Box nạp file Lúa Tươi */}
+            <div className="rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50/30 p-6 text-center space-y-3">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800 text-2xl font-bold">
+                🌱
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">Cập Nhật File Lúa Tươi (.xlsx)</h3>
+              <p className="text-xs text-slate-500">
+                Hệ thống sẽ lọc <strong>Ngày xay máy 1, máy 2, NSX</strong> thành blank và tính hao hụt KCS.
+              </p>
+
+              {/* Trạng thái file đang dùng */}
+              {fileMeta?.tuoi ? (
+                <div className="rounded-lg bg-emerald-100 border border-emerald-200 px-3 py-2 text-left">
+                  <p className="text-[11px] font-bold text-emerald-900">📂 File đang dùng:</p>
+                  <p className="text-[11px] text-emerald-800 truncate font-mono">{fileMeta.tuoi.name}</p>
+                  <p className="text-[10px] text-emerald-600 mt-0.5">🕐 Cập nhật: {formatVNDateTime(fileMeta.tuoi.updatedAt)}</p>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-slate-100 border border-slate-200 px-3 py-2 text-left">
+                  <p className="text-[11px] text-slate-500">📂 Chưa có file lưu trên server (đang dùng file mặc định)</p>
+                </div>
+              )}
+
+              <input
+                type="file"
+                ref={fileTuoiInputRef}
+                onChange={handleUploadTuoi}
+                accept=".xlsx,.xls"
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileTuoiInputRef.current?.click()}
+                disabled={uploadingTuoi}
+                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2 text-xs font-bold transition-all shadow-sm flex items-center gap-2 mx-auto"
+              >
+                {uploadingTuoi ? (
+                  <><span className="animate-spin">⏳</span> Đang lưu...</>
+                ) : (
+                  <><span>📤</span> Cập Nhật File Lúa Tươi</>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
