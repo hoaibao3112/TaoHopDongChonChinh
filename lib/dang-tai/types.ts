@@ -74,6 +74,7 @@ export interface OcrBangDangTaiItem {
   stt: number;
   gioDangTai: string;
   bienSoXe: string;
+  nhaCungCap?: string; // Nhà cung cấp / Khách hàng
   loaiLua: string;
   soLuongUocTinh: number;
   tenTaiXe?: string;

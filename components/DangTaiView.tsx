@@ -539,6 +539,7 @@ export default function DangTaiView() {
       ngayDangTai: selectedDate,
       gioDangTai: item.gioDangTai || getCurrentTimeString(),
       bienSoXe: formatPlateDisplay(item.bienSoXe),
+      nhaCungCap: item.nhaCungCap || undefined,
       loaiLua: item.loaiLua || '5451',
       soLuongUocTinh: item.soLuongUocTinh || 0,
       tenTaiXe: item.tenTaiXe,
@@ -907,13 +908,15 @@ export default function DangTaiView() {
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-100/80 text-slate-700 font-bold">
-                <th className="py-3.5 px-4 text-center w-12">STT</th>
-                <th className="py-3.5 px-3 text-center">Giờ ĐK</th>
+                <th className="py-3.5 px-3 text-center w-12">STT</th>
+                <th className="py-3.5 px-3 text-center">Giờ Đăng Tài</th>
                 <th className="py-3.5 px-4">Biển Số Xe</th>
                 <th className="py-3.5 px-3">Nhà Cung Cấp</th>
                 <th className="py-3.5 px-3">Loại Lúa</th>
                 <th className="py-3.5 px-4 text-right">Ước Tính (Kg)</th>
-                <th className="py-3.5 px-4">Tài Xế &amp; SĐT</th>
+                <th className="py-3.5 px-3">Tài Xế</th>
+                <th className="py-3.5 px-3">Số Điện Thoại</th>
+                <th className="py-3.5 px-3 text-center">Giờ Cân</th>
                 <th className="py-3.5 px-3 text-center">Số Phiếu</th>
                 <th className="py-3.5 px-4 text-right">TL Hàng Cân (Kg)</th>
                 <th className="py-3.5 px-4 text-right">Chênh Lệch</th>
@@ -925,7 +928,7 @@ export default function DangTaiView() {
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={12} className="py-12 text-center text-slate-400">
+                  <td colSpan={15} className="py-12 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
                       <svg className="h-5 w-5 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -937,7 +940,7 @@ export default function DangTaiView() {
                 </tr>
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-12 text-center text-slate-400">
+                  <td colSpan={15} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <span className="text-3xl">🚛</span>
                       <p className="font-semibold text-slate-600">Chưa có xe nào trong danh sách đăng tài ngày này</p>
@@ -958,15 +961,15 @@ export default function DangTaiView() {
                       }`}
                     >
                       {/* STT */}
-                      <td className="py-3 px-4 text-center font-black">
+                      <td className="py-3 px-3 text-center font-black">
                         <span className="inline-flex h-7 w-7 items-center justify-center rounded-xl bg-slate-900 text-white text-xs shadow-2xs">
                           {item.stt}
                         </span>
                       </td>
 
-                      {/* Giờ đăng tài */}
-                      <td className="py-3 px-3 text-center text-slate-500 font-medium">
-                        {item.gioDangTai}
+                      {/* Giờ đăng tài (người dùng điền) */}
+                      <td className="py-3 px-3 text-center text-slate-700 font-mono font-bold text-xs">
+                        {item.gioDangTai || '—'}
                       </td>
 
                       {/* Biển số xe */}
@@ -976,7 +979,7 @@ export default function DangTaiView() {
                         </span>
                       </td>
 
-                      {/* Nhà Cung Cấp (Khách hàng từ phiếu cân) */}
+                      {/* Nhà Cung Cấp (Khách hàng từ phiếu cân hoặc nhập) */}
                       <td className="py-3 px-3">
                         {item.nhaCungCap || item.khachHangCan ? (
                           <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 border border-amber-200 shadow-2xs">
@@ -994,21 +997,46 @@ export default function DangTaiView() {
                         </span>
                       </td>
 
-                      {/* Ước tính từ tài */}
+                      {/* Ước tính từ khách / tài (Kg) */}
                       <td className="py-3 px-4 text-right font-bold text-slate-700">
                         {item.soLuongUocTinh ? item.soLuongUocTinh.toLocaleString('vi-VN') : 0}
                       </td>
 
-                      {/* Tên tài xế & SĐT */}
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-900">{item.tenTaiXe || '—'}</div>
-                        {item.sdtTaiXe && (
+                      {/* Tên tài xế (Chọn từ combobox) */}
+                      <td className="py-3 px-3">
+                        <span className="font-semibold text-slate-900">{item.tenTaiXe || '—'}</span>
+                      </td>
+
+                      {/* SĐT tài xế (Tự ra khi chọn combobox) */}
+                      <td className="py-3 px-3">
+                        {item.sdtTaiXe ? (
                           <a
                             href={`tel:${item.sdtTaiXe}`}
-                            className="text-[11px] font-mono text-blue-600 hover:underline"
+                            className="inline-flex items-center gap-1 text-xs font-mono font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                            title="Gọi tài xế"
                           >
                             📞 {item.sdtTaiXe}
                           </a>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                      </td>
+
+                      {/* Giờ cân (Thời gian in trên phiếu cân thực tế) */}
+                      <td className="py-3 px-3 text-center">
+                        {item.ngayGioCan ? (
+                          <div className="flex flex-col items-center">
+                            <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                              ⏱️ {item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[1] : item.ngayGioCan}
+                            </span>
+                            {item.ngayGioCan.includes(' ') && (
+                              <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                {item.ngayGioCan.split(' ')[0]}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-300 italic text-[11px]">Chờ cân...</span>
                         )}
                       </td>
 
@@ -1149,7 +1177,7 @@ export default function DangTaiView() {
             </div>
 
             <form onSubmit={handleSaveTruck} className="mt-5 space-y-4">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">STT Lượt Tài</label>
                   <input
@@ -1161,7 +1189,19 @@ export default function DangTaiView() {
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
-                <div className="col-span-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Giờ Đăng Tài <span className="text-blue-600 font-semibold">(tự điền/sửa)</span>
+                  </label>
+                  <input
+                    type="time"
+                    value={formGioDangTai}
+                    onChange={(e) => setFormGioDangTai(e.target.value)}
+                    required
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Biển Số Xe <span className="text-rose-500">*</span>
                   </label>
@@ -1179,13 +1219,13 @@ export default function DangTaiView() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Nhà Cung Cấp / Đối Tác (Khách hàng trên phiếu cân)
+                  Nhà Cung Cấp <span className="text-slate-400 font-normal">(Khách hàng trên phiếu cân)</span>
                 </label>
                 <input
                   type="text"
                   value={formNhaCungCap}
                   onChange={(e) => setFormNhaCungCap(e.target.value)}
-                  placeholder="VD: A Lâm Tây Ninh (hoặc tự động điền khi quét phiếu cân)"
+                  placeholder="VD: A LAM TAY NINH (hoặc tự động cập nhật khi quét phiếu cân)"
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                 />
               </div>
@@ -1202,7 +1242,9 @@ export default function DangTaiView() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">SL Ước Tính (Kg)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Ước Lượng Tính Của Khách (Kg)
+                  </label>
                   <input
                     type="text"
                     value={formSoLuong}
@@ -1213,23 +1255,10 @@ export default function DangTaiView() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Nhà Cung Cấp / Đối Tác (Khách hàng trên phiếu cân)
-                </label>
-                <input
-                  type="text"
-                  value={formNhaCungCap}
-                  onChange={(e) => setFormNhaCungCap(e.target.value)}
-                  placeholder="VD: A Lâm Tây Ninh (hoặc tự động điền khi quét phiếu cân)"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Tên Tài Xế (Tìm kiếm / Chọn từ danh bạ)
+                    Tài Xế (Chọn từ danh bạ thông minh)
                   </label>
                   <DriverCombobox
                     value={formTenTaiXe}
@@ -1243,7 +1272,9 @@ export default function DangTaiView() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">SĐT Tài Xế</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    SĐT Tài Xế <span className="text-blue-600 font-semibold">(tự động ra khi chọn)</span>
+                  </label>
                   <input
                     type="text"
                     value={formSdtTaiXe}
@@ -1252,16 +1283,6 @@ export default function DangTaiView() {
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-mono font-semibold text-slate-900 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Giờ Đăng Tài</label>
-                <input
-                  type="time"
-                  value={formGioDangTai}
-                  onChange={(e) => setFormGioDangTai(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
-                />
               </div>
 
               <div>
@@ -1634,6 +1655,7 @@ export default function DangTaiView() {
                         <th className="py-2.5 px-3 w-36">
                           Biển Số Xe <span className="text-rose-500">*</span>
                         </th>
+                        <th className="py-2.5 px-2 w-32">Nhà Cung Cấp</th>
                         <th className="py-2.5 px-2 w-20">Lúa</th>
                         <th className="py-2.5 px-3 text-right w-28">Ước Tính (Kg)</th>
                         <th className="py-2.5 px-2">Tài Xế</th>
@@ -1707,6 +1729,17 @@ export default function DangTaiView() {
                                   </span>
                                 )}
                               </div>
+                            </td>
+
+                            {/* Nhà Cung Cấp (Khách hàng) */}
+                            <td className="py-2 px-1">
+                              <input
+                                type="text"
+                                value={item.nhaCungCap || ''}
+                                onChange={(e) => handleLogItemChange(item.tempId, 'nhaCungCap', e.target.value)}
+                                placeholder="Khách hàng/NCC"
+                                className="w-full text-xs bg-white rounded-md px-1.5 py-1 border border-slate-200"
+                              />
                             </td>
 
                             {/* Loại lúa */}

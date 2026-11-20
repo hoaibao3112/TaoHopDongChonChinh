@@ -65,15 +65,15 @@ export async function GET(req: NextRequest) {
     // 3. Headers
     const headers = [
       'STT',
-      'Giờ ĐK',
+      'Giờ Đăng Tài',
       'Biển Số Xe',
       'Nhà Cung Cấp',
       'Loại Lúa',
       'Ước Tính (Kg)',
       'Tài Xế',
-      'SĐT',
-      'Số Phiếu',
+      'Số Điện Thoại',
       'Giờ Cân',
+      'Số Phiếu',
       'TL Xe+Hàng (Kg)',
       'TL Xe (Kg)',
       'TL Hàng (Kg)',
@@ -124,8 +124,8 @@ export async function GET(req: NextRequest) {
       row.getCell(6).value = item.soLuongUocTinh || 0;
       row.getCell(7).value = item.tenTaiXe || '';
       row.getCell(8).value = item.sdtTaiXe || '';
-      row.getCell(9).value = item.soPhieuCan || '';
-      row.getCell(10).value = item.ngayGioCan || '';
+      row.getCell(9).value = item.ngayGioCan || '';
+      row.getCell(10).value = item.soPhieuCan || '';
       row.getCell(11).value = item.tlXeHangKg || '';
       row.getCell(12).value = item.tlXeKg || '';
       row.getCell(13).value = item.tlHangKg || '';
@@ -226,15 +226,15 @@ export async function GET(req: NextRequest) {
 
     // Set Column Widths
     sheet.getColumn(1).width = 6; // STT
-    sheet.getColumn(2).width = 9; // Giờ ĐK
+    sheet.getColumn(2).width = 14; // Giờ Đăng Tài
     sheet.getColumn(3).width = 14; // Biển số xe
-    sheet.getColumn(4).width = 18; // Nhà Cung Cấp
+    sheet.getColumn(4).width = 20; // Nhà Cung Cấp
     sheet.getColumn(5).width = 13; // Loại lúa
     sheet.getColumn(6).width = 14; // Ước tính
-    sheet.getColumn(7).width = 16; // Tên tài xế
-    sheet.getColumn(8).width = 13; // SĐT
-    sheet.getColumn(9).width = 10; // Số phiếu
-    sheet.getColumn(10).width = 18; // Giờ cân
+    sheet.getColumn(7).width = 18; // Tên tài xế
+    sheet.getColumn(8).width = 14; // Số điện thoại
+    sheet.getColumn(9).width = 20; // Giờ cân
+    sheet.getColumn(10).width = 11; // Số phiếu
     sheet.getColumn(11).width = 14; // TL Xe+Hàng
     sheet.getColumn(12).width = 12; // TL Xe
     sheet.getColumn(13).width = 14; // TL Hàng
