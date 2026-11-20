@@ -205,6 +205,13 @@ describe('3. Logic Kiểm Tra Thứ Tự STT & Tự Động Điền', () => {
     expect(sum.tongKgUocTinh).toBe(93000);
     expect(sum.tongKgThucTe).toBe(30500 + 32910); // 63410
     expect(sum.tongChenhLechKg).toBe(63410 - (30000 + 32000)); // +1410
+
+    // Khi người điều phối bấm chấp nhận trường hợp hợp lệ
+    trucksWithWeighed[2].daChapNhanHopLe = true;
+    trucksWithWeighed[2].trangThai = 'da_can';
+    const sumAfterApproved = calculateDangTaiSummary(trucksWithWeighed, '2026-11-20');
+    expect(sumAfterApproved.saiStt).toBe(0); // Không còn tính là sai STT nữa
+    expect(sumAfterApproved.daCan).toBe(2); // Vẫn là đã cân hoàn tất
   });
 
   it('đảo vị trí hàng của xe (ví dụ xe STT 4 ở hàng 4 đẩy lên hàng 2) nhưng STT 4 vẫn giữ nguyên', () => {

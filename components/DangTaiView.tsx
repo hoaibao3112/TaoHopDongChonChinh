@@ -3,7 +3,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { XeDangTai, DangTaiSummary, OcrBangDangTaiItem, OcrPhieuCanResult } from '@/lib/dang-tai/types';
-import { formatPlateDisplay, normalizePlate, isValidPlateFormat, normalizeEstimatedWeight } from '@/lib/dang-tai/plate';
+import {
+  formatPlateDisplay,
+  normalizePlate,
+  isValidPlateFormat,
+  normalizeEstimatedWeight,
+  arePlatesMatching,
+} from '@/lib/dang-tai/plate';
 import DriverCombobox from '@/components/DriverCombobox';
 import { compressImageForOcr } from '@/lib/dang-tai/compressImage';
 
@@ -60,6 +66,7 @@ export default function DangTaiView() {
   const [formGioCan, setFormGioCan] = useState<string>('');
   const [formGhiChu, setFormGhiChu] = useState<string>('');
   const [formStt, setFormStt] = useState<number>(1);
+  const [formDaChapNhanHopLe, setFormDaChapNhanHopLe] = useState<boolean>(false);
 
   // Form thêm nhanh hàng loạt
   const [bulkText, setBulkText] = useState<string>('');
@@ -125,7 +132,9 @@ export default function DangTaiView() {
     const daCanXe = items.filter((x) => x.trangThai === 'da_can' || x.trangThai === 'sai_stt');
     const daCan = daCanXe.length;
     const choCan = items.filter((x) => x.trangThai === 'cho_can').length;
-    const saiStt = items.filter((x) => x.trangThai === 'sai_stt' || x.canHopLeSTT === false).length;
+    const saiStt = items.filter(
+      (x) => (x.trangThai === 'sai_stt' || x.canHopLeSTT === false) && !x.daChapNhanHopLe
+    ).length;
 
     const tongKgUocTinh = items.reduce((sum, x) => sum + (x.soLuongUocTinh || 0), 0);
     const tongKgThucTe = daCanXe.reduce((sum, x) => sum + (x.tlHangKg || 0), 0);
@@ -149,7 +158,12 @@ export default function DangTaiView() {
       // Bộ lọc trạng thái
       if (statusFilter === 'cho_can' && item.trangThai !== 'cho_can') return false;
       if (statusFilter === 'da_can' && item.trangThai !== 'da_can' && item.trangThai !== 'sai_stt') return false;
-      if (statusFilter === 'sai_stt' && item.trangThai !== 'sai_stt' && item.canHopLeSTT !== false) return false;
+      if (
+        statusFilter === 'sai_stt' &&
+        ((item.trangThai !== 'sai_stt' && item.canHopLeSTT !== false) || item.daChapNhanHopLe)
+      ) {
+        return false;
+      }
 
       // Bộ lọc tìm kiếm
       if (searchQuery.trim()) {
@@ -183,6 +197,7 @@ export default function DangTaiView() {
     setFormNgayCan('');
     setFormGioCan('');
     setFormGhiChu('');
+    setFormDaChapNhanHopLe(false);
     setEditingTruck(null);
     setShowAddModal(true);
   };
@@ -205,7 +220,54 @@ export default function DangTaiView() {
       truck.gioCan || (truck.ngayGioCan && truck.ngayGioCan.includes(' ') ? truck.ngayGioCan.split(' ')[1] : '')
     );
     setFormGhiChu(truck.ghiChu || '');
+    setFormDaChapNhanHopLe(!!truck.daChapNhanHopLe);
     setShowAddModal(true);
+  };
+
+  // Xác nhận chấp nhận trường hợp cân hợp lệ (bỏ cảnh báo đỏ lệch STT)
+  const handleAcceptValidOrder = async (truckId: string, accept: boolean = true) => {
+    const updatedList = items.map((x) => {
+      if (x.id !== truckId) return x;
+      if (accept) {
+        return {
+          ...x,
+          trangThai: 'da_can' as const,
+          canHopLeSTT: true,
+          daChapNhanHopLe: true,
+          canhBaoSTT: undefined,
+          updatedAt: new Date().toISOString(),
+        };
+      } else {
+        return {
+          ...x,
+          trangThai: 'sai_stt' as const,
+          canHopLeSTT: false,
+          daChapNhanHopLe: false,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+    });
+
+    setItems(updatedList);
+
+    try {
+      await fetch('/api/dang-tai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_all',
+          date: selectedDate,
+          items: updatedList,
+        }),
+      });
+      showToast(
+        accept
+          ? '✅ Đã chấp nhận hợp lệ! Cảnh báo đỏ lệch STT đã được gỡ bỏ.'
+          : 'Đã hoàn tác lại trạng thái cảnh báo lệch STT.'
+      );
+    } catch {
+      showToast('Lỗi cập nhật máy chủ', 'error');
+    }
   };
 
   // Lưu thông tin xe (thêm mới hoặc sửa)
@@ -248,6 +310,10 @@ export default function DangTaiView() {
         ngayGioCan: updatedNgayGio,
         ghiChu: formGhiChu.trim() || undefined,
         chenhLechKg: chenhLech,
+        daChapNhanHopLe: formDaChapNhanHopLe,
+        trangThai: formDaChapNhanHopLe ? 'da_can' : editingTruck.trangThai,
+        canHopLeSTT: formDaChapNhanHopLe ? true : editingTruck.canHopLeSTT,
+        canhBaoSTT: formDaChapNhanHopLe ? undefined : editingTruck.canhBaoSTT,
         updatedAt: new Date().toISOString(),
       };
       updatedList = items.map((x) => (x.id === editingTruck.id ? updated : x));
@@ -1197,13 +1263,20 @@ ${varietyStr}
               ) : (
                 filteredItems.map((item) => {
                   const isDaCan = item.trangThai === 'da_can' || item.trangThai === 'sai_stt';
-                  const isSaiStt = item.trangThai === 'sai_stt' || item.canHopLeSTT === false;
+                  const isSaiStt =
+                    (item.trangThai === 'sai_stt' || item.canHopLeSTT === false) && !item.daChapNhanHopLe;
 
                   return (
                     <tr
                       key={item.id}
                       className={`transition-colors hover:bg-slate-50/80 ${
-                        isSaiStt ? 'bg-rose-50/40' : isDaCan ? 'bg-emerald-50/20' : ''
+                        isSaiStt
+                          ? 'bg-rose-50/40'
+                          : item.daChapNhanHopLe
+                          ? 'bg-emerald-50/30'
+                          : isDaCan
+                          ? 'bg-emerald-50/20'
+                          : ''
                       }`}
                     >
                       {/* Vị Trí & STT (Cho phép đảo vị trí hàng nhưng giữ nguyên STT gốc) */}
@@ -1377,9 +1450,33 @@ ${varietyStr}
                       {/* Trạng thái */}
                       <td className="py-3 px-3 text-center">
                         {isSaiStt ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-800 shadow-2xs">
-                            ⚠️ Cân lệch STT
-                          </span>
+                          <div className="flex flex-col items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-800 shadow-2xs">
+                              ⚠️ Cân lệch STT
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleAcceptValidOrder(item.id, true)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs cursor-pointer transition-all hover:scale-105"
+                              title="Bấm để chấp nhận trường hợp này là hợp lệ (bỏ báo đỏ)"
+                            >
+                              <span>✓</span> Chấp nhận
+                            </button>
+                          </div>
+                        ) : item.daChapNhanHopLe ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 shadow-2xs">
+                              ✅ Đã duyệt hợp lệ
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleAcceptValidOrder(item.id, false)}
+                              className="text-[9px] text-slate-400 hover:text-rose-600 underline cursor-pointer"
+                              title="Bấm để hoàn tác lại trạng thái cảnh báo lệch STT"
+                            >
+                              Bỏ duyệt
+                            </button>
+                          </div>
                         ) : isDaCan ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 shadow-2xs">
                             ✅ Đã cân
@@ -1393,11 +1490,26 @@ ${varietyStr}
 
                       {/* Ghi chú / Lời cảnh báo */}
                       <td className="py-3 px-4 max-w-xs">
-                        {item.canhBaoSTT && (
-                          <div className="text-rose-600 font-bold text-[11px] mb-1">
-                            {item.canhBaoSTT}
+                        {isSaiStt && item.canhBaoSTT ? (
+                          <div className="rounded-xl bg-rose-50 border border-rose-200 p-2.5 mb-1.5 space-y-2 shadow-2xs">
+                            <div className="text-rose-700 font-bold text-[11px] leading-snug">
+                              {item.canhBaoSTT}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAcceptValidOrder(item.id, true)}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 text-[11px] font-bold shadow-xs cursor-pointer transition-all hover:scale-102"
+                            >
+                              <span>✓</span>
+                              <span>Chấp nhận trường hợp này hợp lệ</span>
+                            </button>
                           </div>
-                        )}
+                        ) : item.daChapNhanHopLe ? (
+                          <div className="text-emerald-700 font-semibold text-[11px] mb-1.5 flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                            <span>✓</span>
+                            <span>Đã chấp nhận hợp lệ (ngoại lệ STT)</span>
+                          </div>
+                        ) : null}
                         {item.ghiChu && (
                           <div className="text-slate-600 text-xs italic">
                             {item.ghiChu}
@@ -1618,6 +1730,48 @@ ${varietyStr}
                   </div>
                 </div>
               )}
+
+              {editingTruck &&
+                (editingTruck.canHopLeSTT === false ||
+                  editingTruck.trangThai === 'sai_stt' ||
+                  editingTruck.daChapNhanHopLe) && (
+                  <div
+                    className={`rounded-2xl p-3.5 border transition-all ${
+                      formDaChapNhanHopLe
+                        ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950'
+                        : 'bg-rose-50 border-rose-300 text-rose-950'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2">
+                        <span className="text-base">{formDaChapNhanHopLe ? '✅' : '⚠️'}</span>
+                        <div>
+                          <div className="text-xs font-bold">
+                            {formDaChapNhanHopLe
+                              ? 'Đã duyệt chấp nhận cân hợp lệ (Bỏ cảnh báo đỏ lệch STT)'
+                              : 'Xe này đang có cảnh báo Cân Lệch Thứ Tự STT'}
+                          </div>
+                          {editingTruck.canhBaoSTT && (
+                            <div className="text-[11px] font-medium text-rose-700 mt-0.5">
+                              {editingTruck.canhBaoSTT}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <label className="inline-flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-slate-300 shadow-2xs shrink-0 hover:bg-slate-50">
+                        <input
+                          type="checkbox"
+                          checked={formDaChapNhanHopLe}
+                          onChange={(e) => setFormDaChapNhanHopLe(e.target.checked)}
+                          className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer"
+                        />
+                        <span className="text-xs font-bold text-slate-800">
+                          {formDaChapNhanHopLe ? 'Đã duyệt' : 'Chấp nhận hợp lệ'}
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Ghi Chú</label>
@@ -1870,8 +2024,35 @@ ${varietyStr}
 
                       {/* Thông báo cảnh báo nổi bật */}
                       {res.warningMessage && (
-                        <div className="mt-2.5 rounded-xl bg-rose-100/80 p-3 text-xs font-bold text-rose-900 border border-rose-200">
-                          {res.warningMessage}
+                        <div className="mt-2.5 rounded-xl bg-rose-100/80 p-3 text-xs font-bold text-rose-900 border border-rose-200 space-y-2">
+                          <div>{res.warningMessage}</div>
+                          {(() => {
+                            const targetTruck =
+                              res.updatedXe ||
+                              (res.phieu?.soXe
+                                ? items.find((t) => arePlatesMatching(t.bienSoXe, res.phieu!.soXe!))
+                                : undefined);
+                            if (!targetTruck) return null;
+                            return (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await handleAcceptValidOrder(targetTruck.id, true);
+                                  setScanResults((prev) =>
+                                    prev.map((s, i) =>
+                                      i === idx
+                                        ? { ...s, isValidOrder: true, warningMessage: undefined }
+                                        : s
+                                    )
+                                  );
+                                }}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 text-xs font-bold shadow-xs cursor-pointer transition-all"
+                              >
+                                <span>✓</span>
+                                <span>Chấp nhận trường hợp này hợp lệ (Bỏ cảnh báo đỏ)</span>
+                              </button>
+                            );
+                          })()}
                         </div>
                       )}
 

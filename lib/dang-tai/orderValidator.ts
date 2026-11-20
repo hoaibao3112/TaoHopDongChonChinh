@@ -98,9 +98,10 @@ export function processWeighingSlip(
 
   const updatedXe: XeDangTai = {
     ...xeMatched,
-    trangThai: isValidOrder ? 'da_can' : 'sai_stt',
-    canHopLeSTT: isValidOrder,
-    canhBaoSTT: warningMessage,
+    trangThai: isValidOrder ? 'da_can' : xeMatched.daChapNhanHopLe ? 'da_can' : 'sai_stt',
+    canHopLeSTT: isValidOrder || !!xeMatched.daChapNhanHopLe,
+    canhBaoSTT: xeMatched.daChapNhanHopLe ? undefined : warningMessage,
+    daChapNhanHopLe: xeMatched.daChapNhanHopLe,
     soPhieuCan: phieu.soPhieu || xeMatched.soPhieuCan,
     ngayCan: ngayCan || undefined,
     gioCan: gioCan || undefined,
@@ -146,7 +147,9 @@ export function calculateDangTaiSummary(danhSachXe: XeDangTai[], ngay: string) {
   const daCanXe = danhSachXe.filter((x) => x.trangThai === 'da_can' || x.trangThai === 'sai_stt');
   const daCan = daCanXe.length;
   const choCan = danhSachXe.filter((x) => x.trangThai === 'cho_can').length;
-  const saiStt = danhSachXe.filter((x) => x.trangThai === 'sai_stt' || x.canHopLeSTT === false).length;
+  const saiStt = danhSachXe.filter(
+    (x) => (x.trangThai === 'sai_stt' || x.canHopLeSTT === false) && !x.daChapNhanHopLe
+  ).length;
 
   const tongKgUocTinh = danhSachXe.reduce((sum, x) => sum + (x.soLuongUocTinh || 0), 0);
   const tongKgThucTe = daCanXe.reduce((sum, x) => sum + (x.tlHangKg || 0), 0);

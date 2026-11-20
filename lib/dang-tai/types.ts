@@ -30,6 +30,7 @@ export interface XeDangTai {
   // Thông tin kiểm tra tính hợp lệ của thứ tự cân STT:
   canHopLeSTT?: boolean; // true nếu cân đúng thứ tự STT, false nếu cân trước lượt xe khác
   canhBaoSTT?: string; // Lời cảnh báo nếu cân sai thứ tự
+  daChapNhanHopLe?: boolean; // Được người điều phối xác nhận chấp nhận hợp lệ (bỏ cảnh báo đỏ lệch STT)
   daCanLuc?: string; // ISO timestamp thời điểm cập nhật cân
 
   createdAt: string;
