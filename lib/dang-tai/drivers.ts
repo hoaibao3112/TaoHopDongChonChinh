@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { removeVietnameseTones, matchUnaccent } from './unaccent';
 import { TaiXeEntry, OFFICIAL_CHONCHINH_DRIVERS, INITIAL_DRIVERS } from './driverTypes';
+import { getDriversFromDb, saveDriversListToDb, upsertDriverToDb } from '@/lib/db';
 
 export type { TaiXeEntry };
 export { OFFICIAL_CHONCHINH_DRIVERS, INITIAL_DRIVERS };
@@ -10,18 +11,14 @@ function getDriversFilePath(): string {
   try {
     const dir = path.join(process.cwd(), 'data', 'dang-tai');
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+      } catch {
+        // Ignore read-only errors on serverless
+      }
     }
     return path.join(dir, 'drivers.json');
   } catch {
-    const tmpDir = path.join('/tmp', 'dang-tai');
-    if (!fs.existsSync(tmpDir)) {
-      try {
-        fs.mkdirSync(tmpDir, { recursive: true });
-      } catch {
-        // Fallback to /tmp
-      }
-    }
     return path.join('/tmp', 'drivers.json');
   }
 }
@@ -34,10 +31,20 @@ function getRedisConfig(): { url: string; token: string } | null {
 }
 
 /**
- * Lấy danh bạ tài xế
+ * Lấy danh bạ tài xế (Ưu tiên Supabase Postgres -> Redis -> Local File)
  */
 export async function getDriverDirectory(): Promise<TaiXeEntry[]> {
-  // 1. Thử đọc từ Redis
+  // 1. ƯU TIÊN HÀNG ĐẦU: Đọc từ Supabase PostgreSQL
+  try {
+    const dbDrivers = await getDriversFromDb();
+    if (dbDrivers && Array.isArray(dbDrivers) && dbDrivers.length > 0) {
+      return dbDrivers;
+    }
+  } catch (err) {
+    console.warn('[Drivers] Lỗi đọc Supabase DB, chuyển sang fallback:', err);
+  }
+
+  // 2. Thử đọc từ Redis
   const redisConfig = getRedisConfig();
   if (redisConfig) {
     try {
@@ -59,7 +66,7 @@ export async function getDriverDirectory(): Promise<TaiXeEntry[]> {
     }
   }
 
-  // 2. Fallback sang file cục bộ
+  // 3. Fallback sang file cục bộ
   try {
     const filePath = getDriversFilePath();
     if (fs.existsSync(filePath)) {
@@ -70,10 +77,10 @@ export async function getDriverDirectory(): Promise<TaiXeEntry[]> {
       }
     }
   } catch (err) {
-    console.error('[Drivers] Lỗi đọc file cục bộ:', err);
+    // Ignore error
   }
 
-  // 3. Khởi tạo danh sách chuẩn của công ty
+  // 4. Nếu chưa có trên bất kỳ nơi nào, lấy danh bạ mẫu 20 tài xế và lưu vào Supabase
   const initial: TaiXeEntry[] = OFFICIAL_CHONCHINH_DRIVERS.map((d, idx) => ({
     id: `drv_${idx + 1}`,
     ten: d.ten,
@@ -83,25 +90,37 @@ export async function getDriverDirectory(): Promise<TaiXeEntry[]> {
     updatedAt: new Date().toISOString(),
   }));
 
-  await saveDriverDirectory(initial);
+  try {
+    await saveDriversListToDb(initial);
+  } catch (err) {
+    console.warn('[Drivers] Lỗi khởi tạo danh bạ trên Supabase:', err);
+  }
+
   return initial;
 }
 
 /**
- * Lưu danh bạ tài xế
+ * Lưu danh bạ tài xế (đồng bộ Supabase Postgres, Redis và file cục bộ)
  */
 export async function saveDriverDirectory(list: TaiXeEntry[]): Promise<boolean> {
+  // 1. Ưu tiên lưu vào Supabase PostgreSQL
+  try {
+    await saveDriversListToDb(list);
+  } catch (err) {
+    console.warn('[Drivers] Lỗi lưu danh bạ lên Supabase:', err);
+  }
+
   const jsonStr = JSON.stringify(list, null, 2);
 
-  // File cục bộ
+  // 2. Lưu file cục bộ nếu được phép
   try {
     const filePath = getDriversFilePath();
     fs.writeFileSync(filePath, jsonStr, 'utf-8');
   } catch (err) {
-    console.error('[Drivers] Lỗi ghi file cục bộ:', err);
+    // Ignore if read-only
   }
 
-  // Redis
+  // 3. Redis
   const redisConfig = getRedisConfig();
   if (redisConfig) {
     try {
@@ -136,7 +155,7 @@ export function searchDrivers(query: string, drivers: TaiXeEntry[]): TaiXeEntry[
 }
 
 /**
- * Thêm mới hoặc cập nhật thông tin tài xế trong danh bạ
+ * Thêm mới hoặc cập nhật thông tin tài xế trong danh bạ (lưu ngay vào Supabase)
  */
 export async function upsertDriver(
   ten: string,
@@ -178,9 +197,17 @@ export async function upsertDriver(
       bienSoThuongChay: bienSo,
       updatedAt: new Date().toISOString(),
     };
-    currentList.push(updatedDriver);
+    currentList.unshift(updatedDriver);
   }
 
+  // Lưu ngay tài xế này lên Supabase Postgres
+  try {
+    await upsertDriverToDb(updatedDriver);
+  } catch (err) {
+    console.warn('[Drivers] Lỗi upsert Supabase driver:', err);
+  }
+
+  // Đồng bộ toàn bộ danh sách
   await saveDriverDirectory(currentList);
   return { driver: updatedDriver, isNew, list: currentList };
 }

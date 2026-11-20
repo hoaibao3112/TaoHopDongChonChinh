@@ -1565,6 +1565,7 @@ ${varietyStr}
                       setFormTenTaiXe(name);
                       if (phone) setFormSdtTaiXe(phone);
                     }}
+                    onPhoneChange={(phone) => setFormSdtTaiXe(phone)}
                     placeholder="Gõ tên tài xế (không dấu)..."
                     inputClassName="text-sm font-semibold"
                   />
@@ -2233,6 +2234,7 @@ ${varietyStr}
                                   handleLogItemChange(item.tempId, 'tenTaiXe', name);
                                   if (phone) handleLogItemChange(item.tempId, 'sdtTaiXe', phone);
                                 }}
+                                onPhoneChange={(phone) => handleLogItemChange(item.tempId, 'sdtTaiXe', phone)}
                                 placeholder="Tài xế..."
                                 inputClassName="py-1 px-2 text-xs"
                               />

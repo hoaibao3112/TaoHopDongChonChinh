@@ -142,8 +142,11 @@ export default function DriverCombobox({
   };
 
   // Lưu tài xế mới vào danh bạ (Lưu ngay vào state & localStorage)
-  const handleSaveNewDriver = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveNewDriver = async (e?: React.SyntheticEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!newDriverName.trim()) return;
 
     const cleanName = newDriverName.trim();
@@ -170,6 +173,9 @@ export default function DriverCombobox({
 
     // 3. Tự động điền luôn tên và SĐT vào form
     onSelect(cleanName, cleanPhone);
+    if (onPhoneChange) {
+      onPhoneChange(cleanPhone);
+    }
     setSearchTerm(cleanName);
     setShowAddDialog(false);
 
@@ -401,7 +407,7 @@ export default function DriverCombobox({
               </div>
             )}
 
-            <form onSubmit={handleSaveNewDriver} className="mt-4 space-y-3.5">
+            <div className="mt-4 space-y-3.5" onClick={(e) => e.stopPropagation()}>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Tên tài xế <span className="text-rose-500">*</span>
@@ -410,6 +416,13 @@ export default function DriverCombobox({
                   type="text"
                   value={newDriverName}
                   onChange={(e) => setNewDriverName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSaveNewDriver(e);
+                    }
+                  }}
                   required
                   placeholder="Họ và tên tài xế..."
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
@@ -422,6 +435,13 @@ export default function DriverCombobox({
                   type="text"
                   value={newDriverPhone}
                   onChange={(e) => setNewDriverPhone(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSaveNewDriver(e);
+                    }
+                  }}
                   placeholder="VD: 0912345678"
                   autoFocus
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
@@ -432,19 +452,24 @@ export default function DriverCombobox({
                 <button
                   type="button"
                   onClick={() => setShowAddDialog(false)}
-                  className="rounded-xl px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100"
+                  className="rounded-xl px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSaveNewDriver(e);
+                  }}
                   disabled={isSaving || !newDriverName.trim()}
                   className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-1.5 text-xs font-bold text-white shadow-md disabled:opacity-50 cursor-pointer"
                 >
                   {isSaving ? 'Đang lưu...' : 'Lưu & Chọn Luôn'}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
