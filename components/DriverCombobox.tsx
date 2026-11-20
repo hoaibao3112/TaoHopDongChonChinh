@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { TaiXeEntry, INITIAL_DRIVERS } from '@/lib/dang-tai/drivers';
+import { TaiXeEntry, INITIAL_DRIVERS } from '@/lib/dang-tai/driverTypes';
 import { removeVietnameseTones, matchUnaccent } from '@/lib/dang-tai/unaccent';
 
 interface DriverComboboxProps {
