@@ -12,7 +12,7 @@ export default function AppHeader() {
     if (typeof document !== 'undefined') {
       const match = document.cookie.match(/(?:^|; )auth_user_role=([^;]*)/);
       const val = match ? (decodeURIComponent(match[1]) as UserRole) : null;
-      if (val === 'payroll' || val === 'contracts' || val === 'admin' || val === 'husk' || val === 'baocao') {
+      if (val === 'payroll' || val === 'contracts' || val === 'admin' || val === 'husk' || val === 'baocao' || val === 'dangtai') {
         return val;
       }
     }
@@ -28,6 +28,7 @@ export default function AppHeader() {
   const isChumLo = pathname.startsWith('/chum-lo');
   const isXuatTrau = pathname.startsWith('/xuat-trau');
   const isBaoCao = pathname.startsWith('/bao-cao-chua-xay');
+  const isDangTai = pathname.startsWith('/dang-tai');
 
   // Quyền truy cập các tab
   const canAccessContracts = role === 'contracts' || role === 'admin' || role === null;
@@ -35,6 +36,8 @@ export default function AppHeader() {
   const canAccessHusk = role === 'husk' || role === 'payroll' || role === 'admin' || role === null;
   // Tab Báo Cáo Chưa Xay: CHỈ hiện khi đăng nhập mật khẩu baocao hoặc admin (KHÔNG hiện khi nhập hoaibao)
   const canAccessBaoCao = role === 'baocao' || role === 'admin';
+  // Tab Đăng Tài: CHỈ hiện khi đăng nhập mật khẩu dangtai hoặc admin
+  const canAccessDangTai = role === 'dangtai' || role === 'admin';
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md transition-all shadow-xs">
@@ -194,11 +197,35 @@ export default function AppHeader() {
                 </span>
               </Link>
             )}
+
+            {canAccessDangTai && (
+              <Link
+                href="/dang-tai"
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                  isDangTai
+                    ? 'bg-white text-blue-900 shadow-xs ring-2 ring-blue-500/40 font-black'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                <span>🚛</span>
+                <span>Đăng Tài Xe</span>
+                <span className="rounded-full bg-blue-600 text-white text-[10px] px-1.5 py-0.5 font-bold shadow-2xs">
+                  Mới
+                </span>
+              </Link>
+            )}
           </nav>
         </div>
 
         {/* Right: User Role Badge & Logout */}
         <div className="flex items-center gap-3">
+          {role === 'dangtai' && (
+            <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-900 shadow-2xs">
+              <span>🚛</span>
+              <span>Đăng Tài Lúa Xe</span>
+            </div>
+          )}
+
           {role === 'baocao' && (
             <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-900 shadow-2xs">
               <span>📊</span>
