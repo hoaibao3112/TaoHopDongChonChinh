@@ -291,23 +291,29 @@ describe('3. Logic Kiểm Tra Thứ Tự STT & Tự Động Điền', () => {
     expect(noteBefore).toContain('6, 1, Nhà máy - ĐTM');
 
     // Khi người dùng ĐÃ CHẤP NHẬN:
-    truckWithWarning.daChapNhanHopLe = true;
-    truckWithWarning.trangThai = 'da_can';
-    truckWithWarning.canHopLeSTT = true;
+    const approvedTruck: XeDangTai = {
+      ...truckWithWarning,
+      daChapNhanHopLe: true,
+      trangThai: 'da_can',
+      canHopLeSTT: true,
+    };
 
-    const isApprovedAfter = !!truckWithWarning.daChapNhanHopLe;
-    const isSaiSttAfter = (truckWithWarning.trangThai === 'sai_stt' || truckWithWarning.canHopLeSTT === false) && !isApprovedAfter;
-    const isDaCanAfter = truckWithWarning.trangThai === 'da_can' || isApprovedAfter;
+    const isApprovedAfter = !!approvedTruck.daChapNhanHopLe;
+    const isSaiSttAfter =
+      ((approvedTruck.trangThai as string) === 'sai_stt' ||
+        (approvedTruck.canHopLeSTT as boolean) === false) &&
+      !isApprovedAfter;
+    const isDaCanAfter = approvedTruck.trangThai === 'da_can' || isApprovedAfter;
     const statusTextAfter = isSaiSttAfter
       ? 'Cân sai STT ⚠️'
       : isDaCanAfter
       ? 'Đã cân ✓'
       : 'Chờ cân ⏳';
     const noteAfter = isApprovedAfter
-      ? (truckWithWarning.ghiChu || '')
+      ? (approvedTruck.ghiChu || '')
       : isSaiSttAfter
-      ? [truckWithWarning.canhBaoSTT, truckWithWarning.ghiChu].filter(Boolean).join(' | ')
-      : (truckWithWarning.ghiChu || '');
+      ? [approvedTruck.canhBaoSTT, approvedTruck.ghiChu].filter(Boolean).join(' | ')
+      : (approvedTruck.ghiChu || '');
 
     expect(isSaiSttAfter).toBe(false);
     expect(statusTextAfter).toBe('Đã cân ✓');

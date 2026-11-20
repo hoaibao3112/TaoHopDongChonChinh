@@ -3,6 +3,7 @@ import { checkPassword } from '../lib/auth';
 import {
   parseKcsMaxLossPercent,
   buildUngroundReport,
+  floorRiceTons,
   UngroundKhoBatch,
   UngroundTuoiBatch,
 } from '../lib/rice-payroll/unground-report-parser';
@@ -97,7 +98,6 @@ describe('Báo Cáo Lúa Khô Chưa Xay (Theo Đầu Lúa Khô)', () => {
   });
 
   it('luôn làm tròn xuống số tấn cho Báo Cáo Chưa Xay (ví dụ 78.800 kg làm tròn xuống 78 tấn)', () => {
-    const { floorRiceTons } = require('../lib/rice-payroll/unground-report-parser');
     expect(floorRiceTons(78800)).toBe(78);
     expect(floorRiceTons(78100)).toBe(78);
     expect(floorRiceTons(78999)).toBe(78);
