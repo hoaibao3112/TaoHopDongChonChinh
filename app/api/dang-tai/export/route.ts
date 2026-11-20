@@ -445,52 +445,7 @@ export async function GET(req: NextRequest) {
     totalRow.height = 28;
 
     // ==========================================
-    // 6. KHỐI KÝ TÊN PHÊ DUYỆT (SIGNATURES)
-    // ==========================================
-    const signRowStart = currentRowIdx + 2;
-
-    sheet.mergeCells(`B${signRowStart}:D${signRowStart}`);
-    const sign1 = sheet.getCell(`B${signRowStart}`);
-    sign1.value = 'NGƯỜI LẬP BẢNG ĐĂNG TÀI';
-    sign1.font = { name: FONT_FAMILY, size: 10, bold: true, color: { argb: 'FF1E293B' } };
-    sign1.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    sheet.mergeCells(`B${signRowStart + 1}:D${signRowStart + 1}`);
-    const sign1Sub = sheet.getCell(`B${signRowStart + 1}`);
-    sign1Sub.value = '(Ký & ghi rõ họ tên)';
-    sign1Sub.font = { name: FONT_FAMILY, size: 9, italic: true, color: { argb: 'FF64748B' } };
-    sign1Sub.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    sheet.mergeCells(`F${signRowStart}:I${signRowStart}`);
-    const sign2 = sheet.getCell(`F${signRowStart}`);
-    sign2.value = 'BỘ PHẬN CÂN & KIỂM SOÁT LÚA';
-    sign2.font = { name: FONT_FAMILY, size: 10, bold: true, color: { argb: 'FF1E293B' } };
-    sign2.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    sheet.mergeCells(`F${signRowStart + 1}:I${signRowStart + 1}`);
-    const sign2Sub = sheet.getCell(`F${signRowStart + 1}`);
-    sign2Sub.value = '(Ký & ghi rõ họ tên)';
-    sign2Sub.font = { name: FONT_FAMILY, size: 9, italic: true, color: { argb: 'FF64748B' } };
-    sign2Sub.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    sheet.mergeCells(`M${signRowStart}:P${signRowStart}`);
-    const sign3 = sheet.getCell(`M${signRowStart}`);
-    sign3.value = 'BAN GIÁM ĐỐC / ĐIỀU PHỐI DUYỆT';
-    sign3.font = { name: FONT_FAMILY, size: 10, bold: true, color: { argb: 'FF1E293B' } };
-    sign3.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    sheet.mergeCells(`M${signRowStart + 1}:P${signRowStart + 1}`);
-    const sign3Sub = sheet.getCell(`M${signRowStart + 1}`);
-    sign3Sub.value = '(Ký duyệt & đóng dấu)';
-    sign3Sub.font = { name: FONT_FAMILY, size: 9, italic: true, color: { argb: 'FF64748B' } };
-    sign3Sub.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    sheet.getRow(signRowStart).height = 20;
-    sheet.getRow(signRowStart + 1).height = 18;
-    sheet.getRow(signRowStart + 4).height = 22; // Chừa khoảng trống để ký tay
-
-    // ==========================================
-    // 7. ĐỘ RỘNG CỘT RỘNG RÃI, THOÁNG ĐẸP
+    // 6. ĐỘ RỘNG CỘT RỘNG RÃI, THOÁNG ĐẸP
     // ==========================================
     sheet.getColumn(1).width = 7; // STT
     sheet.getColumn(2).width = 14; // Giờ Đăng Tài
