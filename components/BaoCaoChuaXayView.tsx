@@ -794,7 +794,7 @@ export default function BaoCaoChuaXayView() {
                         {formatMoney(b.slKg)}
                       </td>
                       <td className="px-3 py-2 text-center font-mono font-bold text-emerald-700">
-                        {Math.round(b.slKg / 1000)}
+                        {Math.floor(b.slKg / 1000)}
                       </td>
                       <td className="px-3 py-2 text-center">
                         <span className="rounded bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 border border-rose-200">

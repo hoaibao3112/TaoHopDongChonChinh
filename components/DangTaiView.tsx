@@ -234,7 +234,6 @@ export default function DangTaiView() {
           trangThai: 'da_can' as const,
           canHopLeSTT: true,
           daChapNhanHopLe: true,
-          canhBaoSTT: undefined,
           updatedAt: new Date().toISOString(),
         };
       } else {
@@ -243,6 +242,9 @@ export default function DangTaiView() {
           trangThai: 'sai_stt' as const,
           canHopLeSTT: false,
           daChapNhanHopLe: false,
+          canhBaoSTT:
+            x.canhBaoSTT ||
+            `⚠️ CẢNH BÁO CÂN CHƯA HỢP LỆ: Xe ${x.bienSoXe} (STT ${x.stt}) cân chưa đúng thứ tự STT!`,
           updatedAt: new Date().toISOString(),
         };
       }
@@ -262,9 +264,43 @@ export default function DangTaiView() {
       });
       showToast(
         accept
-          ? '✅ Đã chấp nhận hợp lệ! Cảnh báo đỏ lệch STT đã được gỡ bỏ.'
+          ? '✅ Đã chấp nhận hợp lệ! Ghi chú và trạng thái đã trở về bình thường.'
           : 'Đã hoàn tác lại trạng thái cảnh báo lệch STT.'
       );
+    } catch {
+      showToast('Lỗi cập nhật máy chủ', 'error');
+    }
+  };
+
+  // Chấp nhận toàn bộ các xe đang bị cảnh báo lệch STT
+  const handleAcceptAllValidOrders = async () => {
+    const updatedList = items.map((x) => {
+      const isSai = (x.trangThai === 'sai_stt' || x.canHopLeSTT === false) && !x.daChapNhanHopLe;
+      if (isSai) {
+        return {
+          ...x,
+          trangThai: 'da_can' as const,
+          canHopLeSTT: true,
+          daChapNhanHopLe: true,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return x;
+    });
+
+    setItems(updatedList);
+
+    try {
+      await fetch('/api/dang-tai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_all',
+          date: selectedDate,
+          items: updatedList,
+        }),
+      });
+      showToast('✅ Đã chấp nhận hợp lệ toàn bộ các xe! Ghi chú đã trở về bình thường.');
     } catch {
       showToast('Lỗi cập nhật máy chủ', 'error');
     }
@@ -1210,6 +1246,16 @@ ${varietyStr}
           >
             ⚠️ Cân lệch STT ({summary.saiStt})
           </button>
+          {summary.saiStt > 0 && (
+            <button
+              onClick={handleAcceptAllValidOrders}
+              className="rounded-xl px-3 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+              title="Chấp nhận toàn bộ các xe đang bị cảnh báo lệch STT thành hợp lệ (bỏ cảnh báo, hiển thị bình thường)"
+            >
+              <span>✓</span>
+              <span>Chấp nhận tất cả ({summary.saiStt} xe)</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1466,7 +1512,7 @@ ${varietyStr}
                         ) : item.daChapNhanHopLe ? (
                           <div className="flex flex-col items-center gap-0.5">
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 shadow-2xs">
-                              ✅ Đã duyệt hợp lệ
+                              ✅ Đã cân
                             </span>
                             <button
                               type="button"
@@ -1503,11 +1549,6 @@ ${varietyStr}
                               <span>✓</span>
                               <span>Chấp nhận trường hợp này hợp lệ</span>
                             </button>
-                          </div>
-                        ) : item.daChapNhanHopLe ? (
-                          <div className="text-emerald-700 font-semibold text-[11px] mb-1.5 flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                            <span>✓</span>
-                            <span>Đã chấp nhận hợp lệ (ngoại lệ STT)</span>
                           </div>
                         ) : null}
                         {item.ghiChu && (
@@ -1748,10 +1789,10 @@ ${varietyStr}
                         <div>
                           <div className="text-xs font-bold">
                             {formDaChapNhanHopLe
-                              ? 'Đã duyệt chấp nhận cân hợp lệ (Bỏ cảnh báo đỏ lệch STT)'
+                              ? 'Đã chấp nhận hợp lệ (Ghi chú và trạng thái hiển thị bình thường)'
                               : 'Xe này đang có cảnh báo Cân Lệch Thứ Tự STT'}
                           </div>
-                          {editingTruck.canhBaoSTT && (
+                          {!formDaChapNhanHopLe && editingTruck.canhBaoSTT && (
                             <div className="text-[11px] font-medium text-rose-700 mt-0.5">
                               {editingTruck.canhBaoSTT}
                             </div>

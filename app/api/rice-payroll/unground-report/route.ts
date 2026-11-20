@@ -302,7 +302,7 @@ export async function POST(request: NextRequest) {
         b.xe || '',
         b.loaiLua,
         b.slKg,
-        Math.round(b.slKg / 1000),
+        Math.floor(b.slKg / 1000),
       ]);
       const wsKho = XLSX.utils.aoa_to_sheet([...khoHeader, ...khoRows]);
       XLSX.utils.book_append_sheet(wb, wsKho, 'LÚA KHÔ NẰM TÀI');

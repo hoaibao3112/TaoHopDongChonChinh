@@ -96,6 +96,34 @@ describe('Báo Cáo Lúa Khô Chưa Xay (Theo Đầu Lúa Khô)', () => {
     );
   });
 
+  it('luôn làm tròn xuống số tấn cho Báo Cáo Chưa Xay (ví dụ 78.800 kg làm tròn xuống 78 tấn)', () => {
+    const { floorRiceTons } = require('../lib/rice-payroll/unground-report-parser');
+    expect(floorRiceTons(78800)).toBe(78);
+    expect(floorRiceTons(78100)).toBe(78);
+    expect(floorRiceTons(78999)).toBe(78);
+    expect(floorRiceTons(125400)).toBe(125);
+    expect(floorRiceTons(0)).toBe(0);
+
+    // Kiểm tra trong buildUngroundReport với lô 78.800 kg
+    const mockKho78k: UngroundKhoBatch[] = [
+      {
+        id: 'kho-78',
+        ngayCan: '20/11/2026',
+        loaiLua: 'Đài Thơm 8',
+        slKg: 78800,
+      },
+    ];
+
+    const report = buildUngroundReport(mockKho78k, [], '20/11/2026');
+    const dt8 = report.items.find((i) => i.loaiLua === 'Đài Thơm 8');
+    expect(dt8).toBeDefined();
+    expect(dt8?.khoKg).toBe(78800);
+    expect(dt8?.khoTons).toBe(78); // 78.800 kg làm tròn xuống 78 tấn
+    expect(dt8?.totalDryHeadTons).toBe(78);
+    expect(report.totalDryHeadTons).toBe(78);
+    expect(report.zaloText).toContain('- Lúa Đài Thơm 8: 78 tấn');
+  });
+
   it('xuất file Excel báo cáo đúng 3 sheets: TỔNG HỢP CHƯA XAY, LÚA KHÔ NẰM TÀI, LÚA TƯƠI CHỜ SẤY', async () => {
     const { POST } = await import('../app/api/rice-payroll/unground-report/route');
     const { NextRequest } = await import('next/server');

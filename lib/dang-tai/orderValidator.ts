@@ -100,7 +100,7 @@ export function processWeighingSlip(
     ...xeMatched,
     trangThai: isValidOrder ? 'da_can' : xeMatched.daChapNhanHopLe ? 'da_can' : 'sai_stt',
     canHopLeSTT: isValidOrder || !!xeMatched.daChapNhanHopLe,
-    canhBaoSTT: xeMatched.daChapNhanHopLe ? undefined : warningMessage,
+    canhBaoSTT: warningMessage || xeMatched.canhBaoSTT,
     daChapNhanHopLe: xeMatched.daChapNhanHopLe,
     soPhieuCan: phieu.soPhieu || xeMatched.soPhieuCan,
     ngayCan: ngayCan || undefined,

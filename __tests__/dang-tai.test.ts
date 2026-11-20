@@ -258,4 +258,61 @@ describe('3. Logic Kiểm Tra Thứ Tự STT & Tự Động Điền', () => {
     expect(res.updatedXe?.ngayCan).toBe('20/11/2026');
     expect(res.updatedXe?.gioCan).toBe('11:41:23');
   });
+
+  it('6. Khi người dùng đã chấp nhận phiếu cân: Ghi chú chỉ ghi nội dung bình thường, không ghi cảnh báo; khi KHÔNG chấp nhận thì mới hiện cảnh báo', () => {
+    const truckWithWarning: XeDangTai = {
+      id: 'xe_warning',
+      stt: 6,
+      ngayDangTai: '2026-11-20',
+      gioDangTai: '08:00',
+      bienSoXe: '50E-33425',
+      loaiLua: '5451',
+      soLuongUocTinh: 40000,
+      trangThai: 'sai_stt',
+      canHopLeSTT: false,
+      canhBaoSTT: '⚠️ CẢNH BÁO CÂN CHƯA HỢP LỆ: Phiếu cân số 11 (Xe 50E-33425 - STT 6) được cân trước xe STT 5!',
+      ghiChu: '6, 1, Nhà máy - ĐTM',
+      daChapNhanHopLe: false,
+      createdAt: '',
+      updatedAt: '',
+    };
+
+    // Khi CHƯA/KHÔNG chấp nhận:
+    const isApprovedBefore = !!truckWithWarning.daChapNhanHopLe;
+    const isSaiSttBefore = (truckWithWarning.trangThai === 'sai_stt' || truckWithWarning.canHopLeSTT === false) && !isApprovedBefore;
+    const noteBefore = isApprovedBefore
+      ? (truckWithWarning.ghiChu || '')
+      : isSaiSttBefore
+      ? [truckWithWarning.canhBaoSTT, truckWithWarning.ghiChu].filter(Boolean).join(' | ')
+      : (truckWithWarning.ghiChu || '');
+
+    expect(isSaiSttBefore).toBe(true);
+    expect(noteBefore).toContain('⚠️ CẢNH BÁO CÂN CHƯA HỢP LỆ');
+    expect(noteBefore).toContain('6, 1, Nhà máy - ĐTM');
+
+    // Khi người dùng ĐÃ CHẤP NHẬN:
+    truckWithWarning.daChapNhanHopLe = true;
+    truckWithWarning.trangThai = 'da_can';
+    truckWithWarning.canHopLeSTT = true;
+
+    const isApprovedAfter = !!truckWithWarning.daChapNhanHopLe;
+    const isSaiSttAfter = (truckWithWarning.trangThai === 'sai_stt' || truckWithWarning.canHopLeSTT === false) && !isApprovedAfter;
+    const isDaCanAfter = truckWithWarning.trangThai === 'da_can' || isApprovedAfter;
+    const statusTextAfter = isSaiSttAfter
+      ? 'Cân sai STT ⚠️'
+      : isDaCanAfter
+      ? 'Đã cân ✓'
+      : 'Chờ cân ⏳';
+    const noteAfter = isApprovedAfter
+      ? (truckWithWarning.ghiChu || '')
+      : isSaiSttAfter
+      ? [truckWithWarning.canhBaoSTT, truckWithWarning.ghiChu].filter(Boolean).join(' | ')
+      : (truckWithWarning.ghiChu || '');
+
+    expect(isSaiSttAfter).toBe(false);
+    expect(statusTextAfter).toBe('Đã cân ✓');
+    expect(noteAfter).toBe('6, 1, Nhà máy - ĐTM');
+    expect(noteAfter).not.toContain('CẢNH BÁO');
+    expect(noteAfter).not.toContain('ngoại lệ STT');
+  });
 });

@@ -230,20 +230,20 @@ export async function GET(req: NextRequest) {
       const isSaiStt = (item.trangThai === 'sai_stt' || item.canHopLeSTT === false) && !isApproved;
       const isDaCan = item.trangThai === 'da_can' || isApproved;
 
-      const trangThaiText = isApproved
-        ? 'Đã duyệt hợp lệ ✓'
-        : isSaiStt
+      // Khi người dùng đã chấp nhận thì hiển thị trạng thái như bình thường ("Đã cân ✓")
+      const trangThaiText = isSaiStt
         ? 'Cân sai STT ⚠️'
         : isDaCan
         ? 'Đã cân ✓'
         : 'Chờ cân ⏳';
 
-      const canhBaoVaGhiChu = [
-        isApproved ? 'Đã duyệt hợp lệ (ngoại lệ STT)' : item.canhBaoSTT,
-        item.ghiChu,
-      ]
-        .filter(Boolean)
-        .join(' | ');
+      // Khi đã chấp nhận: chỉ ghi nội dung ghi chú bình thường (không ghi lời cảnh báo và không ghi chú thích ngoại lệ)
+      // Khi KHÔNG chấp nhận: mới hiện ra phần cảnh báo kèm ghi chú
+      const canhBaoVaGhiChu = isApproved
+        ? (item.ghiChu || '')
+        : isSaiStt
+        ? [item.canhBaoSTT, item.ghiChu].filter(Boolean).join(' | ')
+        : (item.ghiChu || '');
 
       const ngayCanVal =
         item.ngayCan ||
@@ -335,9 +335,7 @@ export async function GET(req: NextRequest) {
       }
 
       // Màu trạng thái
-      if (isApproved) {
-        row.getCell(16).font = { name: FONT_FAMILY, size: 9.5, bold: true, color: { argb: 'FF059669' } };
-      } else if (isSaiStt) {
+      if (isSaiStt) {
         row.getCell(16).font = { name: FONT_FAMILY, size: 9.5, bold: true, color: { argb: 'FFDC2626' } };
       } else if (isDaCan) {
         row.getCell(16).font = { name: FONT_FAMILY, size: 9.5, bold: true, color: { argb: 'FF16A34A' } };
@@ -350,13 +348,10 @@ export async function GET(req: NextRequest) {
       let borderColor = 'FFE2E8F0';
 
       if (isSaiStt) {
-        rowBg = 'FFFFF1F2'; // Hồng nhạt cảnh báo
+        rowBg = 'FFFFF1F2'; // Hồng nhạt cảnh báo khi chưa chấp nhận
         borderColor = 'FFFECDD3';
-      } else if (isApproved) {
-        rowBg = 'FFECFDF5'; // Ngọc nhạt đã duyệt
-        borderColor = 'FFA7F3D0';
       } else if (isDaCan) {
-        rowBg = 'FFF0FDF4'; // Xanh nhạt đã cân
+        rowBg = 'FFF0FDF4'; // Xanh nhạt đã cân bình thường (áp dụng cho cả xe cân chuẩn và xe đã được chấp nhận)
         borderColor = 'FFDCFCE7';
       } else {
         rowBg = currentRowIdx % 2 === 0 ? 'FFF8FAFC' : 'FFFFFFFF'; // Zebra nhạt cho xe chờ cân

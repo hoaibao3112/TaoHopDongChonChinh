@@ -1,5 +1,16 @@
 import * as XLSX from 'xlsx';
-import { roundRiceTons } from './rounding';
+
+/**
+ * Quy tắc làm tròn số tấn cho Báo Cáo Lúa Khô Chưa Xay:
+ * - Luôn LÀM TRÒN XUỐNG số nguyên tấn (bỏ phần dư kg).
+ * Ví dụ: 78.800 kg -> 78 tấn
+ */
+export function floorRiceTons(weightKg: number): number {
+  if (!weightKg || isNaN(weightKg) || weightKg <= 0) {
+    return 0;
+  }
+  return Math.floor(weightKg / 1000);
+}
 
 export interface UngroundKhoBatch {
   id: string;
@@ -309,7 +320,7 @@ export function buildUngroundReport(
     // 1. Lúa khô nằm tài
     const khoList = khoBatches.filter((b) => b.loaiLua === loaiLua);
     const khoKg = khoList.reduce((s, b) => s + b.slKg, 0);
-    const khoTons = roundRiceTons(khoKg);
+    const khoTons = floorRiceTons(khoKg);
 
     // 2. Lúa tươi chờ sấy
     const tuoiList = tuoiBatches.filter((b) => b.loaiLua === loaiLua);
@@ -329,11 +340,11 @@ export function buildUngroundReport(
     // Đầu lúa khô = tuoiKg - Hao hụt
     const lossKg = Math.round(tuoiKg * (kcsLossPercent / 100));
     const convertedDryKg = Math.max(0, tuoiKg - lossKg);
-    const convertedDryTons = roundRiceTons(convertedDryKg);
+    const convertedDryTons = floorRiceTons(convertedDryKg);
 
-    // 4. Tổng đầu lúa khô
+    // 4. Tổng đầu lúa khô (Làm tròn xuống số tấn nguyên)
     const totalDryHeadKg = khoKg + convertedDryKg;
-    const totalDryHeadTons = roundRiceTons(totalDryHeadKg);
+    const totalDryHeadTons = floorRiceTons(totalDryHeadKg);
 
     items.push({
       loaiLua,
