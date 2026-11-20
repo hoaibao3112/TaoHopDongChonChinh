@@ -93,6 +93,10 @@ export default function DangTaiView() {
   const [zaloReportOnlyMorning, setZaloReportOnlyMorning] = useState<boolean>(false);
   const [zaloReportText, setZaloReportText] = useState<string>('');
 
+  // Đảo vị trí hàng xe trên bảng (STT gốc giữ nguyên)
+  const [reorderingTruck, setReorderingTruck] = useState<XeDangTai | null>(null);
+  const [targetRowInput, setTargetRowInput] = useState<number>(1);
+
   // Thông báo toast
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
@@ -258,8 +262,6 @@ export default function DangTaiView() {
       updatedList = [...items, newTruck];
     }
 
-    // Sắp xếp lại theo STT
-    updatedList.sort((a, b) => a.stt - b.stt);
     setItems(updatedList);
     setShowAddModal(false);
 
@@ -276,6 +278,81 @@ export default function DangTaiView() {
       showToast(editingTruck ? 'Đã cập nhật thông tin xe' : 'Đã đăng tài xe mới thành công');
     } catch {
       showToast('Lỗi lưu dữ liệu máy chủ', 'error');
+    }
+  };
+
+  // Di chuyển thứ tự hàng xe (đổi vị trí trên bảng nhưng giữ nguyên STT gốc)
+  const handleMoveRow = async (truckId: string, direction: -1 | 1) => {
+    const currentIndex = items.findIndex((x) => x.id === truckId);
+    if (currentIndex === -1) return;
+    const targetIndex = currentIndex + direction;
+    if (targetIndex < 0 || targetIndex >= items.length) return;
+
+    const newItems = [...items];
+    const [movedItem] = newItems.splice(currentIndex, 1);
+    newItems.splice(targetIndex, 0, movedItem);
+
+    setItems(newItems);
+
+    try {
+      await fetch('/api/dang-tai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_all',
+          date: selectedDate,
+          items: newItems,
+        }),
+      });
+      showToast(`Đã chuyển xe STT ${movedItem.stt} (${movedItem.bienSoXe}) sang hàng số ${targetIndex + 1}!`);
+    } catch {
+      showToast('Lỗi lưu thứ tự lên máy chủ', 'error');
+    }
+  };
+
+  // Mở modal đổi vị trí bất kỳ
+  const handleOpenReorderModal = (truck: XeDangTai) => {
+    const currentIndex = items.findIndex((x) => x.id === truck.id);
+    setReorderingTruck(truck);
+    setTargetRowInput(currentIndex >= 0 ? currentIndex + 1 : 1);
+  };
+
+  // Xác nhận đổi vị trí hàng đến hàng số targetRowNumber
+  const handleConfirmReorder = async (targetRowNumber: number) => {
+    if (!reorderingTruck) return;
+    const currentIndex = items.findIndex((x) => x.id === reorderingTruck.id);
+    if (currentIndex === -1) return;
+    const targetIndex = targetRowNumber - 1;
+    if (targetIndex < 0 || targetIndex >= items.length) {
+      showToast(`Vui lòng nhập vị trí hợp lệ từ 1 đến ${items.length}`, 'error');
+      return;
+    }
+
+    if (targetIndex === currentIndex) {
+      setReorderingTruck(null);
+      return;
+    }
+
+    const newItems = [...items];
+    const [movedItem] = newItems.splice(currentIndex, 1);
+    newItems.splice(targetIndex, 0, movedItem);
+
+    setItems(newItems);
+    setReorderingTruck(null);
+
+    try {
+      await fetch('/api/dang-tai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_all',
+          date: selectedDate,
+          items: newItems,
+        }),
+      });
+      showToast(`Đã chuyển xe STT ${movedItem.stt} (${movedItem.bienSoXe}) từ hàng ${currentIndex + 1} sang hàng ${targetRowNumber}!`);
+    } catch {
+      showToast('Lỗi lưu thứ tự lên máy chủ', 'error');
     }
   };
 
@@ -371,7 +448,7 @@ export default function DangTaiView() {
       return;
     }
 
-    const updatedList = [...items, ...newTrucks].sort((a, b) => a.stt - b.stt);
+    const updatedList = [...items, ...newTrucks];
     setItems(updatedList);
     setShowBulkModal(false);
     setBulkText('');
@@ -581,7 +658,7 @@ export default function DangTaiView() {
       updatedAt: new Date().toISOString(),
     }));
 
-    const updatedList = [...items, ...newTrucks].sort((a, b) => a.stt - b.stt);
+    const updatedList = [...items, ...newTrucks];
     setItems(updatedList);
     setShowLogPreviewModal(false);
 
@@ -1064,7 +1141,7 @@ ${varietyStr}
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-100/80 text-slate-700 font-bold">
-                <th className="py-3.5 px-3 text-center w-12">STT</th>
+                <th className="py-3.5 px-3 text-center w-28">Vị Trí / STT</th>
                 <th className="py-3.5 px-3 text-center">Giờ Đăng Tài</th>
                 <th className="py-3.5 px-4">Biển Số Xe</th>
                 <th className="py-3.5 px-3">Nhà Cung Cấp</th>
@@ -1116,11 +1193,52 @@ ${varietyStr}
                         isSaiStt ? 'bg-rose-50/40' : isDaCan ? 'bg-emerald-50/20' : ''
                       }`}
                     >
-                      {/* STT */}
-                      <td className="py-3 px-3 text-center font-black">
-                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-xl bg-slate-900 text-white text-xs shadow-2xs">
-                          {item.stt}
-                        </span>
+                      {/* Vị Trí & STT (Cho phép đảo vị trí hàng nhưng giữ nguyên STT gốc) */}
+                      <td className="py-2.5 px-2 text-center">
+                        {(() => {
+                          const realIndex = items.findIndex((x) => x.id === item.id);
+                          const isFirst = realIndex <= 0;
+                          const isLast = realIndex === -1 || realIndex >= items.length - 1;
+
+                          return (
+                            <div className="flex items-center justify-center gap-1.5">
+                              {/* Nút bấm đảo nhanh Lên / Xuống 1 hàng */}
+                              <div className="flex flex-col gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveRow(item.id, -1)}
+                                  disabled={isFirst}
+                                  title={isFirst ? 'Đang ở đầu bảng' : 'Đẩy xe này lên 1 hàng'}
+                                  className="h-4 w-4 rounded flex items-center justify-center text-[10px] text-slate-500 hover:text-blue-700 hover:bg-blue-100 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
+                                >
+                                  ▲
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveRow(item.id, 1)}
+                                  disabled={isLast}
+                                  title={isLast ? 'Đang ở cuối bảng' : 'Hạ xe này xuống 1 hàng'}
+                                  className="h-4 w-4 rounded flex items-center justify-center text-[10px] text-slate-500 hover:text-blue-700 hover:bg-blue-100 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
+                                >
+                                  ▼
+                                </button>
+                              </div>
+
+                              {/* Huy hiệu STT gốc - Bấm vào để mở hộp thoại chuyển đến hàng bất kỳ */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReorderModal(item)}
+                                title={`STT ${item.stt} (Đang ở hàng #${realIndex + 1}) - Bấm để chuyển đến hàng khác`}
+                                className="inline-flex flex-col items-center justify-center px-2 py-0.5 min-w-[38px] rounded-xl bg-slate-900 hover:bg-blue-600 text-white shadow-2xs transition-all cursor-pointer group"
+                              >
+                                <span className="text-xs font-black tracking-tight">{item.stt}</span>
+                                <span className="text-[9px] text-slate-300 group-hover:text-blue-100 leading-none font-medium">
+                                  #{realIndex >= 0 ? realIndex + 1 : '?'}
+                                </span>
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Giờ đăng tài (người dùng điền) */}
@@ -1291,6 +1409,13 @@ ${varietyStr}
                               🖼️
                             </button>
                           )}
+                          <button
+                            onClick={() => handleOpenReorderModal(item)}
+                            title="Đổi vị trí hàng xe trên bảng (giữ nguyên STT)"
+                            className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                          >
+                            ⇅
+                          </button>
                           <button
                             onClick={() => handleOpenEditModal(item)}
                             title="Chỉnh sửa thông tin"
@@ -2127,6 +2252,110 @@ ${varietyStr}
                   ✅ Xác Nhận Đăng Tài ({logPreviewItems.length} Xe) Vào Hệ Thống
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ĐẢO VỊ TRÍ HÀNG XE TRÊN BẢNG (STT GỐC GIỮ NGUYÊN) */}
+      {reorderingTruck && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-slate-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">⇅</span>
+                <h3 className="font-black text-slate-900 text-base">Đổi Vị Trí Hàng Trên Bảng</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReorderingTruck(null)}
+                className="text-slate-400 hover:text-slate-600 rounded-lg p-1 text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mb-4 rounded-2xl bg-blue-50/70 border border-blue-100 p-3.5 text-xs text-blue-900 space-y-1.5">
+              <div className="font-bold flex items-center gap-2 text-blue-950 flex-wrap">
+                <span>🚛 Biển số: <strong className="font-mono bg-white px-2 py-0.5 rounded-md border border-blue-200 text-slate-900">{reorderingTruck.bienSoXe}</strong></span>
+                <span>•</span>
+                <span>STT đăng tài: <strong className="bg-slate-900 text-white px-2 py-0.5 rounded-md font-mono">STT {reorderingTruck.stt}</strong></span>
+              </div>
+              <p className="text-blue-800">
+                Vị trí hiện tại: Hàng số <strong>{items.findIndex((x) => x.id === reorderingTruck.id) + 1}</strong> trên tổng {items.length} xe.
+              </p>
+              <div className="text-slate-600 text-[11px] pt-1 border-t border-blue-100/60 leading-relaxed">
+                💡 <em>STT đăng tài của xe (<strong>STT {reorderingTruck.stt}</strong>) sẽ được <strong>GIỮ NGUYÊN</strong>, chỉ vị trí hiển thị và thứ tự ưu tiên cân trên bảng được chuyển đến hàng bạn chọn.</em>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <label className="block text-xs font-bold text-slate-700">
+                Chuyển xe này đến vị trí hàng số:
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={items.length}
+                  value={targetRowInput}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    setTargetRowInput(isNaN(val) ? 1 : val);
+                  }}
+                  className="w-24 text-center rounded-xl border border-slate-300 py-2 font-black text-xl text-blue-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                />
+                <span className="text-xs text-slate-500 font-semibold">/ Tổng cộng {items.length} hàng</span>
+              </div>
+
+              {/* Phím tắt chọn nhanh vị trí */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setTargetRowInput(1)}
+                  className="rounded-lg bg-slate-100 hover:bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 cursor-pointer"
+                >
+                  ⬆ Lên đầu (Hàng 1)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetRowInput((prev) => Math.max(1, prev - 1))}
+                  className="rounded-lg bg-slate-100 hover:bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 cursor-pointer"
+                >
+                  ▲ Lên 1 hàng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetRowInput((prev) => Math.min(items.length, prev + 1))}
+                  className="rounded-lg bg-slate-100 hover:bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 cursor-pointer"
+                >
+                  ▼ Xuống 1 hàng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetRowInput(items.length)}
+                  className="rounded-lg bg-slate-100 hover:bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 cursor-pointer"
+                >
+                  ⬇ Xuống cuối (Hàng {items.length})
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setReorderingTruck(null)}
+                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmReorder(targetRowInput)}
+                className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 text-xs font-bold cursor-pointer shadow-md shadow-blue-600/30 transition-all active:scale-95"
+              >
+                Xác Nhận Chuyển Vị Trí
+              </button>
             </div>
           </div>
         </div>

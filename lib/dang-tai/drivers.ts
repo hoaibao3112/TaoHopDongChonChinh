@@ -36,12 +36,33 @@ export const OFFICIAL_CHONCHINH_DRIVERS: { ten: string; sdt: string; ghiChu?: st
   { ten: 'Nguyễn Hoàng Gia Long', sdt: '0367946643' },
 ];
 
+export const INITIAL_DRIVERS: TaiXeEntry[] = OFFICIAL_CHONCHINH_DRIVERS.map((d, idx) => ({
+  id: `drv_${idx + 1}`,
+  ten: d.ten,
+  sdt: d.sdt,
+  nameSearch: removeVietnameseTones(d.ten),
+  ghiChu: d.ghiChu,
+  updatedAt: '2026-11-20T00:00:00.000Z',
+}));
+
 function getDriversFilePath(): string {
-  const dir = path.join(process.cwd(), 'data', 'dang-tai');
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  try {
+    const dir = path.join(process.cwd(), 'data', 'dang-tai');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    return path.join(dir, 'drivers.json');
+  } catch {
+    const tmpDir = path.join('/tmp', 'dang-tai');
+    if (!fs.existsSync(tmpDir)) {
+      try {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      } catch {
+        // Fallback to /tmp
+      }
+    }
+    return path.join('/tmp', 'drivers.json');
   }
-  return path.join(dir, 'drivers.json');
 }
 
 function getRedisConfig(): { url: string; token: string } | null {

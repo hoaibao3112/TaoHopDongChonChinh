@@ -204,4 +204,33 @@ describe('3. Logic Kiểm Tra Thứ Tự STT & Tự Động Điền', () => {
     expect(sum.tongKgThucTe).toBe(30500 + 32910); // 63410
     expect(sum.tongChenhLechKg).toBe(63410 - (30000 + 32000)); // +1410
   });
+
+  it('đảo vị trí hàng của xe (ví dụ xe STT 4 ở hàng 4 đẩy lên hàng 2) nhưng STT 4 vẫn giữ nguyên', () => {
+    const list: XeDangTai[] = [
+      { id: '1', stt: 1, bienSoXe: '66C-11111', ngayDangTai: '2026-11-20', gioDangTai: '07:00', loaiLua: '5451', soLuongUocTinh: 30000, trangThai: 'cho_can', createdAt: '', updatedAt: '' },
+      { id: '2', stt: 2, bienSoXe: '66C-22222', ngayDangTai: '2026-11-20', gioDangTai: '07:15', loaiLua: 'OM18', soLuongUocTinh: 31000, trangThai: 'cho_can', createdAt: '', updatedAt: '' },
+      { id: '3', stt: 3, bienSoXe: '66C-33333', ngayDangTai: '2026-11-20', gioDangTai: '07:30', loaiLua: '5451', soLuongUocTinh: 32000, trangThai: 'cho_can', createdAt: '', updatedAt: '' },
+      { id: '4', stt: 4, bienSoXe: '70H-03268', ngayDangTai: '2026-11-20', gioDangTai: '07:45', loaiLua: '5451', soLuongUocTinh: 33000, trangThai: 'cho_can', createdAt: '', updatedAt: '' },
+    ];
+
+    // Di chuyển xe id '4' (STT 4) từ index 3 lên index 1 (hàng 2)
+    const currentIndex = list.findIndex((x) => x.id === '4');
+    expect(currentIndex).toBe(3);
+
+    const targetIndex = 1; // Hàng 2
+    const reorderedList = [...list];
+    const [movedTruck] = reorderedList.splice(currentIndex, 1);
+    reorderedList.splice(targetIndex, 0, movedTruck);
+
+    // Kiểm tra danh sách sau khi đảo
+    expect(reorderedList.length).toBe(4);
+    expect(reorderedList[0].stt).toBe(1);
+    expect(reorderedList[1].stt).toBe(4); // Xe STT 4 nay nằm ở vị trí hàng số 2
+    expect(reorderedList[1].bienSoXe).toBe('70H-03268');
+    expect(reorderedList[2].stt).toBe(2);
+    expect(reorderedList[3].stt).toBe(3);
+
+    // Đảm bảo STT gốc của xe 4 không hề bị đổi thành 2
+    expect(reorderedList[1].stt).toBe(4);
+  });
 });
