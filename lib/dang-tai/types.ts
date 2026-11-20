@@ -6,6 +6,7 @@ export interface XeDangTai {
   ngayDangTai: string; // Định dạng DD/MM/YYYY hoặc YYYY-MM-DD
   gioDangTai: string; // Định dạng HH:mm
   bienSoXe: string; // Biển số xe (ví dụ: "70H-03268")
+  nhaCungCap?: string; // Nhà cung cấp / Khách hàng (ví dụ: "A LAM TAY NINH")
   loaiLua: string; // Loại lúa (ví dụ: "5451", "OM18", "Đài Thơm 8"...)
   soLuongUocTinh: number; // Số lượng ước tính từ tài (kg)
   tenTaiXe?: string; // Tên tài xế

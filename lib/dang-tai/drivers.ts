@@ -34,7 +34,6 @@ export const OFFICIAL_CHONCHINH_DRIVERS: { ten: string; sdt: string; ghiChu?: st
   { ten: 'Võ Tấn Phát', sdt: '0983253422' },
   { ten: 'Trần Nguyên Chánh', sdt: '0938862837' },
   { ten: 'Nguyễn Hoàng Gia Long', sdt: '0367946643' },
-  { ten: 'A Lâm Tây Ninh', sdt: '0987778797' }, // Khách hàng/tài xế xe mẫu 70H-03268
 ];
 
 function getDriversFilePath(): string {

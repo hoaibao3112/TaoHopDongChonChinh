@@ -81,6 +81,7 @@ export function processWeighingSlip(
     soPhieuCan: phieu.soPhieu || xeMatched.soPhieuCan,
     ngayGioCan: phieu.ngayGioCan || xeMatched.ngayGioCan,
     khachHangCan: phieu.khachHang || xeMatched.khachHangCan,
+    nhaCungCap: phieu.khachHang || xeMatched.nhaCungCap,
     loaiHangCan: phieu.loaiHang || xeMatched.loaiHangCan,
     tlXeHangKg: phieu.tlXeHangKg !== undefined ? phieu.tlXeHangKg : xeMatched.tlXeHangKg,
     tlXeKg: phieu.tlXeKg !== undefined ? phieu.tlXeKg : xeMatched.tlXeKg,

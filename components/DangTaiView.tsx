@@ -54,9 +54,12 @@ export default function DangTaiView() {
   const [showBulkModal, setShowBulkModal] = useState<boolean>(false);
   const [editingTruck, setEditingTruck] = useState<XeDangTai | null>(null);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const [viewingImageRotation, setViewingImageRotation] = useState<number>(0);
+  const [viewingImageZoom, setViewingImageZoom] = useState<number>(1);
 
   // Form đăng tài xe
   const [formBienSo, setFormBienSo] = useState<string>('');
+  const [formNhaCungCap, setFormNhaCungCap] = useState<string>('');
   const [formLoaiLua, setFormLoaiLua] = useState<string>('5451');
   const [formSoLuong, setFormSoLuong] = useState<string>('');
   const [formTenTaiXe, setFormTenTaiXe] = useState<string>('');
@@ -80,6 +83,7 @@ export default function DangTaiView() {
   const [logPreviewImage, setLogPreviewImage] = useState<string | null>(null);
   const [showLogPreviewModal, setShowLogPreviewModal] = useState<boolean>(false);
   const [logImageZoom, setLogImageZoom] = useState<number>(1);
+  const [logImageRotation, setLogImageRotation] = useState<number>(0);
   const logFileInputRef = useRef<HTMLInputElement>(null);
 
   // Thông báo toast
@@ -167,6 +171,7 @@ export default function DangTaiView() {
     const nextStt = items.length > 0 ? Math.max(...items.map((x) => x.stt || 0)) + 1 : 1;
     setFormStt(nextStt);
     setFormBienSo('');
+    setFormNhaCungCap('');
     setFormLoaiLua('5451');
     setFormSoLuong('');
     setFormTenTaiXe('');
@@ -182,6 +187,7 @@ export default function DangTaiView() {
     setEditingTruck(truck);
     setFormStt(truck.stt);
     setFormBienSo(truck.bienSoXe);
+    setFormNhaCungCap(truck.nhaCungCap || truck.khachHangCan || '');
     setFormLoaiLua(truck.loaiLua || '5451');
     setFormSoLuong(truck.soLuongUocTinh ? String(truck.soLuongUocTinh) : '');
     setFormTenTaiXe(truck.tenTaiXe || '');
@@ -213,6 +219,7 @@ export default function DangTaiView() {
         ...editingTruck,
         stt: formStt,
         bienSoXe: cleanPlate,
+        nhaCungCap: formNhaCungCap.trim() || undefined,
         loaiLua: formLoaiLua.trim() || '5451',
         soLuongUocTinh: uocTinhKg,
         tenTaiXe: formTenTaiXe.trim() || undefined,
@@ -231,6 +238,7 @@ export default function DangTaiView() {
         ngayDangTai: selectedDate,
         gioDangTai: formGioDangTai || getCurrentTimeString(),
         bienSoXe: cleanPlate,
+        nhaCungCap: formNhaCungCap.trim() || undefined,
         loaiLua: formLoaiLua.trim() || '5451',
         soLuongUocTinh: uocTinhKg,
         tenTaiXe: formTenTaiXe.trim() || undefined,
@@ -902,6 +910,7 @@ export default function DangTaiView() {
                 <th className="py-3.5 px-4 text-center w-12">STT</th>
                 <th className="py-3.5 px-3 text-center">Giờ ĐK</th>
                 <th className="py-3.5 px-4">Biển Số Xe</th>
+                <th className="py-3.5 px-3">Nhà Cung Cấp</th>
                 <th className="py-3.5 px-3">Loại Lúa</th>
                 <th className="py-3.5 px-4 text-right">Ước Tính (Kg)</th>
                 <th className="py-3.5 px-4">Tài Xế &amp; SĐT</th>
@@ -965,6 +974,17 @@ export default function DangTaiView() {
                         <span className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-1 text-sm tracking-wider font-mono text-slate-900 shadow-2xs">
                           🚛 {item.bienSoXe}
                         </span>
+                      </td>
+
+                      {/* Nhà Cung Cấp (Khách hàng từ phiếu cân) */}
+                      <td className="py-3 px-3">
+                        {item.nhaCungCap || item.khachHangCan ? (
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 border border-amber-200 shadow-2xs">
+                            🏢 {item.nhaCungCap || item.khachHangCan}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 italic text-[11px]">Chờ cân...</span>
+                        )}
                       </td>
 
                       {/* Loại lúa */}
@@ -1076,7 +1096,11 @@ export default function DangTaiView() {
                         <div className="flex items-center justify-center gap-1.5">
                           {item.anhPhieuCan && (
                             <button
-                              onClick={() => setViewingImage(item.anhPhieuCan || null)}
+                              onClick={() => {
+                                setViewingImage(item.anhPhieuCan || null);
+                                setViewingImageRotation(0);
+                                setViewingImageZoom(1);
+                              }}
                               title="Xem ảnh phiếu cân gốc"
                               className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                             >
@@ -1153,6 +1177,19 @@ export default function DangTaiView() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nhà Cung Cấp / Đối Tác (Khách hàng trên phiếu cân)
+                </label>
+                <input
+                  type="text"
+                  value={formNhaCungCap}
+                  onChange={(e) => setFormNhaCungCap(e.target.value)}
+                  placeholder="VD: A Lâm Tây Ninh (hoặc tự động điền khi quét phiếu cân)"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Loại Lúa</label>
@@ -1174,6 +1211,19 @@ export default function DangTaiView() {
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nhà Cung Cấp / Đối Tác (Khách hàng trên phiếu cân)
+                </label>
+                <input
+                  type="text"
+                  value={formNhaCungCap}
+                  onChange={(e) => setFormNhaCungCap(e.target.value)}
+                  placeholder="VD: A Lâm Tây Ninh (hoặc tự động điền khi quét phiếu cân)"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1480,29 +1530,50 @@ export default function DangTaiView() {
                 <div className="flex items-center justify-between bg-slate-800/90 px-3 py-2 text-xs text-white z-10">
                   <span className="font-bold flex items-center gap-1.5">
                     <span>🖼️ Ảnh sổ gốc</span>
-                    <span className="text-slate-400 text-[11px]">({Math.round(logImageZoom * 100)}%)</span>
+                    <span className="text-slate-400 text-[11px]">
+                      {logImageRotation !== 0 ? `(${logImageRotation}°)` : ''} ({Math.round(logImageZoom * 100)}%)
+                    </span>
                   </span>
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
+                      onClick={() => setLogImageRotation((r) => (r - 90 + 360) % 360)}
+                      className="rounded-lg bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs font-bold text-white cursor-pointer"
+                      title="Xoay trái (-90°)"
+                    >
+                      ⟲ Trái
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogImageRotation((r) => (r + 90) % 360)}
+                      className="rounded-lg bg-blue-600 hover:bg-blue-500 px-2 py-1 text-xs font-bold text-white cursor-pointer shadow-xs"
+                      title="Xoay phải (+90°)"
+                    >
+                      ⟳ Phải
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setLogImageZoom((z) => Math.max(0.5, z - 0.25))}
-                      className="rounded-lg bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs font-bold"
+                      className="rounded-lg bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs font-bold cursor-pointer"
                       title="Thu nhỏ"
                     >
                       ➖
                     </button>
                     <button
                       type="button"
-                      onClick={() => setLogImageZoom(1)}
-                      className="rounded-lg bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs font-bold"
-                      title="Mặc định"
+                      onClick={() => {
+                        setLogImageZoom(1);
+                        setLogImageRotation(0);
+                      }}
+                      className="rounded-lg bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs font-bold cursor-pointer"
+                      title="Đặt lại góc xoay và kích thước"
                     >
                       100%
                     </button>
                     <button
                       type="button"
                       onClick={() => setLogImageZoom((z) => Math.min(3, z + 0.25))}
-                      className="rounded-lg bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs font-bold"
+                      className="rounded-lg bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs font-bold cursor-pointer"
                       title="Phóng to"
                     >
                       ➕
@@ -1511,15 +1582,15 @@ export default function DangTaiView() {
                 </div>
 
                 {/* Vùng hiển thị ảnh có cuộn */}
-                <div className="flex-1 overflow-auto p-2 flex items-center justify-center bg-slate-950">
+                <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-950">
                   {logPreviewImage ? (
                     <div
                       style={{
-                        transform: `scale(${logImageZoom})`,
-                        transformOrigin: 'top center',
-                        transition: 'transform 0.15s ease-out',
+                        transform: `scale(${logImageZoom}) rotate(${logImageRotation}deg)`,
+                        transformOrigin: 'center center',
+                        transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                       }}
-                      className="w-full flex justify-center"
+                      className="w-full flex justify-center items-center"
                     >
                       <Image
                         src={logPreviewImage}
@@ -1756,25 +1827,110 @@ export default function DangTaiView() {
         </div>
       )}
 
-      {/* MODAL XEM ẢNH PHIẾU CÂN GỐC */}
+      {/* MODAL XEM ẢNH PHIẾU CÂN GỐC (HỖ TRỢ XOAY TRÁI, XOAY PHẢI, PHÓNG TO, THU NHỎ) */}
       {viewingImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="relative max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl bg-slate-900 p-2 shadow-2xl flex flex-col items-center">
-            <button
-              onClick={() => setViewingImage(null)}
-              className="absolute top-4 right-4 z-10 rounded-full bg-black/60 p-2 text-white hover:bg-black/90 cursor-pointer"
-            >
-              ✕
-            </button>
-            <div className="overflow-auto max-h-[85vh] p-2 flex items-center justify-center">
-              <Image
-                src={viewingImage}
-                alt="Ảnh phiếu cân gốc"
-                width={800}
-                height={1000}
-                unoptimized
-                className="max-h-[80vh] w-auto object-contain rounded-2xl shadow-lg"
-              />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-5 overflow-hidden animate-fadeIn">
+          <div className="relative w-full max-w-5xl h-[92vh] rounded-3xl bg-slate-900 border border-white/10 shadow-2xl flex flex-col overflow-hidden">
+            {/* Thanh công cụ Toolbar trên đầu */}
+            <div className="flex flex-wrap items-center justify-between bg-slate-800/95 px-4 py-3 border-b border-white/10 text-white z-10 gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🖼️</span>
+                <span className="text-xs sm:text-sm font-bold">Xem Ảnh Phiếu Cân Gốc</span>
+                <span className="rounded-md bg-slate-700 text-slate-300 text-[11px] px-2 py-0.5 font-mono">
+                  {viewingImageRotation !== 0 ? `Xoay ${viewingImageRotation}°` : '0°'} | {Math.round(viewingImageZoom * 100)}%
+                </span>
+              </div>
+
+              {/* Các nút thao tác xoay và phóng to thu nhỏ */}
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                {/* Nút Xoay Trái (-90°) */}
+                <button
+                  type="button"
+                  onClick={() => setViewingImageRotation((r) => (r - 90 + 360) % 360)}
+                  className="flex items-center gap-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs font-bold transition-all cursor-pointer text-white shadow-xs active:scale-95"
+                  title="Xoay ngược chiều kim đồng hồ (-90°)"
+                >
+                  <span className="text-sm">⟲</span>
+                  <span className="hidden sm:inline">Xoay Trái</span>
+                </button>
+
+                {/* Nút Xoay Phải (+90°) */}
+                <button
+                  type="button"
+                  onClick={() => setViewingImageRotation((r) => (r + 90) % 360)}
+                  className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-bold transition-all cursor-pointer text-white shadow-md shadow-blue-500/30 active:scale-95"
+                  title="Xoay theo chiều kim đồng hồ (+90°)"
+                >
+                  <span className="text-sm">⟳</span>
+                  <span className="hidden sm:inline">Xoay Phải</span>
+                </button>
+
+                <div className="h-4 w-px bg-slate-600 mx-1 hidden sm:block" />
+
+                {/* Thu nhỏ */}
+                <button
+                  type="button"
+                  onClick={() => setViewingImageZoom((z) => Math.max(0.4, z - 0.2))}
+                  className="rounded-xl bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 text-xs font-bold cursor-pointer transition-colors"
+                  title="Thu nhỏ"
+                >
+                  ➖
+                </button>
+
+                {/* Đặt lại */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewingImageZoom(1);
+                    setViewingImageRotation(0);
+                  }}
+                  className="rounded-xl bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 text-xs font-bold cursor-pointer transition-colors"
+                  title="Đặt lại góc xoay và kích thước ban đầu"
+                >
+                  Đặt lại
+                </button>
+
+                {/* Phóng to */}
+                <button
+                  type="button"
+                  onClick={() => setViewingImageZoom((z) => Math.min(3, z + 0.2))}
+                  className="rounded-xl bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 text-xs font-bold cursor-pointer transition-colors"
+                  title="Phóng to"
+                >
+                  ➕
+                </button>
+
+                {/* Đóng Modal */}
+                <button
+                  type="button"
+                  onClick={() => setViewingImage(null)}
+                  className="rounded-xl bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 text-xs font-bold ml-1 sm:ml-2 cursor-pointer shadow-md shadow-rose-600/30 transition-colors"
+                  title="Đóng cửa sổ"
+                >
+                  ✕ Đóng
+                </button>
+              </div>
+            </div>
+
+            {/* Vùng hiển thị ảnh có thể xoay và cuộn zoom */}
+            <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-950/90">
+              <div
+                style={{
+                  transform: `scale(${viewingImageZoom}) rotate(${viewingImageRotation}deg)`,
+                  transformOrigin: 'center center',
+                  transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+                className="flex items-center justify-center"
+              >
+                <Image
+                  src={viewingImage}
+                  alt="Ảnh phiếu cân gốc"
+                  width={900}
+                  height={1200}
+                  unoptimized
+                  className="max-h-[78vh] w-auto max-w-full object-contain rounded-xl shadow-2xl select-none"
+                />
+              </div>
             </div>
           </div>
         </div>
