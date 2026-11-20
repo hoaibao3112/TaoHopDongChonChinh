@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { XeDangTai, DangTaiSummary, OcrBangDangTaiItem } from '@/lib/dang-tai/types';
 import { formatPlateDisplay, normalizePlate, isValidPlateFormat, normalizeEstimatedWeight } from '@/lib/dang-tai/plate';
+import DriverCombobox from '@/components/DriverCombobox';
 
 function getTodayString(): string {
   const now = new Date();
@@ -1177,13 +1178,18 @@ export default function DangTaiView() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Tên Tài Xế</label>
-                  <input
-                    type="text"
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Tên Tài Xế (Tìm kiếm / Chọn từ danh bạ)
+                  </label>
+                  <DriverCombobox
                     value={formTenTaiXe}
-                    onChange={(e) => setFormTenTaiXe(e.target.value)}
-                    placeholder="VD: Anh Lâm"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                    phoneValue={formSdtTaiXe}
+                    onSelect={(name, phone) => {
+                      setFormTenTaiXe(name);
+                      if (phone) setFormSdtTaiXe(phone);
+                    }}
+                    placeholder="Gõ tên tài xế (không dấu)..."
+                    inputClassName="text-sm font-semibold"
                   />
                 </div>
                 <div>
@@ -1193,7 +1199,7 @@ export default function DangTaiView() {
                     value={formSdtTaiXe}
                     onChange={(e) => setFormSdtTaiXe(e.target.value)}
                     placeholder="VD: 0987778797"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-mono font-semibold text-slate-900 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -1655,19 +1661,22 @@ export default function DangTaiView() {
                               />
                             </td>
 
-                            {/* Tên tài xế */}
-                            <td className="py-2 px-1">
-                              <input
-                                type="text"
+                            {/* Tên tài xế (Combobox tìm kiếm & thêm danh bạ tại chỗ) */}
+                            <td className="py-2 px-1 min-w-[150px]">
+                              <DriverCombobox
                                 value={item.tenTaiXe || ''}
-                                onChange={(e) => handleLogItemChange(item.tempId, 'tenTaiXe', e.target.value)}
-                                placeholder="Tài xế"
-                                className="w-full text-xs bg-white rounded-md px-1.5 py-1 border border-slate-200"
+                                phoneValue={item.sdtTaiXe || ''}
+                                onSelect={(name, phone) => {
+                                  handleLogItemChange(item.tempId, 'tenTaiXe', name);
+                                  if (phone) handleLogItemChange(item.tempId, 'sdtTaiXe', phone);
+                                }}
+                                placeholder="Tài xế..."
+                                inputClassName="py-1 px-2 text-xs"
                               />
                             </td>
 
                             {/* SĐT */}
-                            <td className="py-2 px-1">
+                            <td className="py-2 px-1 w-28">
                               <input
                                 type="text"
                                 value={item.sdtTaiXe || ''}
