@@ -40,7 +40,9 @@ Hãy đọc cẩn thận hình ảnh phiếu cân được cung cấp và trích
   "khachHang": "Tên khách hàng hoặc đối tác (ví dụ: 'A LAM TAY NINH')",
   "loaiHang": "Loại hàng hóa/loại lúa (ví dụ: 'LUA TUOI 5451', '5451', 'OM18')",
   "xuatNhap": "Nhập hoặc Xuất (thường là 'Nhập')",
-  "ngayGioCan": "Ngày và giờ cân thực tế theo định dạng 'DD/MM/YYYY HH:mm:ss' (nếu có 2 lần cân thì lấy lần cân thứ 2/muộn hơn, ví dụ: '19/11/2026 11:57:27')",
+  "ngayCan": "Ngày cân in ở HÀNG NGÀY CÂN BÊN DƯỚI (hàng Ngày/Giờ ra hoặc lần cân thứ 2 khi xe đã cân xong, định dạng 'DD/MM/YYYY', ví dụ: '20/11/2026')",
+  "gioCan": "Giờ cân in ở HÀNG NGÀY CÂN BÊN DƯỚI (giờ mà xe hoàn tất cân xong ra phiếu, định dạng 'HH:mm:ss' hoặc 'HH:mm', ví dụ: '11:41:23' hoặc '11:41')",
+  "ngayGioCan": "Ngày và giờ cân ở hàng ngày cân bên dưới theo định dạng 'DD/MM/YYYY HH:mm:ss' (ví dụ: '20/11/2026 11:41:23')",
   "tlXeHangKg": 47710,
   "tlXeKg": 14800,
   "tlHangKg": 32910,
@@ -51,7 +53,8 @@ QUY TẮC BẮT BUỘC:
 1. Các trường trọng lượng (tlXeHangKg, tlXeKg, tlHangKg) là SỐ NGUYÊN (kg). Lưu ý dấu chấm "." trên phiếu là phân cách hàng nghìn (ví dụ 47.710 Kg là 47710, 14.800 Kg là 14800, 32.910 Kg là 32910).
 2. Kiểm tra toán học: Trọng lượng hàng = Trọng lượng xe và hàng - Trọng lượng xe.
 3. Biển số xe cần lấy đúng từng ký tự (gồm cả mã tỉnh và chữ cái, ví dụ 70H-03268).
-4. Chỉ trả về JSON duy nhất, không thêm markdown hay bất kỳ lời giải thích nào khác.
+4. QUAN TRỌNG VỀ NGÀY VÀ GIỜ CÂN: BẮT BUỘC lấy ở HÀNG NGÀY CÂN BÊN DƯỚI (hàng Ngày/Giờ ra hoặc lần cân thứ 2 khi xe đã xả hàng xong ra phiếu, ví dụ '20/11/2026 11:41:23' thì ngayCan='20/11/2026' và gioCan='11:41:23'), tuyệt đối không lấy hàng giờ vào ở bên trên.
+5. Chỉ trả về JSON duy nhất, không thêm markdown hay bất kỳ lời giải thích nào khác.
 `;
 
   const candidateModels = [
@@ -102,6 +105,16 @@ QUY TẮC BẮT BUỘC:
             khachHang: parsed.khachHang ? String(parsed.khachHang).trim() : undefined,
             loaiHang: parsed.loaiHang ? String(parsed.loaiHang).trim() : undefined,
             xuatNhap: parsed.xuatNhap ? String(parsed.xuatNhap).trim() : 'Nhập',
+            ngayCan: parsed.ngayCan
+              ? String(parsed.ngayCan).trim()
+              : parsed.ngayGioCan && String(parsed.ngayGioCan).includes(' ')
+              ? String(parsed.ngayGioCan).trim().split(' ')[0]
+              : undefined,
+            gioCan: parsed.gioCan
+              ? String(parsed.gioCan).trim()
+              : parsed.ngayGioCan && String(parsed.ngayGioCan).includes(' ')
+              ? String(parsed.ngayGioCan).trim().split(' ')[1]
+              : undefined,
             ngayGioCan: parsed.ngayGioCan ? String(parsed.ngayGioCan).trim() : undefined,
             tlXeHangKg: Number(parsed.tlXeHangKg) || undefined,
             tlXeKg: Number(parsed.tlXeKg) || undefined,

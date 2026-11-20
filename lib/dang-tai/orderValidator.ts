@@ -73,13 +73,38 @@ export function processWeighingSlip(
   const uocTinh = xeMatched.soLuongUocTinh || 0;
   const chenhLechKg = tlHang !== undefined ? tlHang - uocTinh : undefined;
 
+  const ngayGioCan = phieu.ngayGioCan || xeMatched.ngayGioCan;
+  let ngayCan = phieu.ngayCan || xeMatched.ngayCan;
+  let gioCan = phieu.gioCan || xeMatched.gioCan;
+
+  if (!ngayCan && ngayGioCan) {
+    const parts = ngayGioCan.trim().split(' ');
+    if (parts.length >= 2) {
+      ngayCan = parts[0];
+      if (!gioCan) gioCan = parts[1];
+    } else if (ngayGioCan.includes('/') || ngayGioCan.includes('-')) {
+      ngayCan = ngayGioCan;
+    }
+  }
+
+  if (!gioCan && ngayGioCan) {
+    const parts = ngayGioCan.trim().split(' ');
+    if (parts.length >= 2) {
+      gioCan = parts[1];
+    } else if (ngayGioCan.includes(':')) {
+      gioCan = ngayGioCan;
+    }
+  }
+
   const updatedXe: XeDangTai = {
     ...xeMatched,
     trangThai: isValidOrder ? 'da_can' : 'sai_stt',
     canHopLeSTT: isValidOrder,
     canhBaoSTT: warningMessage,
     soPhieuCan: phieu.soPhieu || xeMatched.soPhieuCan,
-    ngayGioCan: phieu.ngayGioCan || xeMatched.ngayGioCan,
+    ngayCan: ngayCan || undefined,
+    gioCan: gioCan || undefined,
+    ngayGioCan: ngayGioCan,
     khachHangCan: phieu.khachHang || xeMatched.khachHangCan,
     nhaCungCap: phieu.khachHang || xeMatched.nhaCungCap,
     loaiHangCan: phieu.loaiHang || xeMatched.loaiHangCan,

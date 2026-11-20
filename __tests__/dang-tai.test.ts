@@ -131,6 +131,8 @@ describe('3. Logic Kiểm Tra Thứ Tự STT & Tự Động Điền', () => {
     expect(res.updatedXe).toBeDefined();
     expect(res.updatedXe?.bienSoXe).toBe('70H-03268');
     expect(res.updatedXe?.soPhieuCan).toBe('5');
+    expect(res.updatedXe?.ngayCan).toBe('19/11/2026');
+    expect(res.updatedXe?.gioCan).toBe('11:57:27');
     expect(res.updatedXe?.tlHangKg).toBe(32910);
     expect(res.updatedXe?.tlXeKg).toBe(14800);
     expect(res.updatedXe?.tlXeHangKg).toBe(47710);
@@ -232,5 +234,21 @@ describe('3. Logic Kiểm Tra Thứ Tự STT & Tự Động Điền', () => {
 
     // Đảm bảo STT gốc của xe 4 không hề bị đổi thành 2
     expect(reorderedList[1].stt).toBe(4);
+  });
+
+  it('5. Tự động lấy Ngày Cân và Giờ Cân từ hàng bên dưới trên phiếu cân cập nhật vào hệ thống', () => {
+    const slip: OcrPhieuCanResult = {
+      soPhieu: '8',
+      soXe: '70H-03268',
+      ngayCan: '20/11/2026',
+      gioCan: '11:41:23',
+      ngayGioCan: '20/11/2026 11:41:23',
+      tlHangKg: 32000,
+    };
+
+    const res = processWeighingSlip(slip, initialTrucks);
+    expect(res.matched).toBe(true);
+    expect(res.updatedXe?.ngayCan).toBe('20/11/2026');
+    expect(res.updatedXe?.gioCan).toBe('11:41:23');
   });
 });

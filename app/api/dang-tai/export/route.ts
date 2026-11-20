@@ -43,20 +43,20 @@ export async function GET(req: NextRequest) {
     });
 
     // 1. Tiêu đề
-    sheet.mergeCells('A1:P1');
+    sheet.mergeCells('A1:Q1');
     const titleCell = sheet.getCell('A1');
     titleCell.value = 'CÔNG TY TNHH XUẤT NHẬP KHẨU CHƠN CHÍNH';
     titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF0F5132' } };
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
-    sheet.mergeCells('A2:P2');
+    sheet.mergeCells('A2:Q2');
     const subTitle = sheet.getCell('A2');
     subTitle.value = `BẢNG THEO DÕI ĐĂNG TÀI & CÂN XE LÚA VỀ NHẬP - NGÀY ${formatDateVi(date)}`;
     subTitle.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FF1E293B' } };
     subTitle.alignment = { horizontal: 'center', vertical: 'middle' };
 
     // 2. Tóm tắt
-    sheet.mergeCells('A4:P4');
+    sheet.mergeCells('A4:Q4');
     const sumCell = sheet.getCell('A4');
     sumCell.value = `Tổng số xe: ${summary.tongXe} | Đã cân: ${summary.daCan} | Đang chờ cân: ${summary.choCan} | Cân sai STT: ${summary.saiStt} | Tổng ước tính: ${summary.tongKgUocTinh.toLocaleString('vi-VN')} Kg | Tổng cân thực tế: ${summary.tongKgThucTe.toLocaleString('vi-VN')} Kg | Chênh lệch: ${summary.tongChenhLechKg > 0 ? '+' : ''}${summary.tongChenhLechKg.toLocaleString('vi-VN')} Kg`;
     sumCell.font = { name: 'Arial', size: 10, italic: true, bold: true, color: { argb: 'FF334155' } };
@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
       'Ước Tính (Kg)',
       'Tài Xế',
       'Số Điện Thoại',
+      'Ngày Cân',
       'Giờ Cân',
       'Số Phiếu',
       'TL Xe+Hàng (Kg)',
@@ -116,6 +117,17 @@ export async function GET(req: NextRequest) {
 
       const canhBaoVaGhiChu = [item.canhBaoSTT, item.ghiChu].filter(Boolean).join(' | ');
 
+      const ngayCanVal =
+        item.ngayCan ||
+        (item.ngayGioCan && item.ngayGioCan.includes(' ')
+          ? item.ngayGioCan.split(' ')[0]
+          : item.ngayGioCan || '');
+      const gioCanVal =
+        item.gioCan ||
+        (item.ngayGioCan && item.ngayGioCan.includes(' ')
+          ? item.ngayGioCan.split(' ')[1]
+          : item.ngayGioCan || '');
+
       row.getCell(1).value = item.stt;
       row.getCell(2).value = item.gioDangTai;
       row.getCell(3).value = item.bienSoXe;
@@ -124,21 +136,22 @@ export async function GET(req: NextRequest) {
       row.getCell(6).value = item.soLuongUocTinh || 0;
       row.getCell(7).value = item.tenTaiXe || '';
       row.getCell(8).value = item.sdtTaiXe || '';
-      row.getCell(9).value = item.ngayGioCan || '';
-      row.getCell(10).value = item.soPhieuCan || '';
-      row.getCell(11).value = item.tlXeHangKg || '';
-      row.getCell(12).value = item.tlXeKg || '';
-      row.getCell(13).value = item.tlHangKg || '';
-      row.getCell(14).value = item.chenhLechKg !== undefined ? item.chenhLechKg : '';
-      row.getCell(15).value = trangThaiText;
-      row.getCell(16).value = canhBaoVaGhiChu;
+      row.getCell(9).value = ngayCanVal;
+      row.getCell(10).value = gioCanVal;
+      row.getCell(11).value = item.soPhieuCan || '';
+      row.getCell(12).value = item.tlXeHangKg || '';
+      row.getCell(13).value = item.tlXeKg || '';
+      row.getCell(14).value = item.tlHangKg || '';
+      row.getCell(15).value = item.chenhLechKg !== undefined ? item.chenhLechKg : '';
+      row.getCell(16).value = trangThaiText;
+      row.getCell(17).value = canhBaoVaGhiChu;
 
       // Number formatting
       row.getCell(6).numFmt = '#,##0';
-      if (item.tlXeHangKg) row.getCell(11).numFmt = '#,##0';
-      if (item.tlXeKg) row.getCell(12).numFmt = '#,##0';
-      if (item.tlHangKg) row.getCell(13).numFmt = '#,##0';
-      if (item.chenhLechKg !== undefined) row.getCell(14).numFmt = '+#,##0;-#,##0;0';
+      if (item.tlXeHangKg) row.getCell(12).numFmt = '#,##0';
+      if (item.tlXeKg) row.getCell(13).numFmt = '#,##0';
+      if (item.tlHangKg) row.getCell(14).numFmt = '#,##0';
+      if (item.chenhLechKg !== undefined) row.getCell(15).numFmt = '+#,##0;-#,##0;0';
 
       // Alignment
       row.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
@@ -151,12 +164,13 @@ export async function GET(req: NextRequest) {
       row.getCell(8).alignment = { horizontal: 'center', vertical: 'middle' };
       row.getCell(9).alignment = { horizontal: 'center', vertical: 'middle' };
       row.getCell(10).alignment = { horizontal: 'center', vertical: 'middle' };
-      row.getCell(11).alignment = { horizontal: 'right', vertical: 'middle' };
+      row.getCell(11).alignment = { horizontal: 'center', vertical: 'middle' };
       row.getCell(12).alignment = { horizontal: 'right', vertical: 'middle' };
       row.getCell(13).alignment = { horizontal: 'right', vertical: 'middle' };
       row.getCell(14).alignment = { horizontal: 'right', vertical: 'middle' };
-      row.getCell(15).alignment = { horizontal: 'center', vertical: 'middle' };
-      row.getCell(16).alignment = { horizontal: 'left', vertical: 'middle' };
+      row.getCell(15).alignment = { horizontal: 'right', vertical: 'middle' };
+      row.getCell(16).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(17).alignment = { horizontal: 'left', vertical: 'middle' };
 
       // Highlight according to status
       let rowBg = 'FFFFFFFF';
@@ -166,7 +180,7 @@ export async function GET(req: NextRequest) {
         rowBg = 'FFF0FDF4'; // Green tint
       }
 
-      for (let col = 1; col <= 16; col++) {
+      for (let col = 1; col <= 17; col++) {
         const cell = row.getCell(col);
         cell.font = { name: 'Arial', size: 9 };
         cell.border = {
@@ -200,17 +214,17 @@ export async function GET(req: NextRequest) {
     totalRow.getCell(6).numFmt = '#,##0';
     totalRow.getCell(6).alignment = { horizontal: 'right', vertical: 'middle' };
 
-    totalRow.getCell(13).value = summary.tongKgThucTe;
-    totalRow.getCell(13).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF15803D' } };
-    totalRow.getCell(13).numFmt = '#,##0';
-    totalRow.getCell(13).alignment = { horizontal: 'right', vertical: 'middle' };
-
-    totalRow.getCell(14).value = summary.tongChenhLechKg;
-    totalRow.getCell(14).font = { name: 'Arial', size: 10, bold: true };
-    totalRow.getCell(14).numFmt = '+#,##0;-#,##0;0';
+    totalRow.getCell(14).value = summary.tongKgThucTe;
+    totalRow.getCell(14).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF15803D' } };
+    totalRow.getCell(14).numFmt = '#,##0';
     totalRow.getCell(14).alignment = { horizontal: 'right', vertical: 'middle' };
 
-    for (let col = 1; col <= 16; col++) {
+    totalRow.getCell(15).value = summary.tongChenhLechKg;
+    totalRow.getCell(15).font = { name: 'Arial', size: 10, bold: true };
+    totalRow.getCell(15).numFmt = '+#,##0;-#,##0;0';
+    totalRow.getCell(15).alignment = { horizontal: 'right', vertical: 'middle' };
+
+    for (let col = 1; col <= 17; col++) {
       const cell = totalRow.getCell(col);
       cell.fill = {
         type: 'pattern',
@@ -233,14 +247,15 @@ export async function GET(req: NextRequest) {
     sheet.getColumn(6).width = 14; // Ước tính
     sheet.getColumn(7).width = 18; // Tên tài xế
     sheet.getColumn(8).width = 14; // Số điện thoại
-    sheet.getColumn(9).width = 20; // Giờ cân
-    sheet.getColumn(10).width = 11; // Số phiếu
-    sheet.getColumn(11).width = 14; // TL Xe+Hàng
-    sheet.getColumn(12).width = 12; // TL Xe
-    sheet.getColumn(13).width = 14; // TL Hàng
-    sheet.getColumn(14).width = 14; // Chênh lệch
-    sheet.getColumn(15).width = 14; // Trạng thái
-    sheet.getColumn(16).width = 30; // Ghi chú
+    sheet.getColumn(9).width = 14; // Ngày cân
+    sheet.getColumn(10).width = 14; // Giờ cân
+    sheet.getColumn(11).width = 11; // Số phiếu
+    sheet.getColumn(12).width = 14; // TL Xe+Hàng
+    sheet.getColumn(13).width = 12; // TL Xe
+    sheet.getColumn(14).width = 14; // TL Hàng
+    sheet.getColumn(15).width = 14; // Chênh lệch
+    sheet.getColumn(16).width = 14; // Trạng thái
+    sheet.getColumn(17).width = 30; // Ghi chú
 
     const buffer = await workbook.xlsx.writeBuffer();
 

@@ -16,7 +16,9 @@ export interface XeDangTai {
   // Dữ liệu sau khi cân (tự động điền từ phiếu cân):
   trangThai: TrangThaiDangTai; // 'cho_can' | 'da_can' | 'sai_stt'
   soPhieuCan?: string; // Số phiếu in trên phiếu (ví dụ: "5")
-  ngayGioCan?: string; // Ngày giờ cân thực tế (ví dụ: "19/11/2026 11:57:27")
+  ngayCan?: string; // Ngày cân thực tế (lấy từ hàng ngày cân bên dưới trên phiếu, ví dụ: "20/11/2026")
+  gioCan?: string; // Giờ cân thực tế (phiếu đó cân vào lúc mấy giờ - lấy từ hàng bên dưới, ví dụ: "11:41:23")
+  ngayGioCan?: string; // Ngày giờ cân thực tế (ví dụ: "20/11/2026 11:41:23")
   khachHangCan?: string; // Tên khách hàng (ví dụ: "A LAM TAY NINH")
   loaiHangCan?: string; // Loại hàng trên phiếu cân (ví dụ: "LUA TUOI 5451")
   tlXeHangKg?: number; // Trọng lượng xe và hàng (kg) (ví dụ: 47710)
@@ -40,6 +42,8 @@ export interface OcrPhieuCanResult {
   khachHang?: string;
   loaiHang?: string;
   xuatNhap?: string;
+  ngayCan?: string;
+  gioCan?: string;
   ngayGioCan?: string;
   tlXeHangKg?: number;
   tlXeKg?: number;

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
-import { XeDangTai, DangTaiSummary, OcrBangDangTaiItem } from '@/lib/dang-tai/types';
+import { XeDangTai, DangTaiSummary, OcrBangDangTaiItem, OcrPhieuCanResult } from '@/lib/dang-tai/types';
 import { formatPlateDisplay, normalizePlate, isValidPlateFormat, normalizeEstimatedWeight } from '@/lib/dang-tai/plate';
 import DriverCombobox from '@/components/DriverCombobox';
 import { compressImageForOcr } from '@/lib/dang-tai/compressImage';
@@ -29,17 +29,7 @@ interface ScanResultItem {
   isValidOrder?: boolean;
   warningMessage?: string;
   error?: string;
-  phieu?: {
-    soPhieu?: string;
-    soXe?: string;
-    tlHangKg?: number;
-    tlXeKg?: number;
-    tlXeHangKg?: number;
-    ngayGioCan?: string;
-    loaiHang?: string;
-    khachHang?: string;
-    ghiChu?: string;
-  };
+  phieu?: OcrPhieuCanResult;
   updatedXe?: XeDangTai;
 }
 
@@ -66,6 +56,8 @@ export default function DangTaiView() {
   const [formTenTaiXe, setFormTenTaiXe] = useState<string>('');
   const [formSdtTaiXe, setFormSdtTaiXe] = useState<string>('');
   const [formGioDangTai, setFormGioDangTai] = useState<string>(getCurrentTimeString);
+  const [formNgayCan, setFormNgayCan] = useState<string>('');
+  const [formGioCan, setFormGioCan] = useState<string>('');
   const [formGhiChu, setFormGhiChu] = useState<string>('');
   const [formStt, setFormStt] = useState<number>(1);
 
@@ -188,6 +180,8 @@ export default function DangTaiView() {
     setFormTenTaiXe('');
     setFormSdtTaiXe('');
     setFormGioDangTai(getCurrentTimeString());
+    setFormNgayCan('');
+    setFormGioCan('');
     setFormGhiChu('');
     setEditingTruck(null);
     setShowAddModal(true);
@@ -204,6 +198,12 @@ export default function DangTaiView() {
     setFormTenTaiXe(truck.tenTaiXe || '');
     setFormSdtTaiXe(truck.sdtTaiXe || '');
     setFormGioDangTai(truck.gioDangTai || getCurrentTimeString());
+    setFormNgayCan(
+      truck.ngayCan || (truck.ngayGioCan && truck.ngayGioCan.includes(' ') ? truck.ngayGioCan.split(' ')[0] : '')
+    );
+    setFormGioCan(
+      truck.gioCan || (truck.ngayGioCan && truck.ngayGioCan.includes(' ') ? truck.ngayGioCan.split(' ')[1] : '')
+    );
     setFormGhiChu(truck.ghiChu || '');
     setShowAddModal(true);
   };
@@ -226,6 +226,13 @@ export default function DangTaiView() {
       const chenhLech =
         editingTruck.tlHangKg !== undefined ? editingTruck.tlHangKg - uocTinhKg : editingTruck.chenhLechKg;
 
+      let updatedNgayGio = editingTruck.ngayGioCan;
+      if (formNgayCan.trim() && formGioCan.trim()) {
+        updatedNgayGio = `${formNgayCan.trim()} ${formGioCan.trim()}`;
+      } else if (formGioCan.trim()) {
+        updatedNgayGio = formGioCan.trim();
+      }
+
       const updated: XeDangTai = {
         ...editingTruck,
         stt: formStt,
@@ -236,6 +243,9 @@ export default function DangTaiView() {
         tenTaiXe: formTenTaiXe.trim() || undefined,
         sdtTaiXe: formSdtTaiXe.trim() || undefined,
         gioDangTai: formGioDangTai || getCurrentTimeString(),
+        ngayCan: formNgayCan.trim() || undefined,
+        gioCan: formGioCan.trim() || undefined,
+        ngayGioCan: updatedNgayGio,
         ghiChu: formGhiChu.trim() || undefined,
         chenhLechKg: chenhLech,
         updatedAt: new Date().toISOString(),
@@ -254,6 +264,8 @@ export default function DangTaiView() {
         soLuongUocTinh: uocTinhKg,
         tenTaiXe: formTenTaiXe.trim() || undefined,
         sdtTaiXe: formSdtTaiXe.trim() || undefined,
+        ngayCan: formNgayCan.trim() || undefined,
+        gioCan: formGioCan.trim() || undefined,
         ghiChu: formGhiChu.trim() || undefined,
         trangThai: 'cho_can',
         createdAt: new Date().toISOString(),
@@ -1147,8 +1159,9 @@ ${varietyStr}
                 <th className="py-3.5 px-3">Nhà Cung Cấp</th>
                 <th className="py-3.5 px-3">Loại Lúa</th>
                 <th className="py-3.5 px-4 text-right">Ước Tính (Kg)</th>
-                <th className="py-3.5 px-3">Tài Xế</th>
+                <th className="py-3.5 px-3 text-center">Tài Xế</th>
                 <th className="py-3.5 px-3">Số Điện Thoại</th>
+                <th className="py-3.5 px-3 text-center">Ngày Cân</th>
                 <th className="py-3.5 px-3 text-center">Giờ Cân</th>
                 <th className="py-3.5 px-3 text-center">Số Phiếu</th>
                 <th className="py-3.5 px-4 text-right">TL Hàng Cân (Kg)</th>
@@ -1161,7 +1174,7 @@ ${varietyStr}
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={15} className="py-12 text-center text-slate-400">
+                  <td colSpan={16} className="py-12 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
                       <svg className="h-5 w-5 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -1173,7 +1186,7 @@ ${varietyStr}
                 </tr>
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={15} className="py-12 text-center text-slate-400">
+                  <td colSpan={16} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <span className="text-3xl">🚛</span>
                       <p className="font-semibold text-slate-600">Chưa có xe nào trong danh sách đăng tài ngày này</p>
@@ -1296,19 +1309,23 @@ ${varietyStr}
                         )}
                       </td>
 
-                      {/* Giờ cân (Thời gian in trên phiếu cân thực tế) */}
+                      {/* Ngày cân (Lấy từ hàng ngày cân bên dưới trên phiếu cân) */}
                       <td className="py-3 px-3 text-center">
-                        {item.ngayGioCan ? (
-                          <div className="flex flex-col items-center">
-                            <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-                              ⏱️ {item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[1] : item.ngayGioCan}
-                            </span>
-                            {item.ngayGioCan.includes(' ') && (
-                              <span className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                {item.ngayGioCan.split(' ')[0]}
-                              </span>
-                            )}
-                          </div>
+                        {item.ngayCan || (item.ngayGioCan && item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[0] : (item.ngayGioCan && (item.ngayGioCan.includes('/') || item.ngayGioCan.includes('-')) ? item.ngayGioCan : null)) ? (
+                          <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                            📅 {item.ngayCan || (item.ngayGioCan && item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[0] : item.ngayGioCan)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 italic text-[11px]">Chờ cân...</span>
+                        )}
+                      </td>
+
+                      {/* Giờ cân (Phiếu đó cân vào lúc mấy giờ - Lấy từ hàng bên dưới) */}
+                      <td className="py-3 px-3 text-center">
+                        {item.gioCan || (item.ngayGioCan && item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[1] : (item.ngayGioCan && item.ngayGioCan.includes(':') ? item.ngayGioCan : null)) ? (
+                          <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 shadow-2xs">
+                            ⏱️ {item.gioCan || (item.ngayGioCan && item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[1] : item.ngayGioCan)}
+                          </span>
                         ) : (
                           <span className="text-slate-300 italic text-[11px]">Chờ cân...</span>
                         )}
@@ -1565,6 +1582,41 @@ ${varietyStr}
                   />
                 </div>
               </div>
+
+              {editingTruck && (
+                <div className="rounded-2xl bg-indigo-50/60 p-3.5 border border-indigo-100 space-y-3">
+                  <p className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                    <span>⚖️</span>
+                    <span>Thông Tin Cân Thực Tế (Tự động từ phiếu cân hoặc sửa tay)</span>
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Ngày Cân (Hàng bên dưới)
+                      </label>
+                      <input
+                        type="text"
+                        value={formNgayCan}
+                        onChange={(e) => setFormNgayCan(e.target.value)}
+                        placeholder="VD: 20/11/2026"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Giờ Cân Xong (Lúc mấy giờ)
+                      </label>
+                      <input
+                        type="text"
+                        value={formGioCan}
+                        onChange={(e) => setFormGioCan(e.target.value)}
+                        placeholder="VD: 11:41:23"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Ghi Chú</label>
@@ -1851,10 +1903,20 @@ ${varietyStr}
                               <span>{res.phieu.khachHang}</span>
                             </div>
                           )}
-                          {res.phieu.ngayGioCan && (
+                          {(res.phieu.ngayCan || res.phieu.ngayGioCan) && (
                             <div>
-                              <span className="text-slate-400">Giờ cân: </span>
-                              <span>{res.phieu.ngayGioCan}</span>
+                              <span className="text-slate-400">Ngày cân: </span>
+                              <span className="font-semibold text-slate-900">
+                                {res.phieu.ngayCan || (res.phieu.ngayGioCan?.includes(' ') ? res.phieu.ngayGioCan.split(' ')[0] : res.phieu.ngayGioCan)}
+                              </span>
+                            </div>
+                          )}
+                          {(res.phieu.gioCan || res.phieu.ngayGioCan) && (
+                            <div>
+                              <span className="text-slate-400">Giờ cân (hàng dưới): </span>
+                              <span className="font-bold text-indigo-700">
+                                {res.phieu.gioCan || (res.phieu.ngayGioCan?.includes(' ') ? res.phieu.ngayGioCan.split(' ')[1] : res.phieu.ngayGioCan)}
+                              </span>
                             </div>
                           )}
                         </div>
