@@ -58,41 +58,52 @@ export async function POST(req: NextRequest) {
 
     const scanResults = [];
 
-    for (let i = 0; i < imageFiles.length; i++) {
-      const file = imageFiles[i];
+    // 1. Chạy OCR song song cho tất cả các file ảnh để tránh vượt quá thời gian timeout của Vercel
+    const ocrPromises = imageFiles.map(async (file) => {
       const buffer = Buffer.from(await file.arrayBuffer());
       const mimeType = file.type || 'image/jpeg';
-
-      // Tạo thumbnail data URI (hoặc preview URI)
       const base64Image = `data:${mimeType};base64,${buffer.toString('base64')}`;
 
       try {
-        // 1. Trích xuất OCR bằng Gemini
         const ocrData = await extractDangTaiSlipData(buffer, mimeType);
-
-        // 2. Khớp xe và kiểm tra tính hợp lệ của thứ tự STT
-        const processResult = processWeighingSlip(ocrData, currentList, base64Image);
-
-        // 3. Cập nhật danh sách hiện tại cho lần lặp tiếp theo
-        currentList = processResult.danhSachCapNhat;
-
-        scanResults.push({
-          fileName: file.name,
-          success: true,
-          matched: processResult.matched,
-          isValidOrder: processResult.isValidOrder,
-          warningMessage: processResult.warningMessage,
-          phieu: ocrData,
-          updatedXe: processResult.updatedXe,
-        });
+        return { file, base64Image, ocrData, error: null };
       } catch (err: unknown) {
         console.error(`[Scan Slip Error] File ${file.name}:`, err);
-        scanResults.push({
-          fileName: file.name,
-          success: false,
+        return {
+          file,
+          base64Image,
+          ocrData: null,
           error: err instanceof Error ? err.message : 'Không đọc được phiếu cân',
-        });
+        };
       }
+    });
+
+    const ocrOutputs = await Promise.all(ocrPromises);
+
+    // 2. Lần lượt cập nhật vào danh sách xe và đối soát STT
+    for (const item of ocrOutputs) {
+      if (!item.ocrData) {
+        scanResults.push({
+          fileName: item.file.name,
+          success: false,
+          error: item.error,
+        });
+        continue;
+      }
+
+      // Khớp xe và kiểm tra tính hợp lệ của thứ tự STT
+      const processResult = processWeighingSlip(item.ocrData, currentList, item.base64Image);
+      currentList = processResult.danhSachCapNhat;
+
+      scanResults.push({
+        fileName: item.file.name,
+        success: true,
+        matched: processResult.matched,
+        isValidOrder: processResult.isValidOrder,
+        warningMessage: processResult.warningMessage,
+        phieu: item.ocrData,
+        updatedXe: processResult.updatedXe,
+      });
     }
 
     // Lưu danh sách cập nhật vào bộ nhớ/storage

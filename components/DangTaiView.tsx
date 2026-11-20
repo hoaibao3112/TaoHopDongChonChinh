@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { XeDangTai, DangTaiSummary, OcrBangDangTaiItem } from '@/lib/dang-tai/types';
 import { formatPlateDisplay, normalizePlate, isValidPlateFormat, normalizeEstimatedWeight } from '@/lib/dang-tai/plate';
 import DriverCombobox from '@/components/DriverCombobox';
+import { compressImageForOcr } from '@/lib/dang-tai/compressImage';
 
 function getTodayString(): string {
   const now = new Date();
@@ -85,6 +86,12 @@ export default function DangTaiView() {
   const [logImageZoom, setLogImageZoom] = useState<number>(1);
   const [logImageRotation, setLogImageRotation] = useState<number>(0);
   const logFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Báo cáo Zalo Nhanh (Trưa 11h30 & Chiều 17h00)
+  const [showZaloReportModal, setShowZaloReportModal] = useState<boolean>(false);
+  const [zaloReportShift, setZaloReportShift] = useState<'trua' | 'chieu'>('trua');
+  const [zaloReportOnlyMorning, setZaloReportOnlyMorning] = useState<boolean>(false);
+  const [zaloReportText, setZaloReportText] = useState<string>('');
 
   // Thông báo toast
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'warning' | 'error' } | null>(null);
@@ -385,28 +392,41 @@ export default function DangTaiView() {
     }
   };
 
-  // Quét phiếu cân bằng AI
+  // Quét phiếu cân bằng AI (Tự động nén ảnh trên Client để chống 504 Timeout Vercel)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const rawFiles = e.target.files;
+    if (!rawFiles || rawFiles.length === 0) return;
 
     setIsScanning(true);
-    const formData = new FormData();
-    formData.append('date', selectedDate);
-    formData.append('currentItems', JSON.stringify(items));
-
-    for (let i = 0; i < files.length; i++) {
-      formData.append('images', files[i]);
-    }
-
     try {
+      const formData = new FormData();
+      formData.append('date', selectedDate);
+      formData.append('currentItems', JSON.stringify(items));
+
+      // Nén ảnh trên Client: Giảm từ 10MB xuống ~250KB, giúp upload cực nhanh và không bị timeout 504
+      for (let i = 0; i < rawFiles.length; i++) {
+        const file = rawFiles[i];
+        const compressedBlob = await compressImageForOcr(file, 1600);
+        formData.append('images', compressedBlob, file.name);
+      }
+
       const res = await fetch('/api/dang-tai/scan', {
         method: 'POST',
         body: formData,
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi khi quét phiếu');
+      const resText = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(resText);
+      } catch {
+        if (res.status === 504) {
+          throw new Error('Máy chủ bị Timeout 504 (quá thời gian xử lý Vercel). Hãy thử quét 1-2 phiếu một lần để nhanh hơn.');
+        }
+        throw new Error(`Lỗi máy chủ (${res.status}): ${resText.slice(0, 100)}`);
+      }
+
+      if (!res.ok) throw new Error(data?.error || 'Lỗi khi quét phiếu');
 
       if (data.updatedList) {
         setItems(data.updatedList);
@@ -416,7 +436,7 @@ export default function DangTaiView() {
         setShowScanResultModal(true);
       }
 
-      showToast(`Đã quét xong ${files.length} phiếu cân!`);
+      showToast(`Đã quét xong ${rawFiles.length} phiếu cân!`);
     } catch (err: unknown) {
       console.error(err);
       showToast(err instanceof Error ? err.message : 'Lỗi khi quét phiếu cân', 'error');
@@ -426,23 +446,34 @@ export default function DangTaiView() {
     }
   };
 
-  // Quét Sổ Đăng Tài Viết Tay Bằng AI (Có bước xem trước và sửa lỗi)
+  // Quét Sổ Đăng Tài Viết Tay Bằng AI (Tự động nén ảnh trên Client để chống 504 Timeout Vercel)
   const handleLogFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsScanningLog(true);
-    const formData = new FormData();
-    formData.append('image', file);
-
     try {
+      const compressedBlob = await compressImageForOcr(file, 1800);
+      const formData = new FormData();
+      formData.append('image', compressedBlob, file.name);
+
       const res = await fetch('/api/dang-tai/scan-log', {
         method: 'POST',
         body: formData,
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi khi đọc ảnh sổ đăng tài');
+      const resText = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(resText);
+      } catch {
+        if (res.status === 504) {
+          throw new Error('Máy chủ bị Timeout 504 khi đọc sổ viết tay. Vui lòng chụp gần hơn và thử lại.');
+        }
+        throw new Error(`Lỗi máy chủ (${res.status}): ${resText.slice(0, 100)}`);
+      }
+
+      if (!res.ok) throw new Error(data?.error || 'Lỗi khi đọc ảnh sổ đăng tài');
 
       if (data.items) {
         setLogPreviewItems(data.items);
@@ -575,6 +606,122 @@ export default function DangTaiView() {
     window.open(`/api/dang-tai/export?date=${encodeURIComponent(selectedDate)}`, '_blank');
   };
 
+  // Tạo nội dung tin nhắn Báo Cáo Zalo (Trưa 11h30 & Chiều 17h00)
+  const generateZaloReport = (
+    shift: 'trua' | 'chieu',
+    onlyMorning: boolean = false,
+    trucksList: XeDangTai[] = items
+  ): string => {
+    const parts = selectedDate.split('-');
+    const dateVi = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : selectedDate;
+
+    let targetTrucks = trucksList;
+    if (shift === 'trua' && onlyMorning) {
+      targetTrucks = trucksList.filter((t) => !t.gioDangTai || t.gioDangTai <= '11:30');
+    }
+
+    const tongXe = targetTrucks.length;
+    const daCanXe = targetTrucks.filter((x) => x.trangThai === 'da_can' || x.trangThai === 'sai_stt');
+    const daCan = daCanXe.length;
+    const choCanXe = targetTrucks.filter((x) => x.trangThai === 'cho_can');
+    const choCan = choCanXe.length;
+
+    const tongKgUocTinh = targetTrucks.reduce((sum, x) => sum + (x.soLuongUocTinh || 0), 0);
+    const tongKgThucTe = daCanXe.reduce((sum, x) => sum + (x.tlHangKg || 0), 0);
+    const tongTanUocTinh = (tongKgUocTinh / 1000).toLocaleString('vi-VN', {
+      maximumFractionDigits: 1,
+      minimumFractionDigits: 1,
+    });
+    const tongTanThucTe = (tongKgThucTe / 1000).toLocaleString('vi-VN', {
+      maximumFractionDigits: 1,
+      minimumFractionDigits: 1,
+    });
+
+    const waitingPlatesStr =
+      choCan > 0
+        ? choCanXe.map((x) => x.bienSoXe).join(', ')
+        : shift === 'trua'
+        ? 'Đã cân hết xe ca sáng'
+        : 'Không có xe tồn, đã cân hết 100%';
+
+    const riceGroups: Record<string, { count: number; kg: number }> = {};
+    for (const t of targetTrucks) {
+      const rawName = (t.loaiLua || '5451').trim();
+      const key = rawName.toUpperCase();
+      if (!riceGroups[key]) {
+        riceGroups[key] = { count: 0, kg: 0 };
+      }
+      riceGroups[key].count += 1;
+      const kgVal = t.tlHangKg && t.tlHangKg > 0 ? t.tlHangKg : t.soLuongUocTinh || 0;
+      riceGroups[key].kg += kgVal;
+    }
+
+    const varietyLines = Object.entries(riceGroups)
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([name, data]) => {
+        const tan = (data.kg / 1000).toLocaleString('vi-VN', {
+          maximumFractionDigits: 1,
+          minimumFractionDigits: 1,
+        });
+        const prefix = name.toLowerCase().startsWith('lúa') ? name : `Lúa ${name}`;
+        return `  - ${prefix}: ${data.count} xe (${tan} tấn)`;
+      });
+
+    const varietyStr =
+      varietyLines.length > 0 ? varietyLines.join('\n') : '  - Chưa có thông tin loại lúa';
+
+    if (shift === 'trua') {
+      return `🚛 BÁO CÁO ĐĂNG TÀI & NHẬP LÚA (CA TRƯA 11H30) - NGÀY ${dateVi}
+🏢 Đơn vị: CÔNG TY XNK CHƠN CHÍNH
+----------------------------------
+• Tổng xe đăng ký: ${tongXe} xe (~${tongTanUocTinh} tấn ước tính của tài xế)
+• Đã cân hoàn tất: ${daCan} xe (Thực cân: ${tongTanThucTe} tấn)
+• Đang chờ cân: ${choCan} xe (${waitingPlatesStr})
+🌾 CHI TIẾT THEO LOẠI LÚA:
+${varietyStr}
+----------------------------------`;
+    }
+
+    return `🚛 BÁO CÁO ĐĂNG TÀI & NHẬP LÚA (CA CHIỀU 17H00) - NGÀY ${dateVi}
+🏢 Đơn vị: CÔNG TY XNK CHƠN CHÍNH
+----------------------------------
+• Tổng xe đăng ký: ${tongXe} xe (~${tongTanUocTinh} tấn ước tính của tài xế)
+• Đã cân hoàn tất: ${daCan} xe (Thực cân: ${tongTanThucTe} tấn)
+• Xe còn tồn / chưa cân: ${choCan} xe (${waitingPlatesStr})
+🌾 CHI TIẾT THEO LOẠI LÚA:
+${varietyStr}
+----------------------------------`;
+  };
+
+  const handleOpenZaloModal = (shift: 'trua' | 'chieu' = 'trua') => {
+    setZaloReportShift(shift);
+    setZaloReportText(generateZaloReport(shift, zaloReportOnlyMorning));
+    setShowZaloReportModal(true);
+  };
+
+  const handleChangeZaloShift = (newShift: 'trua' | 'chieu', newOnlyMorning: boolean = zaloReportOnlyMorning) => {
+    setZaloReportShift(newShift);
+    setZaloReportOnlyMorning(newOnlyMorning);
+    setZaloReportText(generateZaloReport(newShift, newOnlyMorning));
+  };
+
+  const handleCopyZaloReport = async () => {
+    try {
+      await navigator.clipboard.writeText(zaloReportText);
+      showToast(
+        `Đã sao chép ${zaloReportShift === 'trua' ? 'Báo Cáo Trưa (11h30)' : 'Báo Cáo Chiều (17h00)'}! Mở Zalo dán ngay.`
+      );
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = zaloReportText;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      showToast('Đã sao chép báo cáo Zalo!');
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       {/* Toast Notification */}
@@ -625,6 +772,15 @@ export default function DangTaiView() {
               className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
             />
           </div>
+
+          {/* Nút Báo Cáo Zalo (11h30 & 17h00) */}
+          <button
+            onClick={() => handleOpenZaloModal('trua')}
+            className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-900/30 transition-all active:scale-95 cursor-pointer"
+          >
+            <span>📱</span>
+            <span>Báo Cáo Zalo (11h30 &amp; 17h)</span>
+          </button>
 
           {/* Nút Xuất Excel */}
           <button
@@ -1312,6 +1468,122 @@ export default function DangTaiView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL BÁO CÁO ZALO NHANH (TRƯA 11H30 & CHIỀU 17H00) */}
+      {showZaloReportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="w-full max-w-xl rounded-3xl bg-white p-6 sm:p-7 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📱</span>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">Báo Cáo Zalo Nhanh</h3>
+                  <p className="text-xs text-slate-500">Định dạng chuẩn gửi Ban Giám Đốc &amp; Nhóm Điều Phối</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowZaloReportModal(false)}
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Chọn Ca Báo Cáo: Trưa 11h30 vs Chiều 17h00 */}
+            <div className="mt-4 flex rounded-2xl bg-slate-100 p-1.5 gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleChangeZaloShift('trua', zaloReportOnlyMorning)}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer ${
+                  zaloReportShift === 'trua'
+                    ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
+                    : 'text-slate-600 hover:bg-slate-200/70'
+                }`}
+              >
+                <span>☀️</span>
+                <span>Báo Cáo Trưa (11h30)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleChangeZaloShift('chieu', false)}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer ${
+                  zaloReportShift === 'chieu'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                    : 'text-slate-600 hover:bg-slate-200/70'
+                }`}
+              >
+                <span>🌅</span>
+                <span>Báo Cáo Chiều (17h00)</span>
+              </button>
+            </div>
+
+            {/* Tùy chọn lọc ca sáng cho ca trưa */}
+            {zaloReportShift === 'trua' && (
+              <div className="mt-3 flex items-center justify-between bg-amber-50 rounded-xl px-3.5 py-2 border border-amber-200 text-xs">
+                <label className="flex items-center gap-2 text-amber-900 font-semibold cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={zaloReportOnlyMorning}
+                    onChange={(e) => handleChangeZaloShift('trua', e.target.checked)}
+                    className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                  />
+                  <span>Chỉ tính các xe đăng tài trước 11:30</span>
+                </label>
+                <span className="text-[11px] text-amber-700">
+                  {zaloReportOnlyMorning ? 'Đang lọc trước 11h30' : 'Đang tính tất cả xe'}
+                </span>
+              </div>
+            )}
+
+            {/* Vùng xem trước và cho phép sửa văn bản */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-bold text-slate-700">
+                  Nội dung tin nhắn (bạn có thể gõ thêm ghi chú nếu cần):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setZaloReportText(generateZaloReport(zaloReportShift, zaloReportOnlyMorning))}
+                  className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
+                >
+                  🔄 Tạo lại mẫu gốc
+                </button>
+              </div>
+              <textarea
+                value={zaloReportText}
+                onChange={(e) => setZaloReportText(e.target.value)}
+                rows={11}
+                className="w-full rounded-2xl border border-slate-300 bg-slate-900 p-4 font-mono text-xs text-emerald-400 focus:border-blue-500 focus:outline-none shadow-inner leading-relaxed select-all"
+              />
+            </div>
+
+            {/* Các nút hành động */}
+            <div className="mt-5 flex items-center justify-between gap-3 pt-3 border-t border-slate-100">
+              <span className="text-[11px] text-slate-400">
+                💡 Bấm copy xong chỉ cần qua Zalo ấn <strong>Ctrl + V</strong> để gửi.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowZaloReportModal(false)}
+                  className="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyZaloReport}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
+                >
+                  <span>📋</span>
+                  <span>Sao Chép Vào Zalo</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
