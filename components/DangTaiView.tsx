@@ -1336,26 +1336,26 @@ ${varietyStr}
 
       {/* BẢNG DANH SÁCH XE ĐĂNG TÀI & KẾT QUẢ CÂN */}
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xs">
-        <div className="overflow-x-auto w-full">
-          <table className="w-full min-w-[1550px] text-left text-xs border-collapse">
+        <div className="overflow-x-auto w-full no-scrollbar">
+          <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-100/80 text-slate-700 font-bold">
-                <th className="py-3.5 px-3 text-center w-28 whitespace-nowrap">Vị Trí / STT</th>
-                <th className="py-3.5 px-3 text-center min-w-[110px] whitespace-nowrap">Giờ Đăng Tài (24h)</th>
-                <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap">Biển Số Xe</th>
-                <th className="py-3.5 px-3 min-w-[160px] whitespace-nowrap">Nhà Cung Cấp</th>
-                <th className="py-3.5 px-3 min-w-[125px] whitespace-nowrap">Loại Lúa</th>
-                <th className="py-3.5 px-4 text-right min-w-[115px] whitespace-nowrap">Ước Tính (Kg)</th>
-                <th className="py-3.5 px-3 text-center min-w-[145px] whitespace-nowrap">Tài Xế</th>
-                <th className="py-3.5 px-3 min-w-[130px] whitespace-nowrap">Số Điện Thoại</th>
-                <th className="py-3.5 px-3 text-center min-w-[115px] whitespace-nowrap">Ngày Cân</th>
-                <th className="py-3.5 px-3 text-center min-w-[110px] whitespace-nowrap">Giờ Cân (24h)</th>
-                <th className="py-3.5 px-3 text-center min-w-[90px] whitespace-nowrap">Số Phiếu</th>
-                <th className="py-3.5 px-4 text-right min-w-[130px] whitespace-nowrap">TL Hàng Cân (Kg)</th>
-                <th className="py-3.5 px-4 text-right min-w-[120px] whitespace-nowrap">Chênh Lệch</th>
-                <th className="py-3.5 px-3 text-center min-w-[135px] whitespace-nowrap">Trạng Thái</th>
-                <th className="py-3.5 px-4 min-w-[260px]">Ghi Chú / Cảnh Báo</th>
-                <th className="py-3.5 px-3 text-center min-w-[110px] whitespace-nowrap">Thao Tác</th>
+              <tr className="border-b border-slate-200 bg-slate-100/90 text-slate-700 font-bold">
+                <th className="py-2.5 px-2 text-center whitespace-nowrap">Vị Trí / STT</th>
+                <th className="py-2.5 px-2 text-center whitespace-nowrap">Giờ Đăng Tài (24h)</th>
+                <th className="py-2.5 px-2.5 whitespace-nowrap">Biển Số Xe</th>
+                <th className="py-2.5 px-2.5 whitespace-nowrap">Nhà Cung Cấp</th>
+                <th className="py-2.5 px-2 text-center whitespace-nowrap">Loại Lúa</th>
+                <th className="py-2.5 px-2.5 text-right whitespace-nowrap">Ước Tính (Kg)</th>
+                <th className="py-2.5 px-2 whitespace-nowrap">Tài Xế</th>
+                <th className="py-2.5 px-2 whitespace-nowrap">Số Điện Thoại</th>
+                <th className="py-2.5 px-2 text-center whitespace-nowrap">Ngày Cân</th>
+                <th className="py-2.5 px-2 text-center whitespace-nowrap">Giờ Cân (24h)</th>
+                <th className="py-2.5 px-1.5 text-center whitespace-nowrap">Số Phiếu</th>
+                <th className="py-2.5 px-2.5 text-right whitespace-nowrap">TL Hàng Cân</th>
+                <th className="py-2.5 px-2 text-right whitespace-nowrap">Chênh Lệch</th>
+                <th className="py-2.5 px-2 text-center whitespace-nowrap">Trạng Thái</th>
+                <th className="py-2.5 px-3">Ghi Chú / Cảnh Báo</th>
+                <th className="py-2.5 px-2 text-center whitespace-nowrap">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1401,7 +1401,7 @@ ${varietyStr}
                       }`}
                     >
                       {/* Vị Trí & STT (Cho phép đảo vị trí hàng nhưng giữ nguyên STT gốc) */}
-                      <td className="py-2.5 px-2 text-center">
+                      <td className="py-2 px-1 text-center">
                         {(() => {
                           const realIndex = items.findIndex((x) => x.id === item.id);
                           const isFirst = realIndex <= 0;
@@ -1449,21 +1449,21 @@ ${varietyStr}
                       </td>
 
                       {/* Giờ đăng tài (người dùng điền) */}
-                      <td className="py-3 px-3 text-center text-slate-700 font-mono font-bold text-xs whitespace-nowrap">
+                      <td className="py-2 px-2 text-center text-slate-700 font-mono font-bold text-xs whitespace-nowrap">
                         {item.gioDangTai || '—'}
                       </td>
 
                       {/* Biển số xe */}
-                      <td className="py-3 px-4 font-black whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-1 text-sm tracking-wider font-mono text-slate-900 shadow-2xs whitespace-nowrap">
+                      <td className="py-2 px-2.5 font-black whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-xs tracking-wider font-mono text-slate-900 shadow-2xs whitespace-nowrap">
                           🚛 {item.bienSoXe}
                         </span>
                       </td>
 
                       {/* Nhà Cung Cấp (Khách hàng từ phiếu cân hoặc nhập) */}
-                      <td className="py-3 px-3 whitespace-nowrap">
+                      <td className="py-2 px-2.5 whitespace-nowrap">
                         {item.nhaCungCap || item.khachHangCan ? (
-                          <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 border border-amber-200 shadow-2xs whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-900 border border-amber-200 shadow-2xs whitespace-nowrap">
                             🏢 {item.nhaCungCap || item.khachHangCan}
                           </span>
                         ) : (
@@ -1472,24 +1472,24 @@ ${varietyStr}
                       </td>
 
                       {/* Loại lúa */}
-                      <td className="py-3 px-3 font-bold text-slate-700 whitespace-nowrap">
-                        <span className="inline-block rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-800 whitespace-nowrap font-bold">
+                      <td className="py-2 px-2 text-center font-bold text-slate-700 whitespace-nowrap">
+                        <span className="inline-block rounded-lg bg-slate-100 px-2 py-0.5 text-xs text-slate-800 whitespace-nowrap font-bold">
                           {item.loaiLua}
                         </span>
                       </td>
 
                       {/* Ước tính từ khách / tài (Kg) */}
-                      <td className="py-3 px-4 text-right font-bold text-slate-700 whitespace-nowrap">
+                      <td className="py-2 px-2.5 text-right font-bold text-slate-700 whitespace-nowrap font-mono">
                         {item.soLuongUocTinh ? item.soLuongUocTinh.toLocaleString('vi-VN') : 0}
                       </td>
 
                       {/* Tên tài xế (Chọn từ combobox) */}
-                      <td className="py-3 px-3 whitespace-nowrap">
+                      <td className="py-2 px-2 whitespace-nowrap">
                         <span className="font-semibold text-slate-900 whitespace-nowrap">{item.tenTaiXe || '—'}</span>
                       </td>
 
                       {/* SĐT tài xế (Tự ra khi chọn combobox) */}
-                      <td className="py-3 px-3 whitespace-nowrap">
+                      <td className="py-2 px-2 whitespace-nowrap">
                         {item.sdtTaiXe ? (
                           <a
                             href={`tel:${item.sdtTaiXe}`}
@@ -1504,7 +1504,7 @@ ${varietyStr}
                       </td>
 
                       {/* Ngày cân (Lấy từ hàng ngày cân bên dưới trên phiếu cân) */}
-                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                      <td className="py-2 px-2 text-center whitespace-nowrap">
                         {item.ngayCan || (item.ngayGioCan && item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[0] : (item.ngayGioCan && (item.ngayGioCan.includes('/') || item.ngayGioCan.includes('-')) ? item.ngayGioCan : null)) ? (
                           <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 whitespace-nowrap">
                             📅 {item.ngayCan || (item.ngayGioCan && item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[0] : item.ngayGioCan)}
@@ -1515,7 +1515,7 @@ ${varietyStr}
                       </td>
 
                       {/* Giờ cân (Phiếu đó cân vào lúc mấy giờ - Lấy từ hàng bên dưới) */}
-                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                      <td className="py-2 px-2 text-center whitespace-nowrap">
                         {item.gioCan || (item.ngayGioCan && item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[1] : (item.ngayGioCan && item.ngayGioCan.includes(':') ? item.ngayGioCan : null)) ? (
                           <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 shadow-2xs whitespace-nowrap">
                             ⏱️ {item.gioCan || (item.ngayGioCan && item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[1] : item.ngayGioCan)}
@@ -1526,9 +1526,9 @@ ${varietyStr}
                       </td>
 
                       {/* Số phiếu cân */}
-                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                      <td className="py-2 px-1.5 text-center whitespace-nowrap">
                         {item.soPhieuCan ? (
-                          <span className="inline-flex items-center rounded-lg bg-blue-100 px-2.5 py-0.5 font-mono text-xs font-bold text-blue-800 whitespace-nowrap">
+                          <span className="inline-flex items-center rounded-lg bg-blue-100 px-2 py-0.5 font-mono text-xs font-bold text-blue-800 whitespace-nowrap">
                             #{item.soPhieuCan}
                           </span>
                         ) : (
@@ -1537,9 +1537,9 @@ ${varietyStr}
                       </td>
 
                       {/* Trọng lượng hàng cân thực tế */}
-                      <td className="py-3 px-4 text-right font-black whitespace-nowrap">
+                      <td className="py-2 px-2.5 text-right font-black whitespace-nowrap">
                         {item.tlHangKg ? (
-                          <div className="text-emerald-700 text-sm whitespace-nowrap">
+                          <div className="text-emerald-700 text-xs font-mono font-bold whitespace-nowrap">
                             {item.tlHangKg.toLocaleString('vi-VN')}
                             <span className="text-[10px] text-slate-400 font-normal ml-1">kg</span>
                           </div>
@@ -1549,7 +1549,7 @@ ${varietyStr}
                       </td>
 
                       {/* Chênh lệch */}
-                      <td className="py-3 px-4 text-right font-bold whitespace-nowrap">
+                      <td className="py-2 px-2 text-right font-bold whitespace-nowrap font-mono">
                         {item.chenhLechKg !== undefined ? (
                           <span
                             className={`inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-black whitespace-nowrap ${
@@ -1569,10 +1569,10 @@ ${varietyStr}
                       </td>
 
                       {/* Trạng thái */}
-                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                      <td className="py-2 px-2 text-center whitespace-nowrap">
                         {isSaiStt ? (
                           <div className="flex flex-col items-center gap-1.5 whitespace-nowrap">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-800 shadow-2xs whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 shadow-2xs whitespace-nowrap">
                               ⚠️ Cân lệch STT
                             </span>
                             <button
@@ -1586,7 +1586,7 @@ ${varietyStr}
                           </div>
                         ) : item.daChapNhanHopLe ? (
                           <div className="flex flex-col items-center gap-0.5 whitespace-nowrap">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 shadow-2xs whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 shadow-2xs whitespace-nowrap">
                               ✅ Đã duyệt hợp lệ
                             </span>
                             <button
@@ -1599,20 +1599,20 @@ ${varietyStr}
                             </button>
                           </div>
                         ) : isDaCan ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 shadow-2xs whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 shadow-2xs whitespace-nowrap">
                             ✅ Đã cân
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 shadow-2xs whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 shadow-2xs whitespace-nowrap">
                             ⏳ Chờ cân
                           </span>
                         )}
                       </td>
 
                       {/* Ghi chú / Lời cảnh báo */}
-                      <td className="py-3 px-4 max-w-xs">
+                      <td className="py-2 px-3">
                         {isSaiStt && item.canhBaoSTT ? (
-                          <div className="rounded-xl bg-rose-50 border border-rose-200 p-2.5 mb-1.5 space-y-2 shadow-2xs">
+                          <div className="rounded-xl bg-rose-50 border border-rose-200 p-2 mb-1 space-y-1.5 shadow-2xs">
                             <div className="text-rose-700 font-bold text-[11px] leading-snug">
                               {item.canhBaoSTT}
                             </div>
@@ -1639,8 +1639,8 @@ ${varietyStr}
                       </td>
 
                       {/* Thao tác */}
-                      <td className="py-3 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
+                      <td className="py-2 px-2 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1">
                           {item.anhPhieuCan && (
                             <button
                               onClick={() => {

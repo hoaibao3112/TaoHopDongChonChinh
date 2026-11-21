@@ -23,4 +23,13 @@
     -moz-appearance: textfield;
     appearance: textfield;
   }
+
+  /* Ẩn thanh cuộn ngang khi cần giao diện tràn viền gọn gàng */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }

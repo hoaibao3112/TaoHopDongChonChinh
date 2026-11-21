@@ -24,7 +24,7 @@ export default async function DangTaiPage() {
     <div className="min-h-screen bg-slate-50/70 text-slate-900 pb-20 antialiased">
       <AppHeader />
 
-      <main className="w-full px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6">
+      <main className="w-full px-2 sm:px-4 lg:px-6 pt-3 sm:pt-5">
         <DangTaiView />
       </main>
     </div>
