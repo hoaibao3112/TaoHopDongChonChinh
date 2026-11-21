@@ -36,6 +36,23 @@ export default function AppHeader() {
   const isXuatTrau = pathname.startsWith('/xuat-trau');
   const isBaoCao = pathname.startsWith('/bao-cao-chua-xay');
   const isDangTai = pathname.startsWith('/dang-tai');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // ignore
+    }
+    if (typeof document !== 'undefined') {
+      document.cookie = 'auth_contract_session=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = 'auth_user_role=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    }
+    window.location.href = '/login';
+  };
 
   // Quyền truy cập các tab
   const canAccessContracts = role === 'contracts' || role === 'admin' || role === null;
@@ -127,10 +144,11 @@ export default function AppHeader() {
               </div>
             )}
 
-            <form action="/api/auth/logout" method="POST">
+            <form action="/api/auth/logout" method="POST" onSubmit={handleLogout}>
               <button
                 type="submit"
-                className="group flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-2xs transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                disabled={isLoggingOut}
+                className="group flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-2xs transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 cursor-pointer disabled:opacity-50"
                 title="Đăng xuất khỏi hệ thống"
               >
                 <svg
@@ -146,7 +164,7 @@ export default function AppHeader() {
                     d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
                   />
                 </svg>
-                <span className="hidden sm:inline">Đăng xuất</span>
+                <span className="hidden sm:inline">{isLoggingOut ? 'Đang thoát...' : 'Đăng xuất'}</span>
               </button>
             </form>
           </div>

@@ -181,6 +181,22 @@ export function setAuthCookie(response: NextResponse, role: UserRole = 'admin'):
  * Xóa cookie phiên khi đăng xuất
  */
 export function clearAuthCookie(response: NextResponse): void {
+  response.cookies.set(SESSION_COOKIE_NAME, '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 0,
+    path: '/',
+    expires: new Date(0),
+  });
+  response.cookies.set(ROLE_COOKIE_NAME, '', {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 0,
+    path: '/',
+    expires: new Date(0),
+  });
   response.cookies.delete(SESSION_COOKIE_NAME);
   response.cookies.delete(ROLE_COOKIE_NAME);
 }
