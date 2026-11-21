@@ -39,6 +39,7 @@ import {
 } from '@/lib/rice-payroll/xuat-nsx-tm-parser';
 import {
   getMonthKeyFromDate,
+  getCurrentMonthKey,
   getSortedMonthKeysFromDates,
 } from '@/lib/rice-payroll/month-utils';
 
@@ -88,7 +89,7 @@ export default function RiceXuatNSXTMView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Tháng chọn & Tab xem ────────────────────────────────────────────────
-  const [selectedMonthKey, setSelectedMonthKey] = useState<string>('10/2026');
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(getCurrentMonthKey());
   const [activeTab, setActiveTab] = useState<'notebook' | 'batches'>('notebook');
 
   // ─── Cấu hình Đơn giá (Form điều chỉnh đơn giá) ───────────────────────────
@@ -96,7 +97,7 @@ export default function RiceXuatNSXTMView() {
   const [showPriceCard, setShowPriceCard] = useState<boolean>(true);
 
   // ─── Danh sách ngày lương (Sổ tay Đội Nam) ────────────────────────────────
-  const [rows, setRows] = useState<NSXTMDayRow[]>([newDayRow('01/10/2026', DEFAULT_UNIT_PRICES)]);
+  const [rows, setRows] = useState<NSXTMDayRow[]>(() => [newDayRow(`01/${getCurrentMonthKey()}`, DEFAULT_UNIT_PRICES)]);
 
   // Overrides riêng cho từng mẻ lúa (key = batch.id)
   const [batchOverrides, setBatchOverrides] = useState<

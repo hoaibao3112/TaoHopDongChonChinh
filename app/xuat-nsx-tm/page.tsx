@@ -2,6 +2,7 @@ import React from 'react';
 import { redirect } from 'next/navigation';
 import { isServerComponentAuthenticated } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
+import PayrollSubNav from '@/components/PayrollSubNav';
 import RiceXuatNSXTMView from '@/components/RiceXuatNSXTMView';
 
 export const metadata = {
@@ -18,6 +19,7 @@ export default async function XuatNSXTMPage() {
   return (
     <div className="min-h-screen bg-slate-50/70 text-slate-900 pb-20 antialiased">
       <AppHeader />
+      <PayrollSubNav />
 
       <main className="mx-auto max-w-7xl px-4 pt-6 sm:px-6">
         <RiceXuatNSXTMView />

@@ -31,6 +31,7 @@ import {
   autoAssignAlternating1Day,
 } from '@/lib/rice-payroll/nsx-tm-utils';
 import { roundRiceTons } from '@/lib/rice-payroll/rounding';
+import { getCurrentMonthKey } from '@/lib/rice-payroll/month-utils';
 
 function formatMoney(num: number): string {
   if (num === 0 || isNaN(num) || !num) return '0';
@@ -39,7 +40,7 @@ function formatMoney(num: number): string {
 
 export default function RiceNhapNSXTMView() {
   const [allEntries, setAllEntries] = useState<NSXTMEntry[]>([]);
-  const [selectedMonthKey, setSelectedMonthKey] = useState<string>('10/2026');
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(getCurrentMonthKey());
   const [viewMode, setViewMode] = useState<NSXTMViewMode>('ALL');
 
   // Input file refs
@@ -58,7 +59,7 @@ export default function RiceNhapNSXTMView() {
 
   // Form thêm công việc thủ công (xuất trấu, xuất gạo, lúa nền...)
   const [showAddManual, setShowAddManual] = useState(false);
-  const [manualDate, setManualDate] = useState('01/10/2026');
+  const [manualDate, setManualDate] = useState(() => `01/${getCurrentMonthKey()}`);
   const [manualTeam, setManualTeam] = useState<NSXTMTeamKey>('ĐỨC');
   const [manualDesc, setManualDesc] = useState('');
   const [manualKg, setManualKg] = useState('');

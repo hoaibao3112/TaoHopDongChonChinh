@@ -89,3 +89,14 @@ export function fromHtmlMonthValue(htmlVal: string): string {
   return `${String(month).padStart(2, '0')}/${year}`;
 }
 
+/**
+ * Trả về tháng hiện tại theo định dạng "MM/YYYY" (ví dụ: "11/2026").
+ * Dùng để khởi tạo selectedMonthKey mặc định — tránh hardcode tháng cụ thể.
+ */
+export function getCurrentMonthKey(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  return `${month}/${year}`;
+}
+

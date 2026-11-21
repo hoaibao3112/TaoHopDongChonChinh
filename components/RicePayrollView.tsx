@@ -9,6 +9,7 @@ import { allocateSmartRiceTons } from '@/lib/rice-payroll/smart-round-allocation
 import {
   compareMonthKeysDesc,
   fromHtmlMonthValue,
+  getCurrentMonthKey,
   getMonthKeyFromDate,
   getSortedMonthKeysFromDates,
   parseMonthKey,
@@ -121,14 +122,14 @@ export default function RicePayrollView() {
   const [showFileUploader, setShowFileUploader] = useState(false);
 
   // ── Chọn Tháng / Năm tính lương ──
-  const [selectedMonthKey, setSelectedMonthKey] = useState<string>('10/2026'); // MM/YYYY
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(getCurrentMonthKey()); // MM/YYYY
 
   // ── Đơn giá mặc định toàn tháng (Nhập 1 lần, tự động áp dụng cho tất cả các ngày) ──
   const [masterPriceCoTro, setMasterPriceCoTro] = useState<number>(20000);
   const [masterPriceKhongTro, setMasterPriceKhongTro] = useState<number>(16000);
 
-  // ── Bảng ngày công trong tháng (Mặc định ngày 01/10/2026 ngay từ đầu) ──
-  const [rows, setRows] = useState<DayRow[]>([newRow('01/10/2026')]);
+  // ── Bảng ngày công trong tháng (Mặc định ngày 01 của tháng hiện tại) ──
+  const [rows, setRows] = useState<DayRow[]>(() => [newRow(`01/${getCurrentMonthKey()}`)]);
 
   // ── Chế độ xem: 'notebook' (Sổ tay ngày Chú 6) hoặc 'batches' (🌾 Chi tiết mẻ lúa thực tế) ──
   const [activeTab, setActiveTab] = useState<'notebook' | 'batches'>('notebook');
