@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
 
     sheet.mergeCells('A3:Q3');
     const headerSubtitle = sheet.getCell('A3');
-    headerSubtitle.value = `Ngày theo dõi: ${formatDateVi(date)}  •  Đơn vị: Nhà máy Xay xát & Sấy lúa Chơn Chính  •  Xuất lúc: ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+    headerSubtitle.value = `Ngày theo dõi (Mốc 24H: 00:00 - 23:59): ${formatDateVi(date)}  •  Đơn vị: Nhà máy Xay xát & Sấy lúa Chơn Chính  •  Xuất lúc: ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
     headerSubtitle.font = { name: FONT_FAMILY, size: 9.5, italic: true, color: { argb: 'FF64748B' } };
     headerSubtitle.alignment = { horizontal: 'center', vertical: 'middle' };
     sheet.getRow(3).height = 18;
@@ -175,7 +175,7 @@ export async function GET(req: NextRequest) {
     // ==========================================
     const headers = [
       'STT',
-      'Giờ Đăng Tài',
+      'Giờ Đăng Tài (24h)',
       'Biển Số Xe',
       'Nhà Cung Cấp',
       'Loại Lúa',
@@ -183,7 +183,7 @@ export async function GET(req: NextRequest) {
       'Tài Xế',
       'Số Điện Thoại',
       'Ngày Cân',
-      'Giờ Cân',
+      'Giờ Cân (24h)',
       'Số Phiếu',
       'TL Xe+Hàng (Kg)',
       'TL Xe (Kg)',

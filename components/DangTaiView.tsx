@@ -86,15 +86,20 @@ export default function DangTaiView() {
   const [logImageRotation, setLogImageRotation] = useState<number>(0);
   const logFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Báo cáo Zalo Nhanh (Trưa 11h30 & Chiều 17h00)
+  // Báo cáo Zalo Nhanh (Trọn Vẹn 24H, Trưa 11h30 & Chiều 17h00)
   const [showZaloReportModal, setShowZaloReportModal] = useState<boolean>(false);
-  const [zaloReportShift, setZaloReportShift] = useState<'trua' | 'chieu'>('trua');
+  const [zaloReportShift, setZaloReportShift] = useState<'24h' | 'trua' | 'chieu'>('24h');
   const [zaloReportOnlyMorning, setZaloReportOnlyMorning] = useState<boolean>(false);
   const [zaloReportText, setZaloReportText] = useState<string>('');
 
   // Đảo vị trí hàng xe trên bảng (STT gốc giữ nguyên)
   const [reorderingTruck, setReorderingTruck] = useState<XeDangTai | null>(null);
   const [targetRowInput, setTargetRowInput] = useState<number>(1);
+
+  // Chỉnh sửa nhanh ghi chú (Đưa về ghi chú bình thường)
+  const [quickNoteTruck, setQuickNoteTruck] = useState<XeDangTai | null>(null);
+  const [quickNoteText, setQuickNoteText] = useState<string>('');
+  const [quickNoteRemoveWarning, setQuickNoteRemoveWarning] = useState<boolean>(true);
 
   // Thông báo toast
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'warning' | 'error' } | null>(null);
@@ -303,6 +308,52 @@ export default function DangTaiView() {
       showToast('✅ Đã chấp nhận hợp lệ toàn bộ các xe! Ghi chú đã trở về bình thường.');
     } catch {
       showToast('Lỗi cập nhật máy chủ', 'error');
+    }
+  };
+
+  // Mở hộp thoại sửa nhanh ghi chú (Đưa về ghi chú bình thường)
+  const handleOpenQuickNote = (truck: XeDangTai) => {
+    setQuickNoteTruck(truck);
+    setQuickNoteText(truck.ghiChu || '');
+    setQuickNoteRemoveWarning(true);
+  };
+
+  // Lưu nhanh ghi chú
+  const handleSaveQuickNote = async () => {
+    if (!quickNoteTruck) return;
+
+    const updatedList = items.map((x) => {
+      if (x.id !== quickNoteTruck.id) return x;
+      const updated: XeDangTai = {
+        ...x,
+        ghiChu: quickNoteText.trim() || undefined,
+        updatedAt: new Date().toISOString(),
+      };
+      if (quickNoteRemoveWarning && (x.trangThai === 'sai_stt' || x.canHopLeSTT === false)) {
+        updated.trangThai = 'da_can';
+        updated.canHopLeSTT = true;
+        updated.daChapNhanHopLe = true;
+        updated.canhBaoSTT = undefined;
+      }
+      return updated;
+    });
+
+    setItems(updatedList);
+    setQuickNoteTruck(null);
+
+    try {
+      await fetch('/api/dang-tai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_all',
+          date: selectedDate,
+          items: updatedList,
+        }),
+      });
+      showToast('✅ Đã cập nhật ghi chú và đưa về trạng thái bình thường!');
+    } catch {
+      showToast('Lỗi lưu ghi chú lên máy chủ', 'error');
     }
   };
 
@@ -797,9 +848,9 @@ export default function DangTaiView() {
     window.open(`/api/dang-tai/export?date=${encodeURIComponent(selectedDate)}`, '_blank');
   };
 
-  // Tạo nội dung tin nhắn Báo Cáo Zalo (Trưa 11h30 & Chiều 17h00)
+  // Tạo nội dung tin nhắn Báo Cáo Zalo (Trọn Vẹn 24H, Trưa 11h30 & Chiều 17h00)
   const generateZaloReport = (
-    shift: 'trua' | 'chieu',
+    shift: '24h' | 'trua' | 'chieu',
     onlyMorning: boolean = false,
     trucksList: XeDangTai[] = items
   ): string => {
@@ -861,6 +912,18 @@ export default function DangTaiView() {
     const varietyStr =
       varietyLines.length > 0 ? varietyLines.join('\n') : '  - Chưa có thông tin loại lúa';
 
+    if (shift === '24h') {
+      return `🚛 BÁO CÁO ĐĂNG TÀI & NHẬP LÚA (TRỌN VẸN 24H: 00:00 - 23:59) - NGÀY ${dateVi}
+🏢 Đơn vị: CÔNG TY XNK CHƠN CHÍNH
+----------------------------------
+• Tổng xe đăng ký trong ngày: ${tongXe} xe (~${tongTanUocTinh} tấn ước tính của tài xế)
+• Đã cân hoàn tất: ${daCan} xe (Thực cân: ${tongTanThucTe} tấn)
+• Xe chưa cân / còn tồn: ${choCan} xe (${waitingPlatesStr})
+🌾 CHI TIẾT THEO LOẠI LÚA:
+${varietyStr}
+----------------------------------`;
+    }
+
     if (shift === 'trua') {
       return `🚛 BÁO CÁO ĐĂNG TÀI & NHẬP LÚA (CA TRƯA 11H30) - NGÀY ${dateVi}
 🏢 Đơn vị: CÔNG TY XNK CHƠN CHÍNH
@@ -884,13 +947,16 @@ ${varietyStr}
 ----------------------------------`;
   };
 
-  const handleOpenZaloModal = (shift: 'trua' | 'chieu' = 'trua') => {
+  const handleOpenZaloModal = (shift: '24h' | 'trua' | 'chieu' = '24h') => {
     setZaloReportShift(shift);
     setZaloReportText(generateZaloReport(shift, zaloReportOnlyMorning));
     setShowZaloReportModal(true);
   };
 
-  const handleChangeZaloShift = (newShift: 'trua' | 'chieu', newOnlyMorning: boolean = zaloReportOnlyMorning) => {
+  const handleChangeZaloShift = (
+    newShift: '24h' | 'trua' | 'chieu',
+    newOnlyMorning: boolean = zaloReportOnlyMorning
+  ) => {
     setZaloReportShift(newShift);
     setZaloReportOnlyMorning(newOnlyMorning);
     setZaloReportText(generateZaloReport(newShift, newOnlyMorning));
@@ -900,7 +966,13 @@ ${varietyStr}
     try {
       await navigator.clipboard.writeText(zaloReportText);
       showToast(
-        `Đã sao chép ${zaloReportShift === 'trua' ? 'Báo Cáo Trưa (11h30)' : 'Báo Cáo Chiều (17h00)'}! Mở Zalo dán ngay.`
+        `Đã sao chép ${
+          zaloReportShift === '24h'
+            ? 'Báo Cáo Trọn Vẹn 24H (00:00 - 23:59)'
+            : zaloReportShift === 'trua'
+            ? 'Báo Cáo Trưa (11h30)'
+            : 'Báo Cáo Chiều (17h00)'
+        }! Mở Zalo dán ngay.`
       );
     } catch {
       const textarea = document.createElement('textarea');
@@ -953,7 +1025,7 @@ ${varietyStr}
 
         {/* Action Controls Top Right */}
         <div className="flex flex-wrap items-center gap-2.5 sm:self-center">
-          {/* Chọn ngày */}
+          {/* Chọn ngày với chỉ báo mốc 24H */}
           <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-3.5 py-2 ring-1 ring-white/20 backdrop-blur-md">
             <span className="text-xs font-semibold text-blue-200">📅 Ngày:</span>
             <input
@@ -962,15 +1034,18 @@ ${varietyStr}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
             />
+            <span className="rounded-lg bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-400/30 whitespace-nowrap">
+              Mốc 24H (00:00 - 23:59)
+            </span>
           </div>
 
-          {/* Nút Báo Cáo Zalo (11h30 & 17h00) */}
+          {/* Nút Báo Cáo Zalo (24H & Theo Ca) */}
           <button
-            onClick={() => handleOpenZaloModal('trua')}
+            onClick={() => handleOpenZaloModal('24h')}
             className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-900/30 transition-all active:scale-95 cursor-pointer"
           >
             <span>📱</span>
-            <span>Báo Cáo Zalo (11h30 &amp; 17h)</span>
+            <span>Báo Cáo Zalo (24H &amp; Ca)</span>
           </button>
 
           {/* Nút Xuất Excel */}
@@ -1261,26 +1336,26 @@ ${varietyStr}
 
       {/* BẢNG DANH SÁCH XE ĐĂNG TÀI & KẾT QUẢ CÂN */}
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full min-w-[1550px] text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-100/80 text-slate-700 font-bold">
-                <th className="py-3.5 px-3 text-center w-28">Vị Trí / STT</th>
-                <th className="py-3.5 px-3 text-center">Giờ Đăng Tài</th>
-                <th className="py-3.5 px-4">Biển Số Xe</th>
-                <th className="py-3.5 px-3">Nhà Cung Cấp</th>
-                <th className="py-3.5 px-3">Loại Lúa</th>
-                <th className="py-3.5 px-4 text-right">Ước Tính (Kg)</th>
-                <th className="py-3.5 px-3 text-center">Tài Xế</th>
-                <th className="py-3.5 px-3">Số Điện Thoại</th>
-                <th className="py-3.5 px-3 text-center">Ngày Cân</th>
-                <th className="py-3.5 px-3 text-center">Giờ Cân</th>
-                <th className="py-3.5 px-3 text-center">Số Phiếu</th>
-                <th className="py-3.5 px-4 text-right">TL Hàng Cân (Kg)</th>
-                <th className="py-3.5 px-4 text-right">Chênh Lệch</th>
-                <th className="py-3.5 px-3 text-center">Trạng Thái</th>
-                <th className="py-3.5 px-4">Ghi Chú / Cảnh Báo</th>
-                <th className="py-3.5 px-3 text-center">Thao Tác</th>
+                <th className="py-3.5 px-3 text-center w-28 whitespace-nowrap">Vị Trí / STT</th>
+                <th className="py-3.5 px-3 text-center min-w-[110px] whitespace-nowrap">Giờ Đăng Tài (24h)</th>
+                <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap">Biển Số Xe</th>
+                <th className="py-3.5 px-3 min-w-[160px] whitespace-nowrap">Nhà Cung Cấp</th>
+                <th className="py-3.5 px-3 min-w-[125px] whitespace-nowrap">Loại Lúa</th>
+                <th className="py-3.5 px-4 text-right min-w-[115px] whitespace-nowrap">Ước Tính (Kg)</th>
+                <th className="py-3.5 px-3 text-center min-w-[145px] whitespace-nowrap">Tài Xế</th>
+                <th className="py-3.5 px-3 min-w-[130px] whitespace-nowrap">Số Điện Thoại</th>
+                <th className="py-3.5 px-3 text-center min-w-[115px] whitespace-nowrap">Ngày Cân</th>
+                <th className="py-3.5 px-3 text-center min-w-[110px] whitespace-nowrap">Giờ Cân (24h)</th>
+                <th className="py-3.5 px-3 text-center min-w-[90px] whitespace-nowrap">Số Phiếu</th>
+                <th className="py-3.5 px-4 text-right min-w-[130px] whitespace-nowrap">TL Hàng Cân (Kg)</th>
+                <th className="py-3.5 px-4 text-right min-w-[120px] whitespace-nowrap">Chênh Lệch</th>
+                <th className="py-3.5 px-3 text-center min-w-[135px] whitespace-nowrap">Trạng Thái</th>
+                <th className="py-3.5 px-4 min-w-[260px]">Ghi Chú / Cảnh Báo</th>
+                <th className="py-3.5 px-3 text-center min-w-[110px] whitespace-nowrap">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1374,110 +1449,110 @@ ${varietyStr}
                       </td>
 
                       {/* Giờ đăng tài (người dùng điền) */}
-                      <td className="py-3 px-3 text-center text-slate-700 font-mono font-bold text-xs">
+                      <td className="py-3 px-3 text-center text-slate-700 font-mono font-bold text-xs whitespace-nowrap">
                         {item.gioDangTai || '—'}
                       </td>
 
                       {/* Biển số xe */}
-                      <td className="py-3 px-4 font-black">
-                        <span className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-1 text-sm tracking-wider font-mono text-slate-900 shadow-2xs">
+                      <td className="py-3 px-4 font-black whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-1 text-sm tracking-wider font-mono text-slate-900 shadow-2xs whitespace-nowrap">
                           🚛 {item.bienSoXe}
                         </span>
                       </td>
 
                       {/* Nhà Cung Cấp (Khách hàng từ phiếu cân hoặc nhập) */}
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3 whitespace-nowrap">
                         {item.nhaCungCap || item.khachHangCan ? (
-                          <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 border border-amber-200 shadow-2xs">
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 border border-amber-200 shadow-2xs whitespace-nowrap">
                             🏢 {item.nhaCungCap || item.khachHangCan}
                           </span>
                         ) : (
-                          <span className="text-slate-400 italic text-[11px]">Chờ cân...</span>
+                          <span className="text-slate-400 italic text-[11px] whitespace-nowrap">Chờ cân...</span>
                         )}
                       </td>
 
                       {/* Loại lúa */}
-                      <td className="py-3 px-3 font-bold text-slate-700">
-                        <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-xs text-slate-800">
+                      <td className="py-3 px-3 font-bold text-slate-700 whitespace-nowrap">
+                        <span className="inline-block rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-800 whitespace-nowrap font-bold">
                           {item.loaiLua}
                         </span>
                       </td>
 
                       {/* Ước tính từ khách / tài (Kg) */}
-                      <td className="py-3 px-4 text-right font-bold text-slate-700">
+                      <td className="py-3 px-4 text-right font-bold text-slate-700 whitespace-nowrap">
                         {item.soLuongUocTinh ? item.soLuongUocTinh.toLocaleString('vi-VN') : 0}
                       </td>
 
                       {/* Tên tài xế (Chọn từ combobox) */}
-                      <td className="py-3 px-3">
-                        <span className="font-semibold text-slate-900">{item.tenTaiXe || '—'}</span>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <span className="font-semibold text-slate-900 whitespace-nowrap">{item.tenTaiXe || '—'}</span>
                       </td>
 
                       {/* SĐT tài xế (Tự ra khi chọn combobox) */}
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3 whitespace-nowrap">
                         {item.sdtTaiXe ? (
                           <a
                             href={`tel:${item.sdtTaiXe}`}
-                            className="inline-flex items-center gap-1 text-xs font-mono font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                            className="inline-flex items-center gap-1 text-xs font-mono font-bold text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap"
                             title="Gọi tài xế"
                           >
                             📞 {item.sdtTaiXe}
                           </a>
                         ) : (
-                          <span className="text-slate-300 text-xs">—</span>
+                          <span className="text-slate-300 text-xs whitespace-nowrap">—</span>
                         )}
                       </td>
 
                       {/* Ngày cân (Lấy từ hàng ngày cân bên dưới trên phiếu cân) */}
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
                         {item.ngayCan || (item.ngayGioCan && item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[0] : (item.ngayGioCan && (item.ngayGioCan.includes('/') || item.ngayGioCan.includes('-')) ? item.ngayGioCan : null)) ? (
-                          <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                          <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 whitespace-nowrap">
                             📅 {item.ngayCan || (item.ngayGioCan && item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[0] : item.ngayGioCan)}
                           </span>
                         ) : (
-                          <span className="text-slate-300 italic text-[11px]">Chờ cân...</span>
+                          <span className="text-slate-300 italic text-[11px] whitespace-nowrap">Chờ cân...</span>
                         )}
                       </td>
 
                       {/* Giờ cân (Phiếu đó cân vào lúc mấy giờ - Lấy từ hàng bên dưới) */}
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
                         {item.gioCan || (item.ngayGioCan && item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[1] : (item.ngayGioCan && item.ngayGioCan.includes(':') ? item.ngayGioCan : null)) ? (
-                          <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 shadow-2xs">
+                          <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 shadow-2xs whitespace-nowrap">
                             ⏱️ {item.gioCan || (item.ngayGioCan && item.ngayGioCan.includes(' ') ? item.ngayGioCan.split(' ')[1] : item.ngayGioCan)}
                           </span>
                         ) : (
-                          <span className="text-slate-300 italic text-[11px]">Chờ cân...</span>
+                          <span className="text-slate-300 italic text-[11px] whitespace-nowrap">Chờ cân...</span>
                         )}
                       </td>
 
                       {/* Số phiếu cân */}
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
                         {item.soPhieuCan ? (
-                          <span className="inline-flex items-center rounded-lg bg-blue-100 px-2.5 py-0.5 font-mono text-xs font-bold text-blue-800">
+                          <span className="inline-flex items-center rounded-lg bg-blue-100 px-2.5 py-0.5 font-mono text-xs font-bold text-blue-800 whitespace-nowrap">
                             #{item.soPhieuCan}
                           </span>
                         ) : (
-                          <span className="text-slate-300">—</span>
+                          <span className="text-slate-300 whitespace-nowrap">—</span>
                         )}
                       </td>
 
                       {/* Trọng lượng hàng cân thực tế */}
-                      <td className="py-3 px-4 text-right font-black">
+                      <td className="py-3 px-4 text-right font-black whitespace-nowrap">
                         {item.tlHangKg ? (
-                          <div className="text-emerald-700 text-sm">
+                          <div className="text-emerald-700 text-sm whitespace-nowrap">
                             {item.tlHangKg.toLocaleString('vi-VN')}
                             <span className="text-[10px] text-slate-400 font-normal ml-1">kg</span>
                           </div>
                         ) : (
-                          <span className="text-slate-300 font-normal">Chờ cân...</span>
+                          <span className="text-slate-300 font-normal whitespace-nowrap">Chờ cân...</span>
                         )}
                       </td>
 
                       {/* Chênh lệch */}
-                      <td className="py-3 px-4 text-right font-bold">
+                      <td className="py-3 px-4 text-right font-bold whitespace-nowrap">
                         {item.chenhLechKg !== undefined ? (
                           <span
-                            className={`inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-black ${
+                            className={`inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-black whitespace-nowrap ${
                               item.chenhLechKg > 0
                                 ? 'bg-blue-50 text-blue-700'
                                 : item.chenhLechKg < 0
@@ -1489,46 +1564,46 @@ ${varietyStr}
                             {item.chenhLechKg.toLocaleString('vi-VN')} kg
                           </span>
                         ) : (
-                          <span className="text-slate-300">—</span>
+                          <span className="text-slate-300 whitespace-nowrap">—</span>
                         )}
                       </td>
 
                       {/* Trạng thái */}
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
                         {isSaiStt ? (
-                          <div className="flex flex-col items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-800 shadow-2xs">
+                          <div className="flex flex-col items-center gap-1.5 whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-800 shadow-2xs whitespace-nowrap">
                               ⚠️ Cân lệch STT
                             </span>
                             <button
                               type="button"
                               onClick={() => handleAcceptValidOrder(item.id, true)}
-                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs cursor-pointer transition-all hover:scale-105"
+                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs cursor-pointer transition-all hover:scale-105 whitespace-nowrap"
                               title="Bấm để chấp nhận trường hợp này là hợp lệ (bỏ báo đỏ)"
                             >
                               <span>✓</span> Chấp nhận
                             </button>
                           </div>
                         ) : item.daChapNhanHopLe ? (
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 shadow-2xs">
-                              ✅ Đã cân
+                          <div className="flex flex-col items-center gap-0.5 whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 shadow-2xs whitespace-nowrap">
+                              ✅ Đã duyệt hợp lệ
                             </span>
                             <button
                               type="button"
                               onClick={() => handleAcceptValidOrder(item.id, false)}
-                              className="text-[9px] text-slate-400 hover:text-rose-600 underline cursor-pointer"
+                              className="text-[9px] text-slate-400 hover:text-rose-600 underline cursor-pointer whitespace-nowrap"
                               title="Bấm để hoàn tác lại trạng thái cảnh báo lệch STT"
                             >
                               Bỏ duyệt
                             </button>
                           </div>
                         ) : isDaCan ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 shadow-2xs">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 shadow-2xs whitespace-nowrap">
                             ✅ Đã cân
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 shadow-2xs">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 shadow-2xs whitespace-nowrap">
                             ⏳ Chờ cân
                           </span>
                         )}
@@ -1642,7 +1717,7 @@ ${varietyStr}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Giờ Đăng Tài <span className="text-blue-600 font-semibold">(tự điền/sửa)</span>
+                    Giờ Đăng Tài (24h) <span className="text-blue-600 font-semibold">(00:00 - 23:59)</span>
                   </label>
                   <input
                     type="time"
@@ -1758,13 +1833,13 @@ ${varietyStr}
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Giờ Cân Xong (Lúc mấy giờ)
+                        Giờ Cân Xong (Mốc 24h: 00:00 - 23:59)
                       </label>
                       <input
                         type="text"
                         value={formGioCan}
                         onChange={(e) => setFormGioCan(e.target.value)}
-                        placeholder="VD: 11:41:23"
+                        placeholder="VD: 03:15 hoặc 14:41:23"
                         className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
                       />
                     </div>
@@ -1865,32 +1940,45 @@ ${varietyStr}
               </button>
             </div>
 
-            {/* Chọn Ca Báo Cáo: Trưa 11h30 vs Chiều 17h00 */}
-            <div className="mt-4 flex rounded-2xl bg-slate-100 p-1.5 gap-1.5">
+            {/* Chọn Ca Báo Cáo: 24H, Trưa 11h30 vs Chiều 17h00 */}
+            <div className="mt-4 grid grid-cols-3 rounded-2xl bg-slate-100 p-1.5 gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleChangeZaloShift('24h', false)}
+                className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer ${
+                  zaloReportShift === '24h'
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                    : 'text-slate-600 hover:bg-slate-200/70'
+                }`}
+              >
+                <span>🌙</span>
+                <span>Trọn Vẹn 24H</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => handleChangeZaloShift('trua', zaloReportOnlyMorning)}
-                className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer ${
                   zaloReportShift === 'trua'
                     ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
                     : 'text-slate-600 hover:bg-slate-200/70'
                 }`}
               >
                 <span>☀️</span>
-                <span>Báo Cáo Trưa (11h30)</span>
+                <span>Ca Trưa (11h30)</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleChangeZaloShift('chieu', false)}
-                className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer ${
                   zaloReportShift === 'chieu'
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                     : 'text-slate-600 hover:bg-slate-200/70'
                 }`}
               >
                 <span>🌅</span>
-                <span>Báo Cáo Chiều (17h00)</span>
+                <span>Ca Chiều (17h00)</span>
               </button>
             </div>
 
