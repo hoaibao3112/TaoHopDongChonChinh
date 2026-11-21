@@ -55,16 +55,19 @@ export default function AppHeader() {
                 priority
               />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-base font-bold text-slate-900 leading-tight tracking-tight">
-                  XNK Chơn Chính
+            <div className="flex flex-col justify-center">
+              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-emerald-700 leading-tight">
+                CÔNG TY TNHH XUẤT NHẬP KHẨU
+              </span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-base sm:text-lg font-black tracking-tight text-red-700 uppercase leading-none">
+                  CHƠN CHÍNH
                 </span>
-                <span className="hidden md:inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                <span className="hidden md:inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
                   Hệ thống nội bộ
                 </span>
               </div>
-              <p className="text-xs text-slate-500 hidden sm:block">
+              <p className="text-[10px] text-slate-400 hidden lg:block font-medium mt-0.5">
                 Hợp đồng &amp; Tính lương nhân công nông sản
               </p>
             </div>

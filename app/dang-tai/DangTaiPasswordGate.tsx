@@ -64,7 +64,7 @@ export default function DangTaiPasswordGate() {
             Phân Hệ Đăng Tài Xe Lúa
           </h2>
           <p className="mt-1 text-xs text-blue-200">
-            Hệ thống nội bộ &bull; Công ty TNHH XNK Chơn Chính
+            Hệ thống nội bộ &bull; <span className="font-bold text-emerald-400">CÔNG TY TNHH XNK</span> <span className="font-black text-rose-300">CHƠN CHÍNH</span>
           </p>
         </div>
 

@@ -70,7 +70,7 @@ function LoginFormContent() {
             Tạo Hợp Đồng Mua Bán
           </h2>
           <p className="mt-2 text-xs text-slate-500 font-medium">
-            Hệ thống nội bộ &bull; Công ty TNHH XNK Chơn Chính
+            Hệ thống nội bộ &bull; <span className="font-bold text-emerald-700">CÔNG TY TNHH XNK</span> <span className="font-black text-red-700">CHƠN CHÍNH</span>
           </p>
         </div>
 
