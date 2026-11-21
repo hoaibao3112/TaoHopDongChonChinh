@@ -230,13 +230,13 @@ export default function AppHeader() {
                 href="/nhap-say-tm"
                 className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                   isNhapSayTM
-                    ? 'bg-white text-emerald-800 shadow-sm ring-2 ring-emerald-500/40 font-black scale-[1.02]'
+                    ? 'bg-white text-emerald-800 shadow-sm ring-1 ring-emerald-500/30 font-black scale-[1.02]'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
                 }`}
               >
                 <span className="text-sm sm:text-base">🌾</span>
                 <span>Nhập Sấy NSX TM</span>
-                <span className="rounded-full bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 shadow-2xs">
+                <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
                   Mới
                 </span>
               </Link>
@@ -245,13 +245,13 @@ export default function AppHeader() {
                 href="/xuat-nsx-tm"
                 className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                   isXuatNSXTM
-                    ? 'bg-white text-amber-800 shadow-sm ring-2 ring-amber-500/40 font-black scale-[1.02]'
+                    ? 'bg-white text-amber-800 shadow-sm ring-1 ring-amber-500/30 font-black scale-[1.02]'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
                 }`}
               >
                 <span className="text-sm sm:text-base">🚛</span>
                 <span>Xuất NSX TM</span>
-                <span className="rounded-full bg-amber-600 text-white text-[10px] font-bold px-1.5 py-0.5 shadow-2xs">
+                <span className="rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
                   Mới
                 </span>
               </Link>
@@ -260,7 +260,7 @@ export default function AppHeader() {
                 href="/chum-lo"
                 className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                   isChumLo
-                    ? 'bg-white text-rose-700 shadow-sm ring-2 ring-rose-500/30 font-black scale-[1.02]'
+                    ? 'bg-white text-rose-700 shadow-sm ring-1 ring-rose-500/30 font-black scale-[1.02]'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
                 }`}
               >
@@ -275,13 +275,13 @@ export default function AppHeader() {
               href="/xuat-trau"
               className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                 isXuatTrau
-                  ? 'bg-white text-amber-900 shadow-sm ring-2 ring-amber-500/40 font-black scale-[1.02]'
+                  ? 'bg-white text-amber-900 shadow-sm ring-1 ring-amber-500/30 font-black scale-[1.02]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
               }`}
             >
               <span className="text-sm sm:text-base">🚛</span>
               <span>Nhập Trấu (Xe &amp; Ghe)</span>
-              <span className="rounded-full bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 shadow-2xs">
+              <span className="rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
                 Mới
               </span>
             </Link>
@@ -292,13 +292,13 @@ export default function AppHeader() {
               href="/bao-cao-chua-xay"
               className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                 isBaoCao
-                  ? 'bg-white text-emerald-800 shadow-sm ring-2 ring-emerald-500/40 font-black scale-[1.02]'
+                  ? 'bg-white text-emerald-800 shadow-sm ring-1 ring-emerald-500/30 font-black scale-[1.02]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
               }`}
             >
               <span className="text-sm sm:text-base">🌾</span>
               <span>Báo Cáo Chưa Xay</span>
-              <span className="rounded-full bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 shadow-2xs">
+              <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
                 Mới
               </span>
             </Link>
@@ -309,13 +309,13 @@ export default function AppHeader() {
               href="/dang-tai"
               className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                 isDangTai
-                  ? 'bg-white text-blue-900 shadow-sm ring-2 ring-blue-500/40 font-black scale-[1.02]'
+                  ? 'bg-white text-blue-900 shadow-sm ring-1 ring-blue-500/30 font-black scale-[1.02]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
               }`}
             >
               <span className="text-sm sm:text-base">🚛</span>
               <span>Đăng Tài Xe</span>
-              <span className="rounded-full bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 shadow-2xs">
+              <span className="rounded-full bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
                 Mới
               </span>
             </Link>

@@ -742,20 +742,20 @@ export default function RiceNhapCS2View() {
 
   return (
     <div className="space-y-6">
-      {/* ── Banner Header Chính Thức ────────────────────────────────────── */}
-      <div className="rounded-3xl bg-gradient-to-r from-orange-600 via-amber-600 to-amber-500 p-6 shadow-xl shadow-amber-900/10 text-white">
+      {/* ── Banner Header Chính Thức (Nhẹ nhàng, thanh lịch, dễ nhìn) ── */}
+      <div className="rounded-3xl border border-slate-200/90 bg-white p-6 sm:p-7 shadow-xs">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
           <div>
-            <div className="flex items-center gap-3 mb-1.5 flex-wrap">
-              <span className="text-3xl">🔥</span>
-              <h1 className="text-2xl font-black tracking-tight">
+            <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
+              <span className="text-2xl">🔥</span>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
                 Lương &amp; Tổng Hợp Đội Dương — Cơ Sở II
               </h1>
-              <span className="rounded-full bg-white/20 text-white text-xs font-black px-3 py-1 ring-1 ring-white/30 backdrop-blur-xs">
-                ALL-IN-ONE · 5 SHEETS
+              <span className="rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold px-2.5 py-0.5">
+                All-in-one · 5 Sheets
               </span>
             </div>
-            <p className="text-amber-100 text-sm max-w-3xl leading-relaxed">
+            <p className="text-slate-500 text-xs sm:text-sm max-w-3xl leading-relaxed">
               Tích hợp trọn gói 2 phân hệ trong 1 bảng: <b>Nhập sấy lúa tươi</b>, <b>Xuất lúa khô</b>, <b>Nhập trấu</b>, <b>Chụm lò</b> và <b>Bảng quyết toán chi lương 20 công nhân</b>. Xuất đúng 1 file Excel duy nhất chuẩn 5 sheets!
             </p>
           </div>
@@ -764,7 +764,7 @@ export default function RiceNhapCS2View() {
           <button
             onClick={handleExportUnifiedExcel}
             disabled={isExporting || (nhapBatches.length === 0 && xuatBatches.length === 0)}
-            className="flex items-center gap-2.5 rounded-2xl bg-white text-amber-800 hover:bg-amber-50 px-5 py-3.5 text-sm font-black shadow-lg transition-all hover:scale-102 active:scale-98 disabled:opacity-50 cursor-pointer shrink-0"
+            className="flex items-center gap-2 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white px-5 py-3 text-xs sm:text-sm font-bold shadow-xs transition-all hover:scale-102 active:scale-98 disabled:opacity-50 cursor-pointer shrink-0"
           >
             {isExporting ? (
               <>
@@ -773,7 +773,7 @@ export default function RiceNhapCS2View() {
               </>
             ) : (
               <>
-                <span className="text-lg">📥</span>
+                <span className="text-base">📥</span>
                 <span>Xuất Excel 5 Sheet (Đội Dương)</span>
               </>
             )}
@@ -782,41 +782,41 @@ export default function RiceNhapCS2View() {
 
         {/* Thẻ thống kê nhanh trên Header */}
         {selectedMonthKey && (
-          <div className="mt-6 pt-5 border-t border-white/20 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="rounded-2xl bg-white/10 backdrop-blur-md p-3 border border-white/15">
-              <div className="text-[11px] text-amber-100 font-semibold">Lúa Nhập Sấy</div>
-              <div className="text-lg font-black text-white">{summary.totalTons.toLocaleString('vi-VN')} <span className="text-xs font-medium text-amber-200">tấn</span></div>
-              <div className="text-[10px] text-amber-200 truncate">{formatMoney(summary.totalThanhTienNhap)}đ</div>
+          <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="rounded-2xl bg-slate-50 p-3 border border-slate-200/70">
+              <div className="text-[11px] text-slate-500 font-medium">Lúa Nhập Sấy</div>
+              <div className="text-base sm:text-lg font-black text-slate-900">{summary.totalTons.toLocaleString('vi-VN')} <span className="text-xs font-normal text-slate-500">tấn</span></div>
+              <div className="text-[11px] text-slate-500 truncate">{formatMoney(summary.totalThanhTienNhap)}đ</div>
             </div>
 
-            <div className="rounded-2xl bg-white/10 backdrop-blur-md p-3 border border-white/15">
-              <div className="text-[11px] text-amber-100 font-semibold">Lúa Xuất Khô</div>
-              <div className="text-lg font-black text-white">{xuatSummary.totalTons.toLocaleString('vi-VN')} <span className="text-xs font-medium text-amber-200">tấn</span></div>
-              <div className="text-[10px] text-amber-200 truncate">{formatMoney(xuatSummary.totalMoney)}đ</div>
+            <div className="rounded-2xl bg-slate-50 p-3 border border-slate-200/70">
+              <div className="text-[11px] text-slate-500 font-medium">Lúa Xuất Khô</div>
+              <div className="text-base sm:text-lg font-black text-slate-900">{xuatSummary.totalTons.toLocaleString('vi-VN')} <span className="text-xs font-normal text-slate-500">tấn</span></div>
+              <div className="text-[11px] text-slate-500 truncate">{formatMoney(xuatSummary.totalMoney)}đ</div>
             </div>
 
-            <div className="rounded-2xl bg-white/10 backdrop-blur-md p-3 border border-white/15">
-              <div className="text-[11px] text-amber-100 font-semibold">Nhập Trấu</div>
-              <div className="text-lg font-black text-white">{totalTrauTons} <span className="text-xs font-medium text-amber-200">tấn</span></div>
-              <div className="text-[10px] text-amber-200 truncate">{formatMoney(totalTrauMoney)}đ</div>
+            <div className="rounded-2xl bg-slate-50 p-3 border border-slate-200/70">
+              <div className="text-[11px] text-slate-500 font-medium">Nhập Trấu</div>
+              <div className="text-base sm:text-lg font-black text-slate-900">{totalTrauTons} <span className="text-xs font-normal text-slate-500">tấn</span></div>
+              <div className="text-[11px] text-slate-500 truncate">{formatMoney(totalTrauMoney)}đ</div>
             </div>
 
-            <div className="rounded-2xl bg-white/10 backdrop-blur-md p-3 border border-white/15">
-              <div className="text-[11px] text-amber-100 font-semibold">Chụm Lò Lúa</div>
-              <div className="text-lg font-black text-white">{summary.totalTons} <span className="text-xs font-medium text-amber-200">tấn</span></div>
-              <div className="text-[10px] text-amber-200 truncate">{formatMoney(summary.totalThanhTienChumLo)}đ</div>
+            <div className="rounded-2xl bg-slate-50 p-3 border border-slate-200/70">
+              <div className="text-[11px] text-slate-500 font-medium">Chụm Lò Lúa</div>
+              <div className="text-base sm:text-lg font-black text-slate-900">{summary.totalTons} <span className="text-xs font-normal text-slate-500">tấn</span></div>
+              <div className="text-[11px] text-slate-500 truncate">{formatMoney(summary.totalThanhTienChumLo)}đ</div>
             </div>
 
-            <div className="rounded-2xl bg-white/15 backdrop-blur-md p-3 border border-white/20">
-              <div className="text-[11px] text-amber-100 font-semibold">Tổng Chi Lương</div>
-              <div className="text-lg font-black text-yellow-300 truncate">{formatMoney(totalTienCanChi)}đ</div>
-              <div className="text-[10px] text-amber-200">Ứng: -{formatMoney(totalAdvance)}đ</div>
+            <div className="rounded-2xl bg-amber-50/70 p-3 border border-amber-200/70">
+              <div className="text-[11px] text-amber-800 font-medium">Tổng Chi Lương</div>
+              <div className="text-base sm:text-lg font-black text-amber-900 truncate">{formatMoney(totalTienCanChi)}đ</div>
+              <div className="text-[11px] text-amber-700">Ứng: -{formatMoney(totalAdvance)}đ</div>
             </div>
 
-            <div className="rounded-2xl bg-emerald-500/30 backdrop-blur-md p-3 border border-emerald-300/40">
-              <div className="text-[11px] text-emerald-200 font-black uppercase tracking-wider">Thực Lãnh</div>
-              <div className="text-xl font-black text-emerald-200 truncate">{formatMoney(remainMoney)}đ</div>
-              <div className="text-[10px] text-emerald-100 font-medium">20 công nhân</div>
+            <div className="rounded-2xl bg-emerald-50/70 p-3 border border-emerald-200/70">
+              <div className="text-[11px] text-emerald-800 font-bold uppercase tracking-wider">Thực Lãnh</div>
+              <div className="text-base sm:text-lg font-black text-emerald-900 truncate">{formatMoney(remainMoney)}đ</div>
+              <div className="text-[11px] text-emerald-700 font-medium">20 công nhân</div>
             </div>
           </div>
         )}
@@ -912,21 +912,21 @@ export default function RiceNhapCS2View() {
       </div>
 
       {/* ── THANH CHUYỂN ĐỔI CHỨC NĂNG (SUB-TABS) ────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 border-b-2 border-amber-200/80 pb-1">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setActiveTab('NHAP')}
-            className={`flex items-center gap-2 rounded-2xl px-5 py-3 text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 rounded-2xl px-5 py-2.5 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'NHAP'
-                ? 'bg-amber-600 text-white shadow-md shadow-amber-300'
-                : 'bg-white text-slate-700 border border-slate-200 hover:bg-amber-50'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
             }`}
           >
             <span>🌾</span>
             <span>1. Nhập Sấy Lúa CS2</span>
             <span
               className={`rounded-full px-2 py-0.5 text-xs ${
-                activeTab === 'NHAP' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                activeTab === 'NHAP' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
               }`}
             >
               {nhapBatches.length} mẻ · {summary.totalTons}t
@@ -935,17 +935,17 @@ export default function RiceNhapCS2View() {
 
           <button
             onClick={() => setActiveTab('XUAT')}
-            className={`flex items-center gap-2 rounded-2xl px-5 py-3 text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 rounded-2xl px-5 py-2.5 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'XUAT'
-                ? 'bg-amber-600 text-white shadow-md shadow-amber-300'
-                : 'bg-white text-slate-700 border border-slate-200 hover:bg-amber-50'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
             }`}
           >
             <span>🚛</span>
             <span>2. Xuất Lúa Khô CS2</span>
             <span
               className={`rounded-full px-2 py-0.5 text-xs ${
-                activeTab === 'XUAT' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                activeTab === 'XUAT' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
               }`}
             >
               {xuatBatches.length} mẻ · {xuatSummary.totalTons}t
@@ -954,17 +954,17 @@ export default function RiceNhapCS2View() {
 
           <button
             onClick={() => setActiveTab('CHI_LUONG')}
-            className={`flex items-center gap-2 rounded-2xl px-5 py-3 text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 rounded-2xl px-5 py-2.5 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'CHI_LUONG'
-                ? 'bg-emerald-700 text-white shadow-md shadow-emerald-300'
-                : 'bg-white text-slate-700 border border-slate-200 hover:bg-emerald-50'
+                ? 'bg-slate-800 text-white shadow-xs'
+                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
             }`}
           >
             <span>💰</span>
             <span>3. Quyết Toán &amp; Chi Lương (20 Công Nhân)</span>
             <span
-              className={`rounded-full px-2 py-0.5 text-xs ${
-                activeTab === 'CHI_LUONG' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                activeTab === 'CHI_LUONG' ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-800 border border-emerald-200/60'
               }`}
             >
               {formatMoney(remainMoney)}đ
@@ -972,11 +972,11 @@ export default function RiceNhapCS2View() {
           </button>
         </div>
 
-        {/* Nút Xuất Excel phụ */}
+        {/* Nút Xuất Excel phụ nhẹ nhàng */}
         <button
           onClick={handleExportUnifiedExcel}
           disabled={isExporting}
-          className="hidden sm:inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:from-emerald-700 hover:to-green-700 cursor-pointer transition-all"
+          className="hidden sm:inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200/90 hover:bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:border-slate-300 cursor-pointer transition-all"
         >
           <span>📥</span>
           <span>Tải File Excel 5 Sheet</span>
