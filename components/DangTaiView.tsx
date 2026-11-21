@@ -96,6 +96,18 @@ export default function DangTaiView() {
   const [reorderingTruck, setReorderingTruck] = useState<XeDangTai | null>(null);
   const [targetRowInput, setTargetRowInput] = useState<number>(1);
 
+  // Quản lý Sửa & Ghép tên Nhà Cung Cấp
+  const [showSupplierModal, setShowSupplierModal] = useState<boolean>(false);
+  const [supplierModalTruck, setSupplierModalTruck] = useState<XeDangTai | null>(null);
+  const [supplierModalCurrentName, setSupplierModalCurrentName] = useState<string>('');
+  const [supplierModalNewName, setSupplierModalNewName] = useState<string>('');
+  const [supplierModalApplyAll, setSupplierModalApplyAll] = useState<boolean>(true);
+
+  // Ghép hàng loạt danh sách NCC trong ngày
+  const [showBulkSupplierMergeModal, setShowBulkSupplierMergeModal] = useState<boolean>(false);
+  const [mergeSourceSupplier, setMergeSourceSupplier] = useState<string>('');
+  const [mergeTargetSupplier, setMergeTargetSupplier] = useState<string>('');
+
   // Chỉnh sửa nhanh ghi chú (Đưa về ghi chú bình thường)
   const [quickNoteTruck, setQuickNoteTruck] = useState<XeDangTai | null>(null);
   const [quickNoteText, setQuickNoteText] = useState<string>('');
@@ -357,6 +369,145 @@ export default function DangTaiView() {
     }
   };
 
+  // Danh sách các Nhà Cung Cấp duy nhất trong ngày kèm số lượng xe
+  const uniqueSuppliersWithCount = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of items) {
+      const name = (item.nhaCungCap || item.khachHangCan || '').trim();
+      if (name) {
+        counts[name] = (counts[name] || 0) + 1;
+      }
+    }
+    return Object.entries(counts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [items]);
+
+  // Mở modal sửa & ghép tên Nhà Cung Cấp cho 1 xe
+  const handleOpenSupplierModal = (truck: XeDangTai) => {
+    const currentName = (truck.nhaCungCap || truck.khachHangCan || '').trim();
+    setSupplierModalTruck(truck);
+    setSupplierModalCurrentName(currentName);
+    setSupplierModalNewName(currentName);
+    setSupplierModalApplyAll(!!currentName);
+    setShowSupplierModal(true);
+  };
+
+  // Lưu sửa/ghép tên Nhà Cung Cấp cho xe hoặc toàn bộ xe có tên cũ
+  const handleSaveSupplierModal = async () => {
+    if (!supplierModalTruck) return;
+    const trimmedNewName = supplierModalNewName.trim();
+    const oldName = supplierModalCurrentName.trim();
+
+    let updatedList: XeDangTai[];
+    let affectedCount = 1;
+
+    if (supplierModalApplyAll && oldName) {
+      // Ghép / Đổi cho TẤT CẢ các xe có cùng tên cũ
+      affectedCount = items.filter(
+        (x) => (x.nhaCungCap || x.khachHangCan || '').trim().toUpperCase() === oldName.toUpperCase()
+      ).length;
+
+      updatedList = items.map((x) => {
+        const xName = (x.nhaCungCap || x.khachHangCan || '').trim();
+        if (xName.toUpperCase() === oldName.toUpperCase()) {
+          return {
+            ...x,
+            nhaCungCap: trimmedNewName || undefined,
+            khachHangCan: trimmedNewName || undefined,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return x;
+      });
+    } else {
+      // Chỉ áp dụng cho riêng xe này
+      updatedList = items.map((x) => {
+        if (x.id === supplierModalTruck.id) {
+          return {
+            ...x,
+            nhaCungCap: trimmedNewName || undefined,
+            khachHangCan: trimmedNewName || undefined,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return x;
+      });
+    }
+
+    setItems(updatedList);
+    setShowSupplierModal(false);
+
+    try {
+      await fetch('/api/dang-tai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_all',
+          date: selectedDate,
+          items: updatedList,
+        }),
+      });
+      showToast(
+        supplierModalApplyAll && oldName
+          ? `✅ Đã ghép tên "${oldName}" ➔ "${trimmedNewName || 'Trống'}" cho toàn bộ ${affectedCount} xe!`
+          : `✅ Đã sửa Nhà Cung Cấp cho xe ${supplierModalTruck.bienSoXe} thành "${trimmedNewName || 'Trống'}"!`
+      );
+    } catch {
+      showToast('Lỗi lưu Nhà Cung Cấp lên máy chủ', 'error');
+    }
+  };
+
+  // Ghép hàng loạt giữa 2 Nhà Cung Cấp trong ngày
+  const handleExecuteBulkSupplierMerge = async () => {
+    if (!mergeSourceSupplier.trim() || !mergeTargetSupplier.trim()) {
+      showToast('Vui lòng chọn cả NCC cần ghép và NCC đích', 'warning');
+      return;
+    }
+    const sourceTrimmed = mergeSourceSupplier.trim();
+    const targetTrimmed = mergeTargetSupplier.trim();
+
+    if (sourceTrimmed.toUpperCase() === targetTrimmed.toUpperCase()) {
+      showToast('NCC nguồn và NCC đích giống nhau', 'warning');
+      return;
+    }
+
+    const affectedCount = items.filter(
+      (x) => (x.nhaCungCap || x.khachHangCan || '').trim().toUpperCase() === sourceTrimmed.toUpperCase()
+    ).length;
+
+    const updatedList = items.map((x) => {
+      const xName = (x.nhaCungCap || x.khachHangCan || '').trim();
+      if (xName.toUpperCase() === sourceTrimmed.toUpperCase()) {
+        return {
+          ...x,
+          nhaCungCap: targetTrimmed,
+          khachHangCan: targetTrimmed,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return x;
+    });
+
+    setItems(updatedList);
+    setShowBulkSupplierMergeModal(false);
+
+    try {
+      await fetch('/api/dang-tai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_all',
+          date: selectedDate,
+          items: updatedList,
+        }),
+      });
+      showToast(`✅ Đã ghép thành công ${affectedCount} xe từ "${sourceTrimmed}" sang "${targetTrimmed}"!`);
+    } catch {
+      showToast('Lỗi lưu ghép NCC lên máy chủ', 'error');
+    }
+  };
+
   // Lưu thông tin xe (thêm mới hoặc sửa)
   const handleSaveTruck = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -387,6 +538,7 @@ export default function DangTaiView() {
         stt: formStt,
         bienSoXe: cleanPlate,
         nhaCungCap: formNhaCungCap.trim() || undefined,
+        khachHangCan: formNhaCungCap.trim() || undefined,
         loaiLua: formLoaiLua.trim() || '5451',
         soLuongUocTinh: uocTinhKg,
         tenTaiXe: formTenTaiXe.trim() || undefined,
@@ -413,6 +565,7 @@ export default function DangTaiView() {
         gioDangTai: formGioDangTai || getCurrentTimeString(),
         bienSoXe: cleanPlate,
         nhaCungCap: formNhaCungCap.trim() || undefined,
+        khachHangCan: formNhaCungCap.trim() || undefined,
         loaiLua: formLoaiLua.trim() || '5451',
         soLuongUocTinh: uocTinhKg,
         tenTaiXe: formTenTaiXe.trim() || undefined,
@@ -1331,6 +1484,22 @@ ${varietyStr}
               <span>Chấp nhận tất cả ({summary.saiStt} xe)</span>
             </button>
           )}
+
+          {uniqueSuppliersWithCount.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setMergeSourceSupplier(uniqueSuppliersWithCount[0]?.name || '');
+                setMergeTargetSupplier(uniqueSuppliersWithCount[1]?.name || uniqueSuppliersWithCount[0]?.name || '');
+                setShowBulkSupplierMergeModal(true);
+              }}
+              className="rounded-xl px-3 py-1 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ml-auto"
+              title="Ghép / đổi tên hàng loạt các Nhà Cung Cấp trong ngày"
+            >
+              <span>🏢</span>
+              <span>Ghép / Đổi Tên NCC ({uniqueSuppliersWithCount.length})</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1343,7 +1512,7 @@ ${varietyStr}
                 <th className="py-2.5 px-2 text-center whitespace-nowrap">Vị Trí / STT</th>
                 <th className="py-2.5 px-2 text-center whitespace-nowrap">Giờ Đăng Tài (24h)</th>
                 <th className="py-2.5 px-2.5 whitespace-nowrap">Biển Số Xe</th>
-                <th className="py-2.5 px-2.5 whitespace-nowrap">Nhà Cung Cấp</th>
+                <th className="py-2.5 px-2.5 whitespace-nowrap min-w-[130px]">Nhà Cung Cấp</th>
                 <th className="py-2.5 px-2 text-center whitespace-nowrap">Loại Lúa</th>
                 <th className="py-2.5 px-2.5 text-right whitespace-nowrap">Ước Tính (Kg)</th>
                 <th className="py-2.5 px-2 whitespace-nowrap">Tài Xế</th>
@@ -1461,13 +1630,29 @@ ${varietyStr}
                       </td>
 
                       {/* Nhà Cung Cấp (Khách hàng từ phiếu cân hoặc nhập) */}
-                      <td className="py-2 px-2.5 whitespace-nowrap">
+                      <td className="py-2 px-2.5 whitespace-nowrap min-w-[130px]">
                         {item.nhaCungCap || item.khachHangCan ? (
-                          <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-900 border border-amber-200 shadow-2xs whitespace-nowrap">
-                            🏢 {item.nhaCungCap || item.khachHangCan}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSupplierModal(item)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 hover:border-amber-300 px-2.5 py-1 text-xs font-bold text-amber-900 border border-amber-200 shadow-2xs whitespace-nowrap cursor-pointer transition-all hover:scale-102 group"
+                            title="Bấm để sửa hoặc ghép tên Nhà Cung Cấp này"
+                          >
+                            <span>🏢</span>
+                            <span>{item.nhaCungCap || item.khachHangCan}</span>
+                            <span className="text-[10px] text-amber-600 opacity-60 group-hover:opacity-100">
+                              ✏️
+                            </span>
+                          </button>
                         ) : (
-                          <span className="text-slate-400 italic text-[11px] whitespace-nowrap">Chờ cân...</span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSupplierModal(item)}
+                            className="inline-flex items-center gap-1 text-slate-400 hover:text-amber-700 italic text-[11px] whitespace-nowrap px-2 py-0.5 rounded-md hover:bg-amber-50 border border-dashed border-slate-200 hover:border-amber-300 transition-all cursor-pointer"
+                            title="Bấm để thêm hoặc ghép Nhà Cung Cấp"
+                          >
+                            <span>+ Thêm NCC...</span>
+                          </button>
                         )}
                       </td>
 
@@ -1754,6 +1939,21 @@ ${varietyStr}
                   placeholder="VD: A LAM TAY NINH (hoặc tự động cập nhật khi quét phiếu cân)"
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                 />
+                {uniqueSuppliersWithCount.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] text-slate-400">Gợi ý đã có:</span>
+                    {uniqueSuppliersWithCount.map((ncc) => (
+                      <button
+                        key={ncc.name}
+                        type="button"
+                        onClick={() => setFormNhaCungCap(ncc.name)}
+                        className="rounded-lg bg-amber-50 hover:bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-900 border border-amber-200 transition-colors cursor-pointer"
+                      >
+                        {ncc.name} ({ncc.count})
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -2626,6 +2826,243 @@ ${varietyStr}
                   ✅ Xác Nhận Đăng Tài ({logPreviewItems.length} Xe) Vào Hệ Thống
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SỬA & GHÉP TÊN NHÀ CUNG CẤP CHO XE */}
+      {showSupplierModal && supplierModalTruck && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl border border-slate-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🏢</span>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">Sửa &amp; Ghép Tên Nhà Cung Cấp</h3>
+                  <p className="text-xs text-slate-500">
+                    Sửa riêng cho xe này hoặc gộp/ghép hàng loạt cho toàn bộ xe
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSupplierModal(false)}
+                className="text-slate-400 hover:text-slate-600 rounded-lg p-1 text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Thông tin xe hiện tại */}
+            <div className="mb-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 p-3.5 text-xs text-amber-950 space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span>🚛 Biển số xe: <strong className="font-mono bg-white px-2 py-0.5 rounded-md border border-amber-200 text-slate-900">{supplierModalTruck.bienSoXe}</strong></span>
+                <span>•</span>
+                <span>STT: <strong className="bg-slate-900 text-white px-2 py-0.5 rounded-md font-mono">#{supplierModalTruck.stt}</strong></span>
+              </div>
+              <div>
+                Tên NCC hiện tại: <strong className="text-amber-900 font-bold">{supplierModalCurrentName || '(Chưa có tên)'}</strong>
+              </div>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Tên Nhà Cung Cấp Mới (hoặc bấm chọn gợi ý bên dưới để ghép):
+                </label>
+                <input
+                  type="text"
+                  value={supplierModalNewName}
+                  onChange={(e) => setSupplierModalNewName(e.target.value)}
+                  placeholder="Nhập tên NCC chuẩn (VD: A LAM TAY NINH)"
+                  autoFocus
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-bold text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-100 outline-none"
+                />
+              </div>
+
+              {/* Danh sách các NCC đã có trong ngày để bấm 1 click ghép tên */}
+              {uniqueSuppliersWithCount.length > 0 && (
+                <div>
+                  <span className="block text-[11px] font-bold text-slate-500 mb-1.5">
+                    💡 Bấm chọn nhanh để ghép vào NCC đã có:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1 bg-slate-50 rounded-xl border border-slate-100">
+                    {uniqueSuppliersWithCount.map((ncc) => (
+                      <button
+                        key={ncc.name}
+                        type="button"
+                        onClick={() => setSupplierModalNewName(ncc.name)}
+                        className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                          supplierModalNewName.trim().toUpperCase() === ncc.name.toUpperCase()
+                            ? 'bg-amber-600 text-white shadow-xs scale-105'
+                            : 'bg-white hover:bg-amber-50 text-slate-700 border border-slate-200 hover:border-amber-300'
+                        }`}
+                      >
+                        <span>🏢</span>
+                        <span>{ncc.name}</span>
+                        <span className="text-[10px] opacity-75 font-mono">({ncc.count} xe)</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tùy chọn ghép hàng loạt nếu xe có tên cũ */}
+              {supplierModalCurrentName && (
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={supplierModalApplyAll}
+                      onChange={(e) => setSupplierModalApplyAll(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                    />
+                    <div className="text-xs">
+                      <span className="font-bold text-slate-900 block">
+                        Ghép &amp; đổi tên cho TẤT CẢ các xe có tên cũ &quot;{supplierModalCurrentName}&quot;
+                      </span>
+                      <span className="text-slate-500 text-[11px] block mt-0.5">
+                        (Hiện có {items.filter((x) => (x.nhaCungCap || x.khachHangCan || '').trim().toUpperCase() === supplierModalCurrentName.toUpperCase()).length} xe trong ngày đang có tên này)
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowSupplierModal(false)}
+                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveSupplierModal}
+                className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 text-xs font-bold cursor-pointer shadow-md shadow-amber-600/30 transition-all active:scale-95"
+              >
+                Xác Nhận &amp; Ghép Tên
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GHÉP HÀNG LOẠT NHÀ CUNG CẤP TRONG NGÀY */}
+      {showBulkSupplierMergeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl border border-slate-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🔄</span>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">Ghép &amp; Gộp Nhà Cung Cấp Trong Ngày</h3>
+                  <p className="text-xs text-slate-500">
+                    Gộp các tên viết sai hoặc tên khác nhau về một Nhà Cung Cấp chuẩn
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBulkSupplierMergeModal(false)}
+                className="text-slate-400 hover:text-slate-600 rounded-lg p-1 text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              {/* Bảng danh sách các NCC hiện có */}
+              <div>
+                <span className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Các Nhà Cung Cấp đang có trong ngày ({uniqueSuppliersWithCount.length}):
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 bg-slate-50 rounded-2xl border border-slate-200">
+                  {uniqueSuppliersWithCount.map((ncc) => (
+                    <div
+                      key={ncc.name}
+                      className="flex items-center justify-between bg-white px-3 py-1.5 rounded-xl border border-slate-200 text-xs shadow-2xs"
+                    >
+                      <span className="font-bold text-slate-800 truncate mr-2">🏢 {ncc.name}</span>
+                      <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md text-[11px] shrink-0">
+                        {ncc.count} xe
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chọn NCC Nguồn cần ghép */}
+              <div>
+                <label className="block text-xs font-bold text-rose-700 mb-1">
+                  1. Chọn Tên NCC Cần Ghép (Nguồn):
+                </label>
+                <select
+                  value={mergeSourceSupplier}
+                  onChange={(e) => setMergeSourceSupplier(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-900 focus:border-rose-500 focus:ring-2 focus:ring-rose-100 outline-none"
+                >
+                  {uniqueSuppliersWithCount.map((ncc) => (
+                    <option key={ncc.name} value={ncc.name}>
+                      {ncc.name} ({ncc.count} xe)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Chọn hoặc gõ NCC Đích */}
+              <div>
+                <label className="block text-xs font-bold text-emerald-700 mb-1">
+                  2. Ghép / Gộp Vào NCC Đích (Tên chuẩn):
+                </label>
+                <div className="space-y-2">
+                  <select
+                    value={mergeTargetSupplier}
+                    onChange={(e) => setMergeTargetSupplier(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"
+                  >
+                    {uniqueSuppliersWithCount.map((ncc) => (
+                      <option key={ncc.name} value={ncc.name}>
+                        {ncc.name} ({ncc.count} xe)
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={mergeTargetSupplier}
+                    onChange={(e) => setMergeTargetSupplier(e.target.value)}
+                    placeholder="Hoặc gõ tên NCC đích mới..."
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-900 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {mergeSourceSupplier && mergeTargetSupplier && mergeSourceSupplier !== mergeTargetSupplier && (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
+                  ⚠️ <strong>Xác nhận hành động:</strong> Tất cả xe có tên &quot;<strong className="text-rose-700">{mergeSourceSupplier}</strong>&quot; sẽ được đổi và ghép về &quot;<strong className="text-emerald-700">{mergeTargetSupplier}</strong>&quot;.
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowBulkSupplierMergeModal(false)}
+                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteBulkSupplierMerge}
+                disabled={!mergeSourceSupplier || !mergeTargetSupplier || mergeSourceSupplier === mergeTargetSupplier}
+                className="rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white px-5 py-2.5 text-xs font-bold cursor-pointer shadow-md shadow-amber-600/30 transition-all active:scale-95 disabled:cursor-not-allowed"
+              >
+                Tiến Hành Ghép Tên
+              </button>
             </div>
           </div>
         </div>
