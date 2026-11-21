@@ -171,19 +171,19 @@ export default function AppHeader() {
         </div>
       </div>
 
-      {/* ── TẦNG 2: THANH MENU TABS DÀI RỘNG NGANG MÀN HÌNH ── */}
-      <div className="w-full border-t border-slate-100 bg-slate-50/70 px-4 sm:px-6 lg:px-8 py-1.5">
-        <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar scrollbar-none">
+      {/* ── TẦNG 2: THANH MENU TABS TO RÕ & CĂN GIỮA MÀN HÌNH ── */}
+      <div className="w-full border-t border-slate-200/70 bg-gradient-to-b from-slate-50 to-slate-100/60 px-3 sm:px-6 lg:px-8 py-2">
+        <nav className="flex items-center justify-start md:justify-center gap-1.5 sm:gap-2.5 overflow-x-auto no-scrollbar scrollbar-none py-0.5">
           {canAccessContracts && (
             <Link
               href="/"
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+              className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                 isContract
-                  ? 'bg-white text-blue-700 shadow-xs ring-1 ring-blue-500/20 font-bold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                  ? 'bg-white text-blue-700 shadow-sm ring-2 ring-blue-500/30 font-black scale-[1.02]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
               }`}
             >
-              <span>📄</span>
+              <span className="text-sm sm:text-base">📄</span>
               <span>Tạo Hợp Đồng</span>
             </Link>
           )}
@@ -192,79 +192,79 @@ export default function AppHeader() {
             <>
               <Link
                 href="/tinh-luong"
-                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                   isPayroll
-                    ? 'bg-white text-amber-800 shadow-xs ring-1 ring-amber-500/20 font-bold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                    ? 'bg-white text-amber-800 shadow-sm ring-2 ring-amber-500/30 font-black scale-[1.02]'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
                 }`}
               >
-                <span>🌾</span>
+                <span className="text-sm sm:text-base">🌾</span>
                 <span>Xuất Lúa CS1</span>
               </Link>
 
               <Link
                 href="/nhap-say-cs1"
-                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                   isNhapSayCS1
-                    ? 'bg-white text-orange-800 shadow-xs ring-1 ring-orange-500/20 font-bold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                    ? 'bg-white text-orange-800 shadow-sm ring-2 ring-orange-500/30 font-black scale-[1.02]'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
                 }`}
               >
-                <span>🌾</span>
+                <span className="text-sm sm:text-base">🌾</span>
                 <span>Nhập Sấy CS1</span>
               </Link>
 
               <Link
                 href="/nhap-say"
-                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                   isNhapSay
-                    ? 'bg-white text-orange-700 shadow-xs ring-1 ring-orange-500/20 font-bold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                    ? 'bg-white text-orange-700 shadow-sm ring-2 ring-orange-500/30 font-black scale-[1.02]'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
                 }`}
               >
-                <span>🔥</span>
+                <span className="text-sm sm:text-base">🔥</span>
                 <span>Lương Đội Dương (CS2)</span>
               </Link>
 
               <Link
                 href="/nhap-say-tm"
-                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                   isNhapSayTM
-                    ? 'bg-white text-emerald-800 shadow-xs ring-1 ring-emerald-500/30 font-bold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                    ? 'bg-white text-emerald-800 shadow-sm ring-2 ring-emerald-500/40 font-black scale-[1.02]'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
                 }`}
               >
-                <span>🌾</span>
+                <span className="text-sm sm:text-base">🌾</span>
                 <span>Nhập Sấy NSX TM</span>
-                <span className="rounded-full bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 font-bold shadow-2xs">
+                <span className="rounded-full bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 shadow-2xs">
                   Mới
                 </span>
               </Link>
 
               <Link
                 href="/xuat-nsx-tm"
-                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                   isXuatNSXTM
-                    ? 'bg-white text-amber-800 shadow-xs ring-1 ring-amber-500/30 font-bold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                    ? 'bg-white text-amber-800 shadow-sm ring-2 ring-amber-500/40 font-black scale-[1.02]'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
                 }`}
               >
-                <span>🚛</span>
+                <span className="text-sm sm:text-base">🚛</span>
                 <span>Xuất NSX TM</span>
-                <span className="rounded-full bg-amber-600 text-white text-[9px] px-1.5 py-0.5 font-bold shadow-2xs">
+                <span className="rounded-full bg-amber-600 text-white text-[10px] font-bold px-1.5 py-0.5 shadow-2xs">
                   Mới
                 </span>
               </Link>
 
               <Link
                 href="/chum-lo"
-                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                   isChumLo
-                    ? 'bg-white text-rose-700 shadow-xs ring-1 ring-rose-500/20 font-bold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                    ? 'bg-white text-rose-700 shadow-sm ring-2 ring-rose-500/30 font-black scale-[1.02]'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
                 }`}
               >
-                <span>🏭</span>
+                <span className="text-sm sm:text-base">🏭</span>
                 <span>Chụm Lò CS1</span>
               </Link>
             </>
@@ -273,15 +273,15 @@ export default function AppHeader() {
           {canAccessHusk && (
             <Link
               href="/xuat-trau"
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+              className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                 isXuatTrau
-                  ? 'bg-white text-amber-900 shadow-xs ring-1 ring-amber-400 font-bold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                  ? 'bg-white text-amber-900 shadow-sm ring-2 ring-amber-500/40 font-black scale-[1.02]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
               }`}
             >
-              <span>🚛</span>
+              <span className="text-sm sm:text-base">🚛</span>
               <span>Nhập Trấu (Xe &amp; Ghe)</span>
-              <span className="rounded-full bg-amber-600 text-white text-[9px] px-1.5 py-0.5 font-bold shadow-2xs">
+              <span className="rounded-full bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 shadow-2xs">
                 Mới
               </span>
             </Link>
@@ -290,15 +290,15 @@ export default function AppHeader() {
           {canAccessBaoCao && (
             <Link
               href="/bao-cao-chua-xay"
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+              className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                 isBaoCao
-                  ? 'bg-white text-emerald-800 shadow-xs ring-2 ring-emerald-500/40 font-black'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                  ? 'bg-white text-emerald-800 shadow-sm ring-2 ring-emerald-500/40 font-black scale-[1.02]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
               }`}
             >
-              <span>🌾</span>
+              <span className="text-sm sm:text-base">🌾</span>
               <span>Báo Cáo Chưa Xay</span>
-              <span className="rounded-full bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 font-bold shadow-2xs">
+              <span className="rounded-full bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 shadow-2xs">
                 Mới
               </span>
             </Link>
@@ -307,15 +307,15 @@ export default function AppHeader() {
           {canAccessDangTai && (
             <Link
               href="/dang-tai"
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+              className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
                 isDangTai
-                  ? 'bg-white text-blue-900 shadow-xs ring-2 ring-blue-500/40 font-black'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                  ? 'bg-white text-blue-900 shadow-sm ring-2 ring-blue-500/40 font-black scale-[1.02]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
               }`}
             >
-              <span>🚛</span>
+              <span className="text-sm sm:text-base">🚛</span>
               <span>Đăng Tài Xe</span>
-              <span className="rounded-full bg-blue-600 text-white text-[9px] px-1.5 py-0.5 font-bold shadow-2xs">
+              <span className="rounded-full bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 shadow-2xs">
                 Mới
               </span>
             </Link>
