@@ -95,7 +95,7 @@ export default function AppHeader() {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium hidden sm:block mt-0.5">
-                Hợp đồng &amp; Tính lương nhân công nông sản
+                Hệ thống quản lý &amp; điều hành nội bộ
               </p>
             </div>
           </div>

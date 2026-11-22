@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Phần Mềm Tạo Hợp Đồng Mua Bán Hàng Hóa - Công ty TNHH XNK Chơn Chính',
-  description: 'Hệ thống tạo và xuất file hợp đồng mua bán hàng hóa (.docx) tự động',
+  title: 'Hệ Thống Nội Bộ - Công ty TNHH XNK Chơn Chính',
+  description: 'Hệ thống quản lý và điều hành nội bộ - Công ty TNHH XNK Chơn Chính',
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },

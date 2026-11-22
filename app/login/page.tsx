@@ -67,10 +67,10 @@ function LoginFormContent() {
             />
           </div>
           <h2 className="mt-5 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-            Tạo Hợp Đồng Mua Bán
+            Hệ Thống Nội Bộ
           </h2>
           <p className="mt-2 text-xs text-slate-500 font-medium">
-            Hệ thống nội bộ &bull; <span className="font-bold text-emerald-700">CÔNG TY TNHH XNK</span> <span className="font-black text-red-700">CHƠN CHÍNH</span>
+            Quản trị &amp; Điều hành &bull; <span className="font-bold text-emerald-700">CÔNG TY TNHH XNK</span> <span className="font-black text-red-700">CHƠN CHÍNH</span>
           </p>
         </div>
 
