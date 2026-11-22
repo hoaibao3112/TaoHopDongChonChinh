@@ -21,6 +21,13 @@ function getTodayString(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function formatDateVN(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return dateStr;
+}
+
 function getCurrentTimeString(): string {
   const now = new Date();
   const hh = String(now.getHours()).padStart(2, '0');
@@ -41,6 +48,7 @@ interface ScanResultItem {
 
 export default function DangTaiView() {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayString);
+  const isReadOnly = selectedDate !== getTodayString();
   const [items, setItems] = useState<XeDangTai[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -49,10 +57,34 @@ export default function DangTaiView() {
   // Quản lý Modal
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [showBulkModal, setShowBulkModal] = useState<boolean>(false);
+  const [showGalleryModal, setShowGalleryModal] = useState<boolean>(false);
   const [editingTruck, setEditingTruck] = useState<XeDangTai | null>(null);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [viewingImageRotation, setViewingImageRotation] = useState<number>(0);
   const [viewingImageZoom, setViewingImageZoom] = useState<number>(1);
+
+  // Danh sách 7 ngày gần nhất để chuyển nhanh
+  const pastDays = useMemo(() => {
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const iso = `${yyyy}-${mm}-${dd}`;
+      let label = `${dd}/${mm}`;
+      if (i === 0) label = 'Hôm nay';
+      else if (i === 1) label = 'Hôm qua';
+      dates.push({ iso, label, displayDate: `${dd}/${mm}/${yyyy}` });
+    }
+    return dates;
+  }, []);
+
+  // Danh sách xe có ảnh phiếu cân
+  const itemsWithImage = useMemo(() => {
+    return items.filter((x) => Boolean(x.anhPhieuCan));
+  }, [items]);
 
   // Form đăng tài xe
   const [formBienSo, setFormBienSo] = useState<string>('');
@@ -1177,40 +1209,118 @@ ${varietyStr}
         </div>
 
         {/* Action Controls Top Right */}
-        <div className="flex flex-wrap items-center gap-2.5 sm:self-center">
-          {/* Chọn ngày với chỉ báo mốc 24H */}
-          <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-3.5 py-2 ring-1 ring-white/20 backdrop-blur-md">
-            <span className="text-xs font-semibold text-blue-200">📅 Ngày:</span>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
-            />
-            <span className="rounded-lg bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-400/30 whitespace-nowrap">
-              Mốc 24H (00:00 - 23:59)
-            </span>
+        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2.5 sm:self-center">
+          {/* Chọn ngày + Dãy nút 7 ngày gần nhất */}
+          <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+            <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-3.5 py-2 ring-1 ring-white/20 backdrop-blur-md">
+              <span className="text-xs font-semibold text-blue-200">📅 Ngày:</span>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
+              />
+              <span
+                className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border whitespace-nowrap ${
+                  !isReadOnly
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-400/30'
+                }`}
+              >
+                {!isReadOnly ? 'Hôm nay (24H)' : 'Lịch Sử'}
+              </span>
+            </div>
+
+            {/* Dãy nút chuyển nhanh 7 ngày gần nhất */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 max-w-full">
+              {pastDays.map((d) => {
+                const isActive = selectedDate === d.iso;
+                return (
+                  <button
+                    key={d.iso}
+                    type="button"
+                    onClick={() => setSelectedDate(d.iso)}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-white text-blue-900 shadow-sm font-black ring-1 ring-white'
+                        : 'bg-white/10 hover:bg-white/20 text-blue-100'
+                    }`}
+                    title={d.displayDate}
+                  >
+                    {d.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Nút Báo Cáo Zalo (24H & Theo Ca) */}
-          <button
-            onClick={() => handleOpenZaloModal('24h')}
-            className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-900/30 transition-all active:scale-95 cursor-pointer"
-          >
-            <span>📱</span>
-            <span>Báo Cáo Zalo (24H &amp; Ca)</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Nút Thư Viện Ảnh Phiếu Cân (Hiển thị khi có ít nhất 1 ảnh trong ngày) */}
+            {itemsWithImage.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowGalleryModal(true)}
+                className="flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 px-3.5 py-2.5 text-xs font-bold text-white shadow-md shadow-purple-950/30 transition-all active:scale-95 cursor-pointer"
+                title="Xem thư viện toàn bộ ảnh chụp phiếu cân đã quét trong ngày"
+              >
+                <span>🖼️</span>
+                <span>Kho Ảnh Phiếu ({itemsWithImage.length})</span>
+              </button>
+            )}
 
-          {/* Nút Xuất Excel */}
-          <button
-            onClick={handleExportExcel}
-            className="flex items-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-950/30 transition-all active:scale-95 cursor-pointer"
-          >
-            <span>📊</span>
-            <span>Xuất Excel</span>
-          </button>
+            {/* Nút Báo Cáo Zalo (24H & Theo Ca) */}
+            <button
+              onClick={() => handleOpenZaloModal('24h')}
+              className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-900/30 transition-all active:scale-95 cursor-pointer"
+            >
+              <span>📱</span>
+              <span>Báo Cáo Zalo</span>
+            </button>
+
+            {/* Nút Xuất Excel */}
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-950/30 transition-all active:scale-95 cursor-pointer"
+            >
+              <span>📊</span>
+              <span>Xuất Excel</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* BANNER CHẾ ĐỘ CHỈ ĐỌC KHI XEM LỊCH SỬ NGÀY CŨ */}
+      {isReadOnly && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-amber-500/10 border-2 border-amber-500/30 p-4 sm:p-5 text-amber-950 shadow-sm backdrop-blur-xs">
+          <div className="flex items-center gap-3.5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white text-2xl shadow-sm">
+              📜
+            </span>
+            <div>
+              <div className="text-sm sm:text-base font-black flex items-center gap-2 flex-wrap">
+                <span>Đang xem dữ liệu lịch sử ngày:</span>
+                <span className="rounded-lg bg-amber-600 text-white px-2 py-0.5 font-mono text-xs font-black shadow-2xs">
+                  {formatDateVN(selectedDate)}
+                </span>
+                <span className="rounded-md bg-amber-200/90 text-amber-900 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                  Chỉ đọc (Read-only)
+                </span>
+              </div>
+              <p className="text-xs text-amber-800 font-medium mt-0.5">
+                Dữ liệu ngày cũ được khóa an toàn để tránh ghi đè, xóa hoặc thay đổi ngoài ý muốn.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedDate(getTodayString())}
+            className="flex items-center gap-2 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 text-xs font-bold shadow-md shadow-amber-600/30 transition-all cursor-pointer active:scale-95 ml-auto sm:ml-0"
+          >
+            <span>↩️</span>
+            <span>Quay về ngày hôm nay</span>
+          </button>
+        </div>
+      )}
 
       {/* BÁO CÁO THỐNG KÊ NHANH (CARDS) */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 sm:gap-4">
@@ -1334,78 +1444,87 @@ ${varietyStr}
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Nhóm nút thêm xe & quét ảnh */}
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Nút Đăng tài xe mới */}
-            <button
-              onClick={handleOpenAddModal}
-              className="flex items-center gap-2 rounded-2xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 transition-all active:scale-95 cursor-pointer"
-            >
-              <span className="text-sm font-bold">+</span>
-              <span>Đăng Tài Xe Mới</span>
-            </button>
+            {!isReadOnly ? (
+              <>
+                {/* Nút Đăng tài xe mới */}
+                <button
+                  onClick={handleOpenAddModal}
+                  className="flex items-center gap-2 rounded-2xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 transition-all active:scale-95 cursor-pointer"
+                >
+                  <span className="text-sm font-bold">+</span>
+                  <span>Đăng Tài Xe Mới</span>
+                </button>
 
-            {/* Nút Thêm nhanh nhiều xe (Paste Zalo/Excel) */}
-            <button
-              onClick={() => setShowBulkModal(true)}
-              className="flex items-center gap-2 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2.5 text-xs font-bold transition-all border border-slate-200 cursor-pointer"
-            >
-              <span>📋</span>
-              <span>Dán Nhanh Từ Zalo</span>
-            </button>
+                {/* Nút Thêm nhanh nhiều xe (Paste Zalo/Excel) */}
+                <button
+                  onClick={() => setShowBulkModal(true)}
+                  className="flex items-center gap-2 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2.5 text-xs font-bold transition-all border border-slate-200 cursor-pointer"
+                >
+                  <span>📋</span>
+                  <span>Dán Nhanh Từ Zalo</span>
+                </button>
 
-            {/* Nút Quét Sổ Đăng Tài Viết Tay Bằng AI (Có bước xem trước và sửa lỗi) */}
-            <label className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-emerald-500/20 transition-all cursor-pointer active:scale-95">
-              {isScanningLog ? (
-                <>
-                  <svg className="h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                  </svg>
-                  <span>AI Đang Đọc Sổ...</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-sm">📸</span>
-                  <span>Quét Sổ Đăng Tài (AI)</span>
-                </>
-              )}
-              <input
-                ref={logFileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleLogFileChange}
-                disabled={isScanningLog}
-                className="hidden"
-              />
-            </label>
+                {/* Nút Quét Sổ Đăng Tài Viết Tay Bằng AI (Có bước xem trước và sửa lỗi) */}
+                <label className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-emerald-500/20 transition-all cursor-pointer active:scale-95">
+                  {isScanningLog ? (
+                    <>
+                      <svg className="h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      <span>AI Đang Đọc Sổ...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm">📸</span>
+                      <span>Quét Sổ Đăng Tài (AI)</span>
+                    </>
+                  )}
+                  <input
+                    ref={logFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleLogFileChange}
+                    disabled={isScanningLog}
+                    className="hidden"
+                  />
+                </label>
 
-            {/* Nút Quét Phiếu Cân Bằng AI (Tự động đọc biển số, trọng lượng & kiểm tra STT) */}
-            <label className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-95 text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-indigo-500/20 transition-all cursor-pointer active:scale-95">
-              {isScanning ? (
-                <>
-                  <svg className="h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                  </svg>
-                  <span>AI Đang Phân Tích Phiếu...</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-sm">📷</span>
-                  <span>Tự Động Quét Phiếu Cân (AI)</span>
-                </>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*"
-                capture="environment"
-                onChange={handleFileChange}
-                disabled={isScanning}
-                className="hidden"
-              />
-            </label>
+                {/* Nút Quét Phiếu Cân Bằng AI (Tự động đọc biển số, trọng lượng & kiểm tra STT) */}
+                <label className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-95 text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-indigo-500/20 transition-all cursor-pointer active:scale-95">
+                  {isScanning ? (
+                    <>
+                      <svg className="h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      <span>AI Đang Phân Tích Phiếu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm">📷</span>
+                      <span>Tự Động Quét Phiếu Cân (AI)</span>
+                    </>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileChange}
+                    disabled={isScanning}
+                    className="hidden"
+                  />
+                </label>
+              </>
+            ) : (
+              <div className="flex items-center gap-2 rounded-2xl bg-amber-50 border border-amber-200 px-3.5 py-2 text-xs font-bold text-amber-800">
+                <span>🔒</span>
+                <span>Chế độ xem lịch sử (Chỉ đọc) — Các thao tác thêm, quét hoặc sửa dữ liệu đã bị khóa.</span>
+              </div>
+            )}
           </div>
 
           {/* Ô Tìm Kiếm Nhanh */}
@@ -1474,7 +1593,7 @@ ${varietyStr}
           >
             ⚠️ Cân lệch STT ({summary.saiStt})
           </button>
-          {summary.saiStt > 0 && (
+          {!isReadOnly && summary.saiStt > 0 && (
             <button
               onClick={handleAcceptAllValidOrders}
               className="rounded-xl px-3 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
@@ -1485,7 +1604,7 @@ ${varietyStr}
             </button>
           )}
 
-          {uniqueSuppliersWithCount.length > 0 && (
+          {!isReadOnly && uniqueSuppliersWithCount.length > 0 && (
             <button
               type="button"
               onClick={() => {
@@ -1524,13 +1643,14 @@ ${varietyStr}
                 <th className="py-2.5 px-2 text-right whitespace-nowrap">Chênh Lệch</th>
                 <th className="py-2.5 px-2 text-center whitespace-nowrap">Trạng Thái</th>
                 <th className="py-2.5 px-3">Ghi Chú / Cảnh Báo</th>
+                <th className="py-2.5 px-2 text-center whitespace-nowrap">Ảnh Phiếu</th>
                 <th className="py-2.5 px-2 text-center whitespace-nowrap">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={16} className="py-12 text-center text-slate-400">
+                  <td colSpan={17} className="py-12 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
                       <svg className="h-5 w-5 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -1542,11 +1662,15 @@ ${varietyStr}
                 </tr>
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={16} className="py-12 text-center text-slate-400">
+                  <td colSpan={17} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <span className="text-3xl">🚛</span>
                       <p className="font-semibold text-slate-600">Chưa có xe nào trong danh sách đăng tài ngày này</p>
-                      <p className="text-xs text-slate-400">Bấm &quot;+ Đăng Tài Xe Mới&quot; hoặc &quot;Dán Nhanh Từ Zalo&quot; để thêm xe</p>
+                      <p className="text-xs text-slate-400">
+                        {!isReadOnly
+                          ? 'Bấm "+ Đăng Tài Xe Mới" hoặc "Dán Nhanh Từ Zalo" để thêm xe'
+                          : 'Ngày này không có dữ liệu đăng tài'}
+                      </p>
                     </div>
                   </td>
                 </tr>
@@ -1569,7 +1693,7 @@ ${varietyStr}
                           : ''
                       }`}
                     >
-                      {/* Vị Trí & STT (Cho phép đảo vị trí hàng nhưng giữ nguyên STT gốc) */}
+                      {/* Vị Trí & STT (Cho phép đảo vị trí hàng nhưng giữ nguyên STT gốc khi không ở chế độ chỉ đọc) */}
                       <td className="py-2 px-1 text-center">
                         {(() => {
                           const realIndex = items.findIndex((x) => x.id === item.id);
@@ -1578,40 +1702,54 @@ ${varietyStr}
 
                           return (
                             <div className="flex items-center justify-center gap-1.5">
-                              {/* Nút bấm đảo nhanh Lên / Xuống 1 hàng */}
-                              <div className="flex flex-col gap-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => handleMoveRow(item.id, -1)}
-                                  disabled={isFirst}
-                                  title={isFirst ? 'Đang ở đầu bảng' : 'Đẩy xe này lên 1 hàng'}
-                                  className="h-4 w-4 rounded flex items-center justify-center text-[10px] text-slate-500 hover:text-blue-700 hover:bg-blue-100 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
-                                >
-                                  ▲
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleMoveRow(item.id, 1)}
-                                  disabled={isLast}
-                                  title={isLast ? 'Đang ở cuối bảng' : 'Hạ xe này xuống 1 hàng'}
-                                  className="h-4 w-4 rounded flex items-center justify-center text-[10px] text-slate-500 hover:text-blue-700 hover:bg-blue-100 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
-                                >
-                                  ▼
-                                </button>
-                              </div>
+                              {/* Nút bấm đảo nhanh Lên / Xuống 1 hàng (chỉ khi ko readonly) */}
+                              {!isReadOnly && (
+                                <div className="flex flex-col gap-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveRow(item.id, -1)}
+                                    disabled={isFirst}
+                                    title={isFirst ? 'Đang ở đầu bảng' : 'Đẩy xe này lên 1 hàng'}
+                                    className="h-4 w-4 rounded flex items-center justify-center text-[10px] text-slate-500 hover:text-blue-700 hover:bg-blue-100 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
+                                  >
+                                    ▲
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveRow(item.id, 1)}
+                                    disabled={isLast}
+                                    title={isLast ? 'Đang ở cuối bảng' : 'Hạ xe này xuống 1 hàng'}
+                                    className="h-4 w-4 rounded flex items-center justify-center text-[10px] text-slate-500 hover:text-blue-700 hover:bg-blue-100 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
+                                  >
+                                    ▼
+                                  </button>
+                                </div>
+                              )}
 
-                              {/* Huy hiệu STT gốc - Bấm vào để mở hộp thoại chuyển đến hàng bất kỳ */}
-                              <button
-                                type="button"
-                                onClick={() => handleOpenReorderModal(item)}
-                                title={`STT ${item.stt} (Đang ở hàng #${realIndex + 1}) - Bấm để chuyển đến hàng khác`}
-                                className="inline-flex flex-col items-center justify-center px-2 py-0.5 min-w-[38px] rounded-xl bg-slate-900 hover:bg-blue-600 text-white shadow-2xs transition-all cursor-pointer group"
-                              >
-                                <span className="text-xs font-black tracking-tight">{item.stt}</span>
-                                <span className="text-[9px] text-slate-300 group-hover:text-blue-100 leading-none font-medium">
-                                  #{realIndex >= 0 ? realIndex + 1 : '?'}
-                                </span>
-                              </button>
+                              {/* Huy hiệu STT gốc */}
+                              {!isReadOnly ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenReorderModal(item)}
+                                  title={`STT ${item.stt} (Đang ở hàng #${realIndex + 1}) - Bấm để chuyển đến hàng khác`}
+                                  className="inline-flex flex-col items-center justify-center px-2 py-0.5 min-w-[38px] rounded-xl bg-slate-900 hover:bg-blue-600 text-white shadow-2xs transition-all cursor-pointer group"
+                                >
+                                  <span className="text-xs font-black tracking-tight">{item.stt}</span>
+                                  <span className="text-[9px] text-slate-300 group-hover:text-blue-100 leading-none font-medium">
+                                    #{realIndex >= 0 ? realIndex + 1 : '?'}
+                                  </span>
+                                </button>
+                              ) : (
+                                <div
+                                  title={`STT ${item.stt} (Hàng #${realIndex + 1})`}
+                                  className="inline-flex flex-col items-center justify-center px-2 py-0.5 min-w-[38px] rounded-xl bg-slate-800 text-white shadow-2xs"
+                                >
+                                  <span className="text-xs font-black tracking-tight">{item.stt}</span>
+                                  <span className="text-[9px] text-slate-300 leading-none font-medium">
+                                    #{realIndex >= 0 ? realIndex + 1 : '?'}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           );
                         })()}
@@ -1632,19 +1770,26 @@ ${varietyStr}
                       {/* Nhà Cung Cấp (Khách hàng từ phiếu cân hoặc nhập) */}
                       <td className="py-2 px-2.5 whitespace-nowrap min-w-[130px]">
                         {item.nhaCungCap || item.khachHangCan ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenSupplierModal(item)}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 hover:border-amber-300 px-2.5 py-1 text-xs font-bold text-amber-900 border border-amber-200 shadow-2xs whitespace-nowrap cursor-pointer transition-all hover:scale-102 group"
-                            title="Bấm để sửa hoặc ghép tên Nhà Cung Cấp này"
-                          >
-                            <span>🏢</span>
-                            <span>{item.nhaCungCap || item.khachHangCan}</span>
-                            <span className="text-[10px] text-amber-600 opacity-60 group-hover:opacity-100">
-                              ✏️
+                          !isReadOnly ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSupplierModal(item)}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 hover:border-amber-300 px-2.5 py-1 text-xs font-bold text-amber-900 border border-amber-200 shadow-2xs whitespace-nowrap cursor-pointer transition-all hover:scale-102 group"
+                              title="Bấm để sửa hoặc ghép tên Nhà Cung Cấp này"
+                            >
+                              <span>🏢</span>
+                              <span>{item.nhaCungCap || item.khachHangCan}</span>
+                              <span className="text-[10px] text-amber-600 opacity-60 group-hover:opacity-100">
+                                ✏️
+                              </span>
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 border border-amber-200 whitespace-nowrap">
+                              <span>🏢</span>
+                              <span>{item.nhaCungCap || item.khachHangCan}</span>
                             </span>
-                          </button>
-                        ) : (
+                          )
+                        ) : !isReadOnly ? (
                           <button
                             type="button"
                             onClick={() => handleOpenSupplierModal(item)}
@@ -1653,6 +1798,8 @@ ${varietyStr}
                           >
                             <span>+ Thêm NCC...</span>
                           </button>
+                        ) : (
+                          <span className="text-slate-300 italic text-[11px] whitespace-nowrap">—</span>
                         )}
                       </td>
 
@@ -1760,28 +1907,32 @@ ${varietyStr}
                             <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 shadow-2xs whitespace-nowrap">
                               ⚠️ Cân lệch STT
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleAcceptValidOrder(item.id, true)}
-                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs cursor-pointer transition-all hover:scale-105 whitespace-nowrap"
-                              title="Bấm để chấp nhận trường hợp này là hợp lệ (bỏ báo đỏ)"
-                            >
-                              <span>✓</span> Chấp nhận
-                            </button>
+                            {!isReadOnly && (
+                              <button
+                                type="button"
+                                onClick={() => handleAcceptValidOrder(item.id, true)}
+                                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs cursor-pointer transition-all hover:scale-105 whitespace-nowrap"
+                                title="Bấm để chấp nhận trường hợp này là hợp lệ (bỏ báo đỏ)"
+                              >
+                                <span>✓</span> Chấp nhận
+                              </button>
+                            )}
                           </div>
                         ) : item.daChapNhanHopLe ? (
                           <div className="flex flex-col items-center gap-0.5 whitespace-nowrap">
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 shadow-2xs whitespace-nowrap">
                               ✅ Đã duyệt hợp lệ
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleAcceptValidOrder(item.id, false)}
-                              className="text-[9px] text-slate-400 hover:text-rose-600 underline cursor-pointer whitespace-nowrap"
-                              title="Bấm để hoàn tác lại trạng thái cảnh báo lệch STT"
-                            >
-                              Bỏ duyệt
-                            </button>
+                            {!isReadOnly && (
+                              <button
+                                type="button"
+                                onClick={() => handleAcceptValidOrder(item.id, false)}
+                                className="text-[9px] text-slate-400 hover:text-rose-600 underline cursor-pointer whitespace-nowrap"
+                                title="Bấm để hoàn tác lại trạng thái cảnh báo lệch STT"
+                              >
+                                Bỏ duyệt
+                              </button>
+                            )}
                           </div>
                         ) : isDaCan ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 shadow-2xs whitespace-nowrap">
@@ -1801,14 +1952,16 @@ ${varietyStr}
                             <div className="text-rose-700 font-bold text-[11px] leading-snug">
                               {item.canhBaoSTT}
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleAcceptValidOrder(item.id, true)}
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 text-[11px] font-bold shadow-xs cursor-pointer transition-all hover:scale-102"
-                            >
-                              <span>✓</span>
-                              <span>Chấp nhận trường hợp này hợp lệ</span>
-                            </button>
+                            {!isReadOnly && (
+                              <button
+                                type="button"
+                                onClick={() => handleAcceptValidOrder(item.id, true)}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 text-[11px] font-bold shadow-xs cursor-pointer transition-all hover:scale-102"
+                              >
+                                <span>✓</span>
+                                <span>Chấp nhận trường hợp này hợp lệ</span>
+                              </button>
+                            )}
                           </div>
                         ) : null}
                         {item.ghiChu && (
@@ -1820,6 +1973,35 @@ ${varietyStr}
                           <div className="text-[10px] text-slate-400">
                             🕒 Cân lúc: {item.ngayGioCan}
                           </div>
+                        )}
+                      </td>
+
+                      {/* Cột Thumbnail Ảnh Phiếu Cân */}
+                      <td className="py-2 px-2 text-center whitespace-nowrap">
+                        {item.anhPhieuCan ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setViewingImage(item.anhPhieuCan || null);
+                              setViewingImageRotation(0);
+                              setViewingImageZoom(1);
+                            }}
+                            className="group relative inline-block rounded-xl overflow-hidden border border-slate-300 hover:border-blue-500 shadow-2xs transition-all hover:scale-110 cursor-pointer bg-slate-100"
+                            title="Bấm để phóng to xem ảnh phiếu cân"
+                          >
+                            <img
+                              src={item.anhPhieuCan}
+                              alt={`Phiếu cân ${item.bienSoXe}`}
+                              className="h-11 w-8 object-cover rounded-lg"
+                            />
+                            <span className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px]">
+                              🔍
+                            </span>
+                          </button>
+                        ) : (
+                          <span className="inline-block text-slate-300 text-sm select-none" title="Chưa có ảnh phiếu cân">
+                            📄
+                          </span>
                         )}
                       </td>
 
@@ -1839,27 +2021,35 @@ ${varietyStr}
                               🖼️
                             </button>
                           )}
-                          <button
-                            onClick={() => handleOpenReorderModal(item)}
-                            title="Đổi vị trí hàng xe trên bảng (giữ nguyên STT)"
-                            className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                          >
-                            ⇅
-                          </button>
-                          <button
-                            onClick={() => handleOpenEditModal(item)}
-                            title="Chỉnh sửa thông tin"
-                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTruck(item.id, item.bienSoXe)}
-                            title="Xóa xe"
-                            className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
-                          >
-                            🗑️
-                          </button>
+                          {!isReadOnly ? (
+                            <>
+                              <button
+                                onClick={() => handleOpenReorderModal(item)}
+                                title="Đổi vị trí hàng xe trên bảng (giữ nguyên STT)"
+                                className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                              >
+                                ⇅
+                              </button>
+                              <button
+                                onClick={() => handleOpenEditModal(item)}
+                                title="Chỉnh sửa thông tin"
+                                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTruck(item.id, item.bienSoXe)}
+                                title="Xóa xe"
+                                className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
+                              >
+                                🗑️
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-medium italic">
+                              (Chỉ đọc)
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -3167,6 +3357,105 @@ ${varietyStr}
               >
                 Xác Nhận Chuyển Vị Trí
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL THƯ VIỆN ẢNH PHIẾU CÂN THEO NGÀY */}
+      {showGalleryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-6 overflow-hidden animate-fadeIn">
+          <div className="relative w-full max-w-6xl max-h-[90vh] rounded-3xl bg-slate-900 border border-white/10 shadow-2xl flex flex-col overflow-hidden">
+            {/* Gallery Header */}
+            <div className="flex items-center justify-between bg-slate-800/95 px-6 py-4 border-b border-white/10 text-white">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-600/30 text-purple-300 text-xl ring-1 ring-purple-500/30">
+                  🖼️
+                </span>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black flex items-center gap-2">
+                    <span>Thư Viện Ảnh Phiếu Cân Ngày</span>
+                    <span className="font-mono text-purple-300 underline">{formatDateVN(selectedDate)}</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Tổng cộng: {itemsWithImage.length} phiếu cân đã chụp / quét
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGalleryModal(false)}
+                className="rounded-xl bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 text-xs font-bold cursor-pointer transition-colors"
+              >
+                ✕ Đóng
+              </button>
+            </div>
+
+            {/* Gallery Grid */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {itemsWithImage.length === 0 ? (
+                <div className="py-20 text-center text-slate-400">
+                  <span className="text-4xl block mb-2">📸</span>
+                  <p className="font-semibold text-slate-300">Chưa có ảnh phiếu cân nào được lưu cho ngày này</p>
+                  <p className="text-xs text-slate-500 mt-1">Ảnh sẽ tự động xuất hiện khi bạn quét phiếu cân bằng AI hoặc chụp tải ảnh lên</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {itemsWithImage.map((truck) => (
+                    <div
+                      key={truck.id}
+                      onClick={() => {
+                        setViewingImage(truck.anhPhieuCan || null);
+                        setViewingImageRotation(0);
+                        setViewingImageZoom(1);
+                      }}
+                      className="group cursor-pointer rounded-2xl bg-slate-800 border border-slate-700 overflow-hidden hover:border-purple-500 hover:shadow-lg hover:shadow-purple-900/30 transition-all hover:scale-102 flex flex-col"
+                    >
+                      {/* Image Preview Container */}
+                      <div className="relative aspect-[3/4] bg-slate-950 flex items-center justify-center overflow-hidden">
+                        <img
+                          src={truck.anhPhieuCan}
+                          alt={`Phiếu cân ${truck.bienSoXe}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+
+                        {/* STT badge on top-left */}
+                        <div className="absolute top-2 left-2 rounded-lg bg-black/70 backdrop-blur-xs px-2 py-0.5 text-[11px] font-black text-white border border-white/20">
+                          STT {truck.stt}
+                        </div>
+
+                        {/* Hover hint */}
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="rounded-xl bg-purple-600/90 text-white text-xs font-bold px-3 py-1.5 shadow-lg backdrop-blur-xs">
+                            🔍 Phóng to
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Info Caption */}
+                      <div className="p-3 space-y-1 bg-slate-850">
+                        <div className="font-mono font-black text-xs text-white truncate">
+                          🚛 {truck.bienSoXe}
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-emerald-400 font-bold font-mono">
+                            {truck.tlHangKg ? `${truck.tlHangKg.toLocaleString('vi-VN')} kg` : 'Chờ cân'}
+                          </span>
+                          <span className="text-slate-400 text-[10px]">
+                            {truck.gioCan || truck.gioDangTai || ''}
+                          </span>
+                        </div>
+                        {truck.nhaCungCap && (
+                          <div className="text-[10px] text-slate-400 truncate">
+                            🏢 {truck.nhaCungCap}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

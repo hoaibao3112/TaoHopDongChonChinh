@@ -177,11 +177,11 @@ export async function getDriversFromDb(): Promise<TaiXeEntry[] | null> {
        ORDER BY updated_at DESC`
     );
     if (res.rows.length > 0) {
-      return res.rows.map((r) => ({
+      return res.rows.map((r: { id: string; ten: string; sdt: string; nameSearch?: string; bienSoThuongChay?: string; ghiChu?: string; updatedAt?: string | Date }) => ({
         id: r.id,
         ten: r.ten,
         sdt: r.sdt,
-        nameSearch: r.nameSearch,
+        nameSearch: r.nameSearch || r.ten || '',
         bienSoThuongChay: r.bienSoThuongChay || undefined,
         ghiChu: r.ghiChu || undefined,
         updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : new Date().toISOString(),
