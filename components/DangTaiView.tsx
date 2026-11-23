@@ -11,6 +11,8 @@ import {
   arePlatesMatching,
 } from '@/lib/dang-tai/plate';
 import DriverCombobox from '@/components/DriverCombobox';
+import CustomerCombobox from '@/components/CustomerCombobox';
+import { normalizeCustomerName } from '@/lib/dang-tai/customers';
 import { compressImageForOcr } from '@/lib/dang-tai/compressImage';
 
 function getTodayString(): string {
@@ -428,7 +430,8 @@ export default function DangTaiView() {
   // Lưu sửa/ghép tên Nhà Cung Cấp cho xe hoặc toàn bộ xe có tên cũ
   const handleSaveSupplierModal = async () => {
     if (!supplierModalTruck) return;
-    const trimmedNewName = supplierModalNewName.trim();
+    const rawNewName = supplierModalNewName.trim();
+    const trimmedNewName = rawNewName ? normalizeCustomerName(rawNewName) : '';
     const oldName = supplierModalCurrentName.trim();
 
     let updatedList: XeDangTai[];
@@ -497,7 +500,7 @@ export default function DangTaiView() {
       return;
     }
     const sourceTrimmed = mergeSourceSupplier.trim();
-    const targetTrimmed = mergeTargetSupplier.trim();
+    const targetTrimmed = normalizeCustomerName(mergeTargetSupplier.trim());
 
     if (sourceTrimmed.toUpperCase() === targetTrimmed.toUpperCase()) {
       showToast('NCC nguồn và NCC đích giống nhau', 'warning');
@@ -565,12 +568,14 @@ export default function DangTaiView() {
         updatedNgayGio = formGioCan.trim();
       }
 
+      const cleanNCC = formNhaCungCap.trim() ? normalizeCustomerName(formNhaCungCap) : undefined;
+
       const updated: XeDangTai = {
         ...editingTruck,
         stt: formStt,
         bienSoXe: cleanPlate,
-        nhaCungCap: formNhaCungCap.trim() || undefined,
-        khachHangCan: formNhaCungCap.trim() || undefined,
+        nhaCungCap: cleanNCC,
+        khachHangCan: cleanNCC,
         loaiLua: formLoaiLua.trim() || '5451',
         soLuongUocTinh: uocTinhKg,
         tenTaiXe: formTenTaiXe.trim() || undefined,
@@ -590,14 +595,16 @@ export default function DangTaiView() {
       updatedList = items.map((x) => (x.id === editingTruck.id ? updated : x));
     } else {
       // Thêm mới
+      const cleanNCC = formNhaCungCap.trim() ? normalizeCustomerName(formNhaCungCap) : undefined;
+
       const newTruck: XeDangTai = {
         id: `truck_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         stt: formStt,
         ngayDangTai: selectedDate,
         gioDangTai: formGioDangTai || getCurrentTimeString(),
         bienSoXe: cleanPlate,
-        nhaCungCap: formNhaCungCap.trim() || undefined,
-        khachHangCan: formNhaCungCap.trim() || undefined,
+        nhaCungCap: cleanNCC,
+        khachHangCan: cleanNCC,
         loaiLua: formLoaiLua.trim() || '5451',
         soLuongUocTinh: uocTinhKg,
         tenTaiXe: formTenTaiXe.trim() || undefined,
@@ -2120,30 +2127,17 @@ ${varietyStr}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Nhà Cung Cấp <span className="text-slate-400 font-normal">(Khách hàng trên phiếu cân)</span>
+                  Nhà Cung Cấp / Nhóm Khách Hàng{' '}
+                  <span className="text-slate-400 font-normal">
+                    (Tự chuẩn hóa in hoa theo 119 khách hàng lúa tươi)
+                  </span>
                 </label>
-                <input
-                  type="text"
+                <CustomerCombobox
                   value={formNhaCungCap}
-                  onChange={(e) => setFormNhaCungCap(e.target.value)}
-                  placeholder="VD: A LAM TAY NINH (hoặc tự động cập nhật khi quét phiếu cân)"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  onChange={setFormNhaCungCap}
+                  todaySuppliers={uniqueSuppliersWithCount}
+                  placeholder="VD: a lâm tây ninh -> Tự đổi LÂM TÂY NINH"
                 />
-                {uniqueSuppliersWithCount.length > 0 && (
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[11px] text-slate-400">Gợi ý đã có:</span>
-                    {uniqueSuppliersWithCount.map((ncc) => (
-                      <button
-                        key={ncc.name}
-                        type="button"
-                        onClick={() => setFormNhaCungCap(ncc.name)}
-                        className="rounded-lg bg-amber-50 hover:bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-900 border border-amber-200 transition-colors cursor-pointer"
-                      >
-                        {ncc.name} ({ncc.count})
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

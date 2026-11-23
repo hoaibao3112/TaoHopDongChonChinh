@@ -1,5 +1,6 @@
 import { XeDangTai, OcrPhieuCanResult, MatchPhieuCanResult } from './types';
 import { arePlatesMatching } from './plate';
+import { normalizeCustomerName } from './customers';
 
 export interface ProcessSlipResult {
   phieu: OcrPhieuCanResult;
@@ -106,8 +107,8 @@ export function processWeighingSlip(
     ngayCan: ngayCan || undefined,
     gioCan: gioCan || undefined,
     ngayGioCan: ngayGioCan,
-    khachHangCan: phieu.khachHang || xeMatched.khachHangCan,
-    nhaCungCap: phieu.khachHang || xeMatched.nhaCungCap,
+    khachHangCan: (phieu.khachHang ? normalizeCustomerName(phieu.khachHang) : undefined) || xeMatched.khachHangCan,
+    nhaCungCap: (phieu.khachHang ? normalizeCustomerName(phieu.khachHang) : undefined) || xeMatched.nhaCungCap,
     loaiHangCan: phieu.loaiHang || xeMatched.loaiHangCan,
     tlXeHangKg: phieu.tlXeHangKg !== undefined ? phieu.tlXeHangKg : xeMatched.tlXeHangKg,
     tlXeKg: phieu.tlXeKg !== undefined ? phieu.tlXeKg : xeMatched.tlXeKg,

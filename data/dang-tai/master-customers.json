@@ -1,0 +1,835 @@
+[
+  {
+    "name": "TRƯỜNG CÀ MAU",
+    "rawNames": [
+      "TRƯỜNG CÀ MAU"
+    ],
+    "count": 684
+  },
+  {
+    "name": "THÁI ĐĂK LĂK",
+    "rawNames": [
+      "THÁI ĐĂK LĂK"
+    ],
+    "count": 204
+  },
+  {
+    "name": "DỐN KÊNH NHÌ",
+    "rawNames": [
+      "DỐN KÊNH NHÌ"
+    ],
+    "count": 109
+  },
+  {
+    "name": "LONG KHÁNH ĐĂK LĂK",
+    "rawNames": [
+      "LONG KHÁNH  ĐĂK LĂK"
+    ],
+    "count": 103
+  },
+  {
+    "name": "THỐNG CÀ MAU",
+    "rawNames": [
+      "THỐNG CÀ MAU"
+    ],
+    "count": 87
+  },
+  {
+    "name": "THỦY ĐĂK LĂK",
+    "rawNames": [
+      "THỦY ĐĂK LĂK"
+    ],
+    "count": 69
+  },
+  {
+    "name": "HẰNG KIÊN GIANG",
+    "rawNames": [
+      "HẰNG KIÊN GIANG"
+    ],
+    "count": 68
+  },
+  {
+    "name": "ÚT MỸ QUÝ",
+    "rawNames": [
+      "ÚT MỸ QUÝ"
+    ],
+    "count": 62
+  },
+  {
+    "name": "LÂM TÂY NINH",
+    "rawNames": [
+      "LÂM TÂY NINH"
+    ],
+    "count": 60
+  },
+  {
+    "name": "DÂN MỘC HÓA",
+    "rawNames": [
+      "DÂN MỘC HÓA"
+    ],
+    "count": 57
+  },
+  {
+    "name": "VIỄN U MINH THƯỢNG",
+    "rawNames": [
+      "VIỄN U MINH THƯỢNG"
+    ],
+    "count": 55
+  },
+  {
+    "name": "PHÚ BA SAO",
+    "rawNames": [
+      "PHÚ BA SAO"
+    ],
+    "count": 52
+  },
+  {
+    "name": "DƯ MỘC HÓA MỚI",
+    "rawNames": [
+      "DƯ MỘC HÓA MỚI"
+    ],
+    "count": 52
+  },
+  {
+    "name": "TÚ SÓC TRĂNG",
+    "rawNames": [
+      "TÚ SÓC TRĂNG"
+    ],
+    "count": 50
+  },
+  {
+    "name": "TUỐL CÀ MAU",
+    "rawNames": [
+      "TUỐL CÀ MAU"
+    ],
+    "count": 50
+  },
+  {
+    "name": "ĐỨC PHƯƠNG ĐĂK LĂK",
+    "rawNames": [
+      "ĐỨC PHƯƠNG ĐĂK LĂK"
+    ],
+    "count": 48
+  },
+  {
+    "name": "KIỆT VĨNH HƯNG",
+    "rawNames": [
+      "KIỆT VĨNH HƯNG"
+    ],
+    "count": 45
+  },
+  {
+    "name": "THÊM VĨNH ĐẠI",
+    "rawNames": [
+      "THÊM VĨNH ĐẠI"
+    ],
+    "count": 44
+  },
+  {
+    "name": "EGO TÂY NINH",
+    "rawNames": [
+      "EGO TÂY NINH"
+    ],
+    "count": 38
+  },
+  {
+    "name": "ÚT BẮC HÒA",
+    "rawNames": [
+      "ÚT BẮC HÒA"
+    ],
+    "count": 37
+  },
+  {
+    "name": "THT TÂN THIẾT",
+    "rawNames": [
+      "THT TÂN THIẾT"
+    ],
+    "count": 34
+  },
+  {
+    "name": "HẠNH SÓC TRĂNG",
+    "rawNames": [
+      "HẠNH SÓC TRĂNG"
+    ],
+    "count": 34
+  },
+  {
+    "name": "CẨM AN GIANG",
+    "rawNames": [
+      "CẨM AN GIANG"
+    ],
+    "count": 32
+  },
+  {
+    "name": "HTX LONG HẢI",
+    "rawNames": [
+      "HTX LONG HẢI"
+    ],
+    "count": 32
+  },
+  {
+    "name": "SÁU TẤN ĐỨC HÒA",
+    "rawNames": [
+      "SÁU TẤN ĐỨC HÒA"
+    ],
+    "count": 31
+  },
+  {
+    "name": "TÂM TÂY NINH",
+    "rawNames": [
+      "TÂM TÂY NINH"
+    ],
+    "count": 30
+  },
+  {
+    "name": "TÝ THÔNG ĐĂK LĂK",
+    "rawNames": [
+      "TÝ THÔNG ĐĂK LĂK"
+    ],
+    "count": 29
+  },
+  {
+    "name": "ĐẦY VĨNH THUẬN",
+    "rawNames": [
+      "ĐẦY VĨNH THUẬN"
+    ],
+    "count": 28
+  },
+  {
+    "name": "TÂM TAM NÔNG",
+    "rawNames": [
+      "TÂM TAM NÔNG"
+    ],
+    "count": 27
+  },
+  {
+    "name": "TÂM AN GIANG",
+    "rawNames": [
+      "TÂM AN GIANG"
+    ],
+    "count": 27
+  },
+  {
+    "name": "VUI MỘC HÓA",
+    "rawNames": [
+      "VUI MỘC HÓA"
+    ],
+    "count": 27
+  },
+  {
+    "name": "VINH MỸ ĐÔNG",
+    "rawNames": [
+      "VINH MỸ ĐÔNG"
+    ],
+    "count": 26
+  },
+  {
+    "name": "HTX AN THẠNH",
+    "rawNames": [
+      "HTX AN THẠNH"
+    ],
+    "count": 24
+  },
+  {
+    "name": "MẪN AN GIANG",
+    "rawNames": [
+      "MẪN AN GIANG"
+    ],
+    "count": 23
+  },
+  {
+    "name": "THOÀN KIẾN TƯỜNG",
+    "rawNames": [
+      "THOÀN KIẾN TƯỜNG"
+    ],
+    "count": 22
+  },
+  {
+    "name": "THẢO SÓC TRĂNG",
+    "rawNames": [
+      "THẢO SÓC TRĂNG"
+    ],
+    "count": 21
+  },
+  {
+    "name": "PHƯƠNG AN GIANG",
+    "rawNames": [
+      "PHƯƠNG AN GIANG"
+    ],
+    "count": 21
+  },
+  {
+    "name": "MINH AN GIANG",
+    "rawNames": [
+      "MINH AN GIANG"
+    ],
+    "count": 21
+  },
+  {
+    "name": "KIỀU ĐĂK LĂK",
+    "rawNames": [
+      "KIỀU ĐĂK LĂK"
+    ],
+    "count": 21
+  },
+  {
+    "name": "ĐẠT HÒN ĐẤT",
+    "rawNames": [
+      "ĐẠT HÒN ĐẤT"
+    ],
+    "count": 21
+  },
+  {
+    "name": "TUẤN ĐĂK LĂK",
+    "rawNames": [
+      "TUẤN ĐĂK LĂK"
+    ],
+    "count": 20
+  },
+  {
+    "name": "SANG BẠC LIÊU",
+    "rawNames": [
+      "SANG BẠC LIÊU"
+    ],
+    "count": 19
+  },
+  {
+    "name": "CÔN ĐĂK LĂK",
+    "rawNames": [
+      "CÔN ĐĂK LĂK"
+    ],
+    "count": 19
+  },
+  {
+    "name": "DẬU ĐĂK LĂK",
+    "rawNames": [
+      "DẬU ĐĂK LĂK"
+    ],
+    "count": 18
+  },
+  {
+    "name": "DIỄM GIỒNG RIỀNG",
+    "rawNames": [
+      "DIỄM GIỒNG RIỀNG"
+    ],
+    "count": 18
+  },
+  {
+    "name": "BO VĨNH HƯNG",
+    "rawNames": [
+      "BO VĨNH HƯNG"
+    ],
+    "count": 17
+  },
+  {
+    "name": "LONG LƯƠNG ĐĂK LĂK",
+    "rawNames": [
+      "LONG LƯƠNG ĐĂK LĂK"
+    ],
+    "count": 16
+  },
+  {
+    "name": "SANG THẠNH HÓA",
+    "rawNames": [
+      "SANG THẠNH HÓA"
+    ],
+    "count": 16
+  },
+  {
+    "name": "VŨ THÔNG BÌNH",
+    "rawNames": [
+      "VŨ THÔNG BÌNH"
+    ],
+    "count": 16
+  },
+  {
+    "name": "HTX LONG GIANG",
+    "rawNames": [
+      "HTX LONG GIANG"
+    ],
+    "count": 15
+  },
+  {
+    "name": "THÚY VĨNH THUẬN",
+    "rawNames": [
+      "THÚY VĨNH THUẬN"
+    ],
+    "count": 14
+  },
+  {
+    "name": "AN DINH BÀ",
+    "rawNames": [
+      "AN DINH BÀ"
+    ],
+    "count": 14
+  },
+  {
+    "name": "LÀ TÂN KIỀU",
+    "rawNames": [
+      "LÀ TÂN KIỀU"
+    ],
+    "count": 14
+  },
+  {
+    "name": "HI VĨNH HƯNG",
+    "rawNames": [
+      "HI VĨNH HƯNG"
+    ],
+    "count": 13
+  },
+  {
+    "name": "HIỀN ĐĂK LĂK",
+    "rawNames": [
+      "HIỀN ĐĂK LĂK"
+    ],
+    "count": 13
+  },
+  {
+    "name": "PHỈ TAM NÔNG",
+    "rawNames": [
+      "PHỈ TAM NÔNG"
+    ],
+    "count": 12
+  },
+  {
+    "name": "HTX THÀNH LẬP",
+    "rawNames": [
+      "HTX THÀNH LẬP"
+    ],
+    "count": 11
+  },
+  {
+    "name": "ĐĂNG SÓC TRĂNG",
+    "rawNames": [
+      "ĐĂNG SÓC TRĂNG"
+    ],
+    "count": 11
+  },
+  {
+    "name": "ĐẤT NHÀ HƯNG ĐIỀN",
+    "rawNames": [
+      "ĐẤT NHÀ HƯNG ĐIỀN"
+    ],
+    "count": 10
+  },
+  {
+    "name": "HTX BÌNH HÒA",
+    "rawNames": [
+      "HTX BÌNH HÒA"
+    ],
+    "count": 10
+  },
+  {
+    "name": "CƯỜNG AN GIANG",
+    "rawNames": [
+      "CƯỜNG AN GIANG"
+    ],
+    "count": 10
+  },
+  {
+    "name": "KHÉO DINH BÀ",
+    "rawNames": [
+      "KHÉO DINH BÀ"
+    ],
+    "count": 9
+  },
+  {
+    "name": "THẮM ĐĂK LĂK",
+    "rawNames": [
+      "THẮM ĐĂK LĂK"
+    ],
+    "count": 9
+  },
+  {
+    "name": "VŨ THẠNH HÓA",
+    "rawNames": [
+      "VŨ THẠNH HÓA"
+    ],
+    "count": 9
+  },
+  {
+    "name": "YẾN TÂY NINH",
+    "rawNames": [
+      "YẾN TÂY NINH"
+    ],
+    "count": 9
+  },
+  {
+    "name": "MỪNG ĐĂK LĂK",
+    "rawNames": [
+      "MỪNG ĐĂK LĂK"
+    ],
+    "count": 8
+  },
+  {
+    "name": "ĐIỀN TÂN PHƯỚC",
+    "rawNames": [
+      "ĐIỀN TÂN PHƯỚC"
+    ],
+    "count": 8
+  },
+  {
+    "name": "MAI BẮC NAM",
+    "rawNames": [
+      "MAI BẮC NAM"
+    ],
+    "count": 8
+  },
+  {
+    "name": "HẬN TÂY NINH",
+    "rawNames": [
+      "HẬN TÂY NINH"
+    ],
+    "count": 8
+  },
+  {
+    "name": "BÉ TƯ KÊNH NHÌ",
+    "rawNames": [
+      "BÉ TƯ KÊNH NHÌ"
+    ],
+    "count": 7
+  },
+  {
+    "name": "SẮC CÀ MAU",
+    "rawNames": [
+      "SẮC CÀ MAU"
+    ],
+    "count": 7
+  },
+  {
+    "name": "GIANG AN GIANG",
+    "rawNames": [
+      "GIANG AN GIANG"
+    ],
+    "count": 7
+  },
+  {
+    "name": "ĐẤT NHÀ TAM NÔNG",
+    "rawNames": [
+      "ĐẤT NHÀ TAM NÔNG"
+    ],
+    "count": 7
+  },
+  {
+    "name": "HẢI HÂN",
+    "rawNames": [
+      "HẢI HÂN"
+    ],
+    "count": 7
+  },
+  {
+    "name": "VŨ TÂN HỒNG",
+    "rawNames": [
+      "VŨ TÂN HỒNG"
+    ],
+    "count": 6
+  },
+  {
+    "name": "THT LONG THANH BÌNH",
+    "rawNames": [
+      "THT LONG THANH BÌNH"
+    ],
+    "count": 6
+  },
+  {
+    "name": "THUỶ ĐĂK LĂK",
+    "rawNames": [
+      "THUỶ ĐĂK LĂK"
+    ],
+    "count": 6
+  },
+  {
+    "name": "ÚT GIỒNG RIỀNG",
+    "rawNames": [
+      "ÚT GIỒNG RIỀNG"
+    ],
+    "count": 5
+  },
+  {
+    "name": "THT HƯNG ĐIỀN",
+    "rawNames": [
+      "THT HƯNG ĐIỀN"
+    ],
+    "count": 5
+  },
+  {
+    "name": "SƯƠNG TÂN HÒA",
+    "rawNames": [
+      "SƯƠNG TÂN HÒA"
+    ],
+    "count": 5
+  },
+  {
+    "name": "VẸN MỸ PHƯỚC TÂY",
+    "rawNames": [
+      "VẸN MỸ PHƯỚC TÂY"
+    ],
+    "count": 5
+  },
+  {
+    "name": "TOÀN DINH BÀ",
+    "rawNames": [
+      "TOÀN DINH BÀ"
+    ],
+    "count": 4
+  },
+  {
+    "name": "ĐÔN MỸ PHƯỚC TÂY",
+    "rawNames": [
+      "ĐÔN MỸ PHƯỚC TÂY"
+    ],
+    "count": 4
+  },
+  {
+    "name": "NGỌC BẮC HÒA",
+    "rawNames": [
+      "NGỌC BẮC HÒA"
+    ],
+    "count": 3
+  },
+  {
+    "name": "THT LÁNG BIỂN",
+    "rawNames": [
+      "THT LÁNG BIỂN"
+    ],
+    "count": 3
+  },
+  {
+    "name": "HAI VĨNH LONG",
+    "rawNames": [
+      "HAI VĨNH LONG"
+    ],
+    "count": 3
+  },
+  {
+    "name": "THT TÂN HỒNG",
+    "rawNames": [
+      "THT TÂN HỒNG"
+    ],
+    "count": 3
+  },
+  {
+    "name": "THÚY GÒ GÒN",
+    "rawNames": [
+      "THÚY GÒ GÒN"
+    ],
+    "count": 3
+  },
+  {
+    "name": "PHƯƠNG GIỒNG RIỀNG",
+    "rawNames": [
+      "PHƯƠNG GIỒNG RIỀNG"
+    ],
+    "count": 3
+  },
+  {
+    "name": "THẬT BÌNH HIỆP",
+    "rawNames": [
+      "THẬT BÌNH HIỆP"
+    ],
+    "count": 3
+  },
+  {
+    "name": "TOÀN CÀ MAU",
+    "rawNames": [
+      "TOÀN CÀ MAU"
+    ],
+    "count": 3
+  },
+  {
+    "name": "DŨ HÒN ĐẤT",
+    "rawNames": [
+      "DŨ HÒN ĐẤT"
+    ],
+    "count": 3
+  },
+  {
+    "name": "SÁNG TÂY NINH",
+    "rawNames": [
+      "SÁNG TÂY NINH"
+    ],
+    "count": 3
+  },
+  {
+    "name": "CHUNG SÓC TRĂNG",
+    "rawNames": [
+      "CHUNG SÓC TRĂNG"
+    ],
+    "count": 2
+  },
+  {
+    "name": "TỨ HẬU THẠNH TÂY",
+    "rawNames": [
+      "TỨ HẬU THẠNH TÂY"
+    ],
+    "count": 2
+  },
+  {
+    "name": "HÒA PHÁT TÂN CHÂU",
+    "rawNames": [
+      "HÒA PHÁT TÂN CHÂU"
+    ],
+    "count": 2
+  },
+  {
+    "name": "QUÂN HƯNG HÀ",
+    "rawNames": [
+      "QUÂN HƯNG HÀ"
+    ],
+    "count": 2
+  },
+  {
+    "name": "YẾN ĐĂK LĂK",
+    "rawNames": [
+      "YẾN ĐĂK LĂK"
+    ],
+    "count": 2
+  },
+  {
+    "name": "TIỀN LAI VUNG",
+    "rawNames": [
+      "TIỀN LAI VUNG"
+    ],
+    "count": 2
+  },
+  {
+    "name": "HOÀNG TÂN NINH",
+    "rawNames": [
+      "HOÀNG TÂN NINH"
+    ],
+    "count": 2
+  },
+  {
+    "name": "ROS CAMPUCHIA",
+    "rawNames": [
+      "ROS CAMPUCHIA"
+    ],
+    "count": 2
+  },
+  {
+    "name": "HẢI ĐỒNG THÁP",
+    "rawNames": [
+      "HẢI ĐỒNG THÁP"
+    ],
+    "count": 2
+  },
+  {
+    "name": "KHẢI TÂN HỒNG",
+    "rawNames": [
+      "KHẢI TÂN HỒNG"
+    ],
+    "count": 2
+  },
+  {
+    "name": "TUẤN ĐẮK LẮK",
+    "rawNames": [
+      "TUẤN ĐẮK LẮK"
+    ],
+    "count": 2
+  },
+  {
+    "name": "LOAN KIẾN TƯỜNG",
+    "rawNames": [
+      "LOAN KIẾN TƯỜNG"
+    ],
+    "count": 2
+  },
+  {
+    "name": "THƯỞNG NHƠN NINH",
+    "rawNames": [
+      "THƯỞNG NHƠN NINH"
+    ],
+    "count": 1
+  },
+  {
+    "name": "HỒNG ĐĂK LĂK",
+    "rawNames": [
+      "HỒNG ĐĂK LĂK"
+    ],
+    "count": 1
+  },
+  {
+    "name": "TRUYỀN LAI VUNG",
+    "rawNames": [
+      "TRUYỀN LAI VUNG"
+    ],
+    "count": 1
+  },
+  {
+    "name": "ĐẠT ĐỐC BINH KIỀU",
+    "rawNames": [
+      "ĐẠT ĐỐC BINH KIỀU"
+    ],
+    "count": 1
+  },
+  {
+    "name": "DÀNH BẮC TRANG",
+    "rawNames": [
+      "DÀNH BẮC TRANG"
+    ],
+    "count": 1
+  },
+  {
+    "name": "NGHĨA MỘC HÓA",
+    "rawNames": [
+      "NGHĨA MỘC HÓA"
+    ],
+    "count": 1
+  },
+  {
+    "name": "HIỆP TÂN NINH",
+    "rawNames": [
+      "HIỆP TÂN NINH"
+    ],
+    "count": 1
+  },
+  {
+    "name": "TOÀN THẠNH HƯNG",
+    "rawNames": [
+      "TOÀN THẠNH HƯNG"
+    ],
+    "count": 1
+  },
+  {
+    "name": "YẾN ĐẮK LẮK",
+    "rawNames": [
+      "YẾN ĐẮK LẮK"
+    ],
+    "count": 1
+  },
+  {
+    "name": "LUYẾN ĐẮK LẮK",
+    "rawNames": [
+      "LUYẾN ĐẮK LẮK"
+    ],
+    "count": 1
+  },
+  {
+    "name": "ĐOÀN ĐỐC BINH KIỀU",
+    "rawNames": [
+      "ĐOÀN ĐỐC BINH KIỀU"
+    ],
+    "count": 1
+  },
+  {
+    "name": "LỢI BẮC NAM",
+    "rawNames": [
+      "LỢI BẮC NAM"
+    ],
+    "count": 1
+  },
+  {
+    "name": "HẠ TÂN PHƯỚC",
+    "rawNames": [
+      "HẠ TÂN PHƯỚC"
+    ],
+    "count": 1
+  },
+  {
+    "name": "HIỆP CỦ CHI",
+    "rawNames": [
+      "HIỆP CỦ CHI"
+    ],
+    "count": 1
+  }
+]
