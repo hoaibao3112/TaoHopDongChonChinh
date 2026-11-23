@@ -27,7 +27,7 @@ export function normalizeConnectionString(raw: string): string {
   let decodedPass = pass;
   try {
     decodedPass = decodeURIComponent(pass);
-  } catch {}
+  } catch { }
   const encodedPass = encodeURIComponent(decodedPass);
 
   return `${protoMatch[1]}${user}:${encodedPass}@${hostPart}`;
