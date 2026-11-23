@@ -185,6 +185,60 @@ export default function RiceNhapNSXTMView() {
   const [transferredSlips, setTransferredSlips] = useState<NSXTMEntry[]>([]);
   const [transferredToast, setTransferredToast] = useState<string | null>(null);
 
+  // ─── TỰ ĐỘNG ĐỒNG BỘ MẺ XUẤT TRẤU TỪ CSDL CỦA THÁNG ĐANG CHỌN ──────────────
+  const [huskMonthlySyncInfo, setHuskMonthlySyncInfo] = useState<{
+    count: number;
+    ducCount: number;
+    quyCount: number;
+    monthKey: string;
+  } | null>(null);
+  const [isSyncingHusk, setIsSyncingHusk] = useState(false);
+
+  const syncHuskForMonth = useCallback(async (monthKey: string) => {
+    if (!monthKey) return;
+    try {
+      setIsSyncingHusk(true);
+      const res = await fetch(`/api/husk/monthly?month=${encodeURIComponent(monthKey)}`, {
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.nsxEntries && Array.isArray(data.nsxEntries) && data.nsxEntries.length > 0) {
+        const huskEntries: NSXTMEntry[] = data.nsxEntries;
+
+        setAllEntries((prev) => {
+          // Xóa các mẻ trấu DB cũ (nếu có) để tránh trùng lặp khi nạp lại
+          const withoutDbHusk = prev.filter((e) => !e.id.startsWith('husk-db-'));
+          return [...withoutDbHusk, ...huskEntries];
+        });
+
+        const ducCount = huskEntries.filter((e) => e.team === 'ĐỨC').length;
+        const quyCount = huskEntries.filter((e) => e.team === 'QUÝ').length;
+
+        setHuskMonthlySyncInfo({
+          count: huskEntries.length,
+          ducCount,
+          quyCount,
+          monthKey,
+        });
+      } else {
+        setAllEntries((prev) => prev.filter((e) => !e.id.startsWith('husk-db-')));
+        setHuskMonthlySyncInfo(null);
+      }
+    } catch (err) {
+      console.warn('Lỗi đồng bộ mẻ trấu từ CSDL:', err);
+    } finally {
+      setIsSyncingHusk(false);
+    }
+  }, []);
+
+  // Tự động đồng bộ mỗi khi đổi tháng
+  useEffect(() => {
+    if (selectedMonthKey) {
+      syncHuskForMonth(selectedMonthKey);
+    }
+  }, [selectedMonthKey, syncHuskForMonth]);
+
   // Lắng nghe dữ liệu chuyển từ tab Quét Phiếu Cân AI (Xuất trấu)
   useEffect(() => {
     const checkTransferred = () => {
@@ -1136,6 +1190,39 @@ export default function RiceNhapNSXTMView() {
       {transferredToast && (
         <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800 shadow-2xs">
           {transferredToast}
+        </div>
+      )}
+
+      {/* Banner tự động đồng bộ mẻ xuất trấu từ CSDL theo tháng */}
+      {huskMonthlySyncInfo && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-2xl bg-gradient-to-r from-purple-50 via-indigo-50/70 to-slate-50 border border-purple-200 p-3.5 text-xs text-purple-950 font-medium shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">🚛</span>
+            <div>
+              <span>
+                Đã tự động điền <strong>{huskMonthlySyncInfo.count} mẻ xuất trấu</strong> Tháng {huskMonthlySyncInfo.monthKey} từ CSDL:
+              </span>{' '}
+              <span className="inline-flex items-center gap-1.5 ml-1">
+                <strong className="text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md font-bold">
+                  Đội Đức: {huskMonthlySyncInfo.ducCount} mẻ
+                </strong>
+                •
+                <strong className="text-blue-800 bg-blue-100/80 px-2 py-0.5 rounded-md font-bold">
+                  Đội Quý: {huskMonthlySyncInfo.quyCount} mẻ
+                </strong>
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => syncHuskForMonth(selectedMonthKey)}
+            disabled={isSyncingHusk}
+            className="rounded-xl bg-white hover:bg-purple-100 text-purple-800 border border-purple-200 px-3 py-1.5 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs self-end sm:self-auto"
+            title="Nhấn để kiểm tra và nạp thêm các mẻ trấu mới nhất từ CSDL"
+          >
+            <span>{isSyncingHusk ? '⏳' : '↻'}</span>
+            <span>Đồng bộ CSDL</span>
+          </button>
         </div>
       )}
 

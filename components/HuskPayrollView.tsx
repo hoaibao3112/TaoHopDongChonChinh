@@ -7,6 +7,7 @@ import { calculateHuskTons } from '@/lib/husk/tonnage';
 import { formatWorkDescription, parseVehicle } from '@/lib/husk/plate';
 import { groupSlipsIfEnabled } from '@/lib/husk/merger';
 import { NSXTMEntry, NSXTMTeamKey } from '@/lib/rice-payroll/nsx-tm-types';
+import { extractMonthKey, HuskMonthlyRecord } from '@/lib/husk/monthlyStorage';
 import {
   saveSlipOriginalImage,
   getSlipOriginalImageUrl,
@@ -41,6 +42,7 @@ export default function HuskPayrollView() {
   // ─── Processing State ─────────────────────────────────────────────────────
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [isSavingDb, setIsSavingDb] = useState<boolean>(false);
   const [scanProgress, setScanProgress] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -580,6 +582,71 @@ export default function HuskPayrollView() {
     }
   };
 
+  // ─── Lưu Trấu Vào CSDL Theo Tháng (Đồng Bộ Sang Nhập Sấy NSX TM) ────────
+  const handleSaveToMonthlyDb = async (showSuccessToast = true) => {
+    if (previewRows.length === 0) {
+      if (showSuccessToast) setErrorMessage('Không có phiếu trấu nào được chọn để lưu vào CSDL.');
+      return;
+    }
+
+    setIsSavingDb(true);
+    const defaultTeamKey: 'ĐỨC' | 'QUÝ' = settings.defaultTeam === 'QUÝ' ? 'QUÝ' : 'ĐỨC';
+    const payload: HuskMonthlyRecord[] = previewRows.map((s) => {
+      const team: 'ĐỨC' | 'QUÝ' = s.targetTeam === 'QUÝ' ? 'QUÝ' : (s.targetTeam === 'ĐỨC' ? 'ĐỨC' : defaultTeamKey);
+      const isTruck = parseVehicle(s.vehicle).isTruck;
+      const vType = isTruck ? 'XE' : 'GHE';
+      const tons = s.tons || (s.weightNetKg ? Math.round((s.weightNetKg / 1000) * 100) / 100 : 0);
+      const unitPrice = s.unitPrice || 11000;
+      const amount = s.amount || Math.round(tons * unitPrice);
+      const dateStr = s.date || '01/10/2026';
+      const mKey = extractMonthKey(dateStr);
+
+      return {
+        id: `husk-ai-${s.id}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        date: dateStr,
+        monthKey: mKey,
+        team,
+        customer: s.customer || 'Khách hàng',
+        vehicle: s.vehicle || (isTruck ? 'Xe' : 'Ghe'),
+        type: vType,
+        weightKg: s.weightNetKg || 0,
+        tons,
+        unitPrice,
+        amount,
+        description: s.description || (vType === 'GHE' ? `Xuất trấu ghe ${s.customer}` : `Xuất một xe trấu ${s.vehicle} của ${s.customer}`),
+        note: s.thumbnailBase64 ? `Phiếu cân xuất trấu AI (${team})` : `Phiếu cân xuất trấu (${team})`,
+        sourceTab: 'QUET_AI' as const,
+      };
+    });
+
+    try {
+      const res = await fetch('/api/husk/monthly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: payload }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (showSuccessToast) {
+          setSuccessMessage(
+            `💾 Đã lưu thành công ${payload.length} phiếu trấu vào CSDL theo tháng! Khi mở "Nhập Sấy NSX TM", hệ thống sẽ tự động điền các mẻ này vào bảng lương.`
+          );
+        }
+      } else {
+        if (showSuccessToast) {
+          setErrorMessage('Lỗi lưu CSDL trấu: ' + (data.error || 'Không xác định'));
+        }
+      }
+    } catch (err) {
+      console.error('[Husk DB Save Error]:', err);
+      if (showSuccessToast) {
+        setErrorMessage('Không thể kết nối đến máy chủ lưu CSDL trấu: ' + String(err));
+      }
+    } finally {
+      setIsSavingDb(false);
+    }
+  };
+
   // ─── Đưa sang Nhập Sấy Nông Sản Xanh (NSX TM) ────────────────────────────
   const handleTransferToNSXTM = (teamOverride?: 'ĐỨC' | 'QUÝ') => {
     if (previewRows.length === 0) {
@@ -638,8 +705,10 @@ export default function HuskPayrollView() {
         quyCount: countQuy,
       });
       setSuccessMessage(
-        `✅ Đã đưa thành công ${newEntries.length} phiếu cân sang Nhập Sấy NSX TM (Đức: ${countDuc} phiếu, Quý: ${countQuy} phiếu)!`
+        `✅ Đã đưa thành công ${newEntries.length} phiếu cân sang Nhập Sấy NSX TM (Đức: ${countDuc} phiếu, Quý: ${countQuy} phiếu) và lưu vào CSDL!`
       );
+      // Đồng thời tự động đồng bộ vào CSDL theo tháng cho NSX TM
+      handleSaveToMonthlyDb(false).catch(() => {});
     } catch (e) {
       setErrorMessage('Không thể lưu vào bộ nhớ trình duyệt: ' + String(e));
     }
@@ -709,6 +778,9 @@ export default function HuskPayrollView() {
 
       const insertedCount = res.headers.get('X-Inserted-Count') || previewRows.length;
       setSuccessMessage(`Đã ghi thành công ${insertedCount} dòng trấu vào file Excel!`);
+
+      // Tự động lưu vào CSDL theo tháng để liên thông sang Nhập Sấy NSX TM
+      handleSaveToMonthlyDb(false).catch(() => {});
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMessage(msg);
@@ -1037,16 +1109,29 @@ export default function HuskPayrollView() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => handleTransferToNSXTM()}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-700 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-600/25 hover:from-indigo-700 hover:to-blue-800 transition cursor-pointer"
-              title="Đưa các phiếu đã chọn vào bảng tính lương Nhập Sấy NSX TM (tự động phân bổ đúng theo Đội Đức hoặc Quý)"
-            >
-              <span>🌾</span>
-              <span>Đưa sang Nhập Sấy NSX TM ({previewRows.length} phiếu)</span>
-              <span>&rarr;</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleSaveToMonthlyDb(true)}
+                disabled={isSavingDb || previewRows.length === 0}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-purple-600/25 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 transition cursor-pointer"
+                title="Lưu số liệu trấu vào CSDL để tự động điền sang Nhập Sấy NSX TM khi chọn tháng tương ứng"
+              >
+                <span>{isSavingDb ? '⏳' : '💾'}</span>
+                <span>Lưu CSDL Tháng (Tự Động Điền Sang NSX TM)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTransferToNSXTM()}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-700 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-600/25 hover:from-indigo-700 hover:to-blue-800 transition cursor-pointer"
+                title="Đưa các phiếu đã chọn vào bảng tính lương Nhập Sấy NSX TM (tự động phân bổ đúng theo Đội Đức hoặc Quý)"
+              >
+                <span>🌾</span>
+                <span>Đưa sang Nhập Sấy NSX TM ({previewRows.length} phiếu)</span>
+                <span>&rarr;</span>
+              </button>
+            </div>
           </div>
 
           {/* Toast thông báo đã Copy */}

@@ -89,6 +89,11 @@ export async function ensureTables(): Promise<void> {
         alias_search VARCHAR(255) NOT NULL,
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS husk_monthly_records (
+        month_key VARCHAR(20) PRIMARY KEY,
+        items JSONB NOT NULL DEFAULT '[]'::jsonb,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
     tablesEnsured = true;
   } catch (err) {
@@ -138,6 +143,13 @@ export async function initSupabaseTables(): Promise<boolean> {
           alias VARCHAR(255) PRIMARY KEY,
           target_name VARCHAR(255) NOT NULL,
           alias_search VARCHAR(255) NOT NULL,
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        -- Bảng lưu trữ số liệu xuất trấu theo tháng (đồng bộ sang Nhập Sấy NSX TM)
+        CREATE TABLE IF NOT EXISTS husk_monthly_records (
+          month_key VARCHAR(20) PRIMARY KEY,
+          items JSONB NOT NULL DEFAULT '[]'::jsonb,
           updated_at TIMESTAMPTZ DEFAULT NOW()
         );
       `);
@@ -388,6 +400,48 @@ export async function deleteCustomerAliasFromDb(alias: string): Promise<boolean>
     return true;
   } catch (err) {
     console.warn('[DB deleteCustomerAlias Warning]:', err);
+    return false;
+  }
+}
+
+/**
+ * Đọc danh sách mẻ trấu theo tháng từ Supabase Postgres
+ */
+export async function getHuskMonthlyFromDb(monthKey: string): Promise<any[] | null> {
+  const db = getDbPool();
+  if (!db) return null;
+  try {
+    await ensureTables();
+    const res = await db.query('SELECT items FROM husk_monthly_records WHERE month_key = $1', [monthKey]);
+    if (res.rows.length > 0 && Array.isArray(res.rows[0].items)) {
+      return res.rows[0].items;
+    }
+    return null;
+  } catch (err) {
+    console.warn('[DB getHuskMonthly Warning]:', err);
+    return null;
+  }
+}
+
+/**
+ * Lưu danh sách mẻ trấu theo tháng vào Supabase Postgres
+ */
+export async function saveHuskMonthlyToDb(monthKey: string, items: any[]): Promise<boolean> {
+  const db = getDbPool();
+  if (!db) return false;
+  try {
+    await ensureTables();
+    await db.query(
+      `INSERT INTO husk_monthly_records (month_key, items, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (month_key) DO UPDATE SET
+         items = EXCLUDED.items,
+         updated_at = NOW()`,
+      [monthKey, JSON.stringify(items)]
+    );
+    return true;
+  } catch (err) {
+    console.warn('[DB saveHuskMonthly Warning]:', err);
     return false;
   }
 }

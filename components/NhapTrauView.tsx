@@ -20,6 +20,7 @@ import { readWorkbook } from '@/lib/nhap-trau/excelReader';
 import { writeShipments } from '@/lib/nhap-trau/excelWriter';
 import { validateBatchEntries } from '@/lib/nhap-trau/validator';
 import { generateDailyReports } from '@/lib/nhap-trau/reportGenerator';
+import { extractMonthKey, HuskMonthlyRecord } from '@/lib/husk/monthlyStorage';
 
 export default function NhapTrauView() {
   // ─── Step State ─────────────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ export default function NhapTrauView() {
 
   // ─── Processing & Output State ─────────────────────────────────────────────
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [isSavingDb, setIsSavingDb] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -262,6 +264,64 @@ export default function NhapTrauView() {
     return validateBatchEntries(entries, metadata);
   }, [entries, metadata]);
 
+  // ─── Lưu vào CSDL tháng để tự động điền sang Nhập Sấy NSX TM ───────────────
+  const handleSaveToMonthlyDb = async (showSuccessToast = true) => {
+    const validEntries = entries.filter((e) => e.weightKg > 0);
+    if (validEntries.length === 0) {
+      if (showSuccessToast) setErrorMessage('Không có dòng nhập trấu nào có số lượng > 0 để lưu vào CSDL');
+      return;
+    }
+
+    setIsSavingDb(true);
+    const payload: HuskMonthlyRecord[] = validEntries.map((e) => {
+      const isQuy = (e.team || '').toUpperCase().includes('QUÝ');
+      const isTruck = e.type === 'Xe';
+      const tons = Math.round((e.weightKg / 1000) * 100) / 100;
+      const entryDate = e.date || effectiveReportDate;
+      const mKey = extractMonthKey(entryDate);
+
+      return {
+        id: e.id || `nhap-trau-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        date: entryDate,
+        monthKey: mKey,
+        team: isQuy ? 'QUÝ' : 'ĐỨC',
+        customer: e.customer || e.targetSheetName || 'Khách hàng',
+        vehicle: e.vehicleName || (isTruck ? 'Xe trấu' : 'Ghe trấu'),
+        type: isTruck ? 'XE' : 'GHE',
+        weightKg: e.weightKg,
+        tons,
+        unitPrice: 11000,
+        amount: Math.round(tons * 11000),
+        note: e.note || 'Nhập trấu mới',
+        description: isTruck
+          ? `Xuất một xe trấu ${e.vehicleName} của ${e.customer || ''}`.replace(/\s+/g, ' ').trim()
+          : `Xuất trấu ghe ${e.customer || e.vehicleName || ''}`.replace(/\s+/g, ' ').trim(),
+        sourceTab: 'NHAP_MOI' as const,
+      };
+    });
+
+    try {
+      const res = await fetch('/api/husk/monthly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: payload }),
+      });
+      if (!res.ok) throw new Error('Không thể lưu vào CSDL');
+      const data = await res.json();
+      if (showSuccessToast) {
+        setSuccessMessage(
+          `✅ Đã lưu thành công ${validEntries.length} mẻ xuất trấu vào CSDL (tháng: ${data.savedMonths?.join(', ')})! Phân hệ Nhập Sấy NSX TM sẽ tự động điền các mẻ này để tính lương.`
+        );
+      }
+    } catch (err: unknown) {
+      if (showSuccessToast) {
+        setErrorMessage('Lỗi lưu CSDL mẻ trấu: ' + (err instanceof Error ? err.message : String(err)));
+      }
+    } finally {
+      setIsSavingDb(false);
+    }
+  };
+
   // ─── Step 3: Write & Download Updated Excel ────────────────────────────────
   const handleExportUpdatedExcel = async () => {
     if (!rawFileBuffer || !metadata) {
@@ -306,6 +366,9 @@ export default function NhapTrauView() {
         setSuccessMessage(
           `🎉 Đã xuất thành công! Đã ghi ${result.insertedMainCount} dòng vào Sổ tổng "Xuat Trấu Cty" và ${result.insertedCustomerCount} dòng vào các tab khách hàng tương ứng.`
         );
+
+        // Tự động đồng bộ số liệu vào CSDL tháng cho Nhập Sấy NSX TM
+        handleSaveToMonthlyDb(false).catch(() => {});
       }
     } catch (err) {
       console.error('[Export Error]:', err);
@@ -819,6 +882,30 @@ export default function NhapTrauView() {
                 </tr>
               </tfoot>
             </table>
+
+            {/* Thanh hành động lưu CSDL tháng & đồng bộ sang NSX TM */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-purple-50/70 rounded-2xl border border-amber-200 shadow-2xs mt-4">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🌾</span>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">
+                    Lưu số liệu trấu vào CSDL Tháng {extractMonthKey(effectiveReportDate) || 'này'}
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Tự động đồng bộ sang phân hệ Nhập Sấy NSX TM để tính lương cho Đội Đức &amp; Đội Quý (11.000đ/tấn)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSaveToMonthlyDb(true)}
+                disabled={isSavingDb || summary.totalEntries === 0}
+                className="rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-purple-600/20 cursor-pointer flex items-center justify-center gap-1.5 transition-all active:scale-95"
+              >
+                <span>{isSavingDb ? '⏳' : '💾'}</span>
+                <span>Lưu CSDL &amp; Điền Sang NSX TM</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
