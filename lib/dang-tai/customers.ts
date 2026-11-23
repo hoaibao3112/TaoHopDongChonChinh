@@ -7,6 +7,13 @@ export interface MasterCustomer {
   nameSearch: string; // Chuỗi tìm kiếm không dấu
 }
 
+export interface CustomerAlias {
+  alias: string;        // Tên xuất hiện trên phiếu hoặc gõ tay, vd: "A KHU B"
+  targetName: string;   // Tên nhóm khách hàng chuẩn đích, vd: "A KHU E" hoặc "KHU E"
+  aliasSearch: string;  // Chuỗi không dấu của alias, vd: "a khu b"
+  updatedAt?: string;
+}
+
 /**
  * Danh sách 119 Nhà Cung Cấp / Nhóm Khách Hàng thực tế từ File Master:
  * THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx
@@ -30,6 +37,7 @@ const ABBREVIATIONS: [RegExp, string][] = [
   [/(^|[\s._-])(kg|k\.giang|k-giang)(?=[\s._-]|$)/gi, '$1KIÊN GIANG'],
   [/(^|[\s._-])(st|s\.trang|s-trang)(?=[\s._-]|$)/gi, '$1SÓC TRĂNG'],
   [/(^|[\s._-])(ag|a\.giang|a-giang)(?=[\s._-]|$)/gi, '$1AN GIANG'],
+  [/(^|[\s._-])(tg|t\.giang|t-giang)(?=[\s._-]|$)/gi, '$1TIỀN GIANG'],
   [/(^|[\s._-])(đt|dt|d\.thap|d-thap)(?=[\s._-]|$)/gi, '$1ĐỒNG THÁP'],
   [/(^|[\s._-])(la|l\.an|l-an)(?=[\s._-]|$)/gi, '$1LONG AN'],
   [/(^|[\s._-])(mh|m\.hoa|m-hoa)(?=[\s._-]|$)/gi, '$1MỘC HÓA'],
@@ -62,24 +70,59 @@ export function stripVietnameseHonorifics(raw: string): string {
  * Chuẩn hóa tên khách hàng từ phiếu cân hoặc chữ gõ tay thành TÊN CHUẨN IN HOA
  * từ danh mục Khách hàng thực tế của Chơn Chính.
  *
- * Ví dụ:
- *  - "a lâm tây ninh" -> "LÂM TÂY NINH"
- *  - "a. lâm tây ninh" -> "LÂM TÂY NINH"
- *  - "A LAM TAY NINH" -> "LÂM TÂY NINH"
- *  - "anh lâm tn" -> "LÂM TÂY NINH"
- *  - "c hằng kiên giang" -> "HẰNG KIÊN GIANG"
- *  - "chú út mỹ quý" -> "ÚT MỸ QUÝ"
- *  - "thái đăk lăk" -> "THÁI ĐĂK LĂK"
- *  - "anh thái đl" -> "THÁI ĐĂK LĂK"
+ * Hỗ trợ:
+ * 1. Ánh xạ bí danh (Aliases): "A KHU B" -> "A KHU E"
+ * 2. Bỏ tiền tố xưng hô: "a lâm tây ninh" -> "LÂM TÂY NINH"
+ * 3. Mở rộng viết tắt: "anh lâm tn" -> "LÂM TÂY NINH"
+ * 4. Khớp danh mục mở rộng từ DB (customCustomers)
  */
-export function normalizeCustomerName(raw: string | null | undefined): string {
+export function normalizeCustomerName(
+  raw: string | null | undefined,
+  customAliases: CustomerAlias[] = [],
+  customCustomers: MasterCustomer[] = []
+): string {
   if (!raw) return '';
   const trimmed = raw.trim();
   if (!trimmed) return '';
 
-  // 1. Bỏ tiền tố xưng hô (a, anh, chị, c, chú...)
-  let stripped = stripVietnameseHonorifics(trimmed);
-  if (!stripped) stripped = trimmed;
+  const cleanUpper = trimmed.toUpperCase().replace(/\s+/g, ' ');
+  const cleanUnaccent = removeVietnameseTones(trimmed);
+  const stripped = stripVietnameseHonorifics(trimmed) || trimmed;
+  const strippedUnaccent = removeVietnameseTones(stripped);
+  const strippedUpper = stripped.toUpperCase().replace(/\s+/g, ' ');
+
+  // 1. ƯU TIÊN HÀNG ĐẦU: Kiểm tra bảng Ánh Xạ Bí Danh (Customer Aliases)
+  // Ví dụ: Người dùng lưu quy tắc "A KHU B" -> "A KHU E"
+  if (customAliases && customAliases.length > 0) {
+    const matchedAlias = customAliases.find((a) => {
+      const aUpper = a.alias.trim().toUpperCase();
+      const aSearch = a.aliasSearch || removeVietnameseTones(a.alias);
+      const aStripped = stripVietnameseHonorifics(a.alias) || a.alias;
+      const aStrippedSearch = removeVietnameseTones(aStripped);
+      const aStrippedUpper = aStripped.toUpperCase().replace(/\s+/g, ' ');
+
+      return (
+        aUpper === cleanUpper ||
+        aUpper === strippedUpper ||
+        aStrippedUpper === cleanUpper ||
+        aStrippedUpper === strippedUpper ||
+        aSearch === cleanUnaccent ||
+        aSearch === strippedUnaccent ||
+        aStrippedSearch === strippedUnaccent ||
+        aStrippedSearch === cleanUnaccent
+      );
+    });
+
+    if (matchedAlias) {
+      return matchedAlias.targetName.trim().toUpperCase();
+    }
+  }
+
+  // Danh mục đầy đủ: Khách hàng tự thêm trong DB + 119 Master
+  const allCustomers: MasterCustomer[] =
+    customCustomers && customCustomers.length > 0
+      ? [...customCustomers, ...MASTER_CUSTOMERS]
+      : MASTER_CUSTOMERS;
 
   // 2. Mở rộng viết tắt địa phương nếu có
   let expanded = stripped;
@@ -89,52 +132,79 @@ export function normalizeCustomerName(raw: string | null | undefined): string {
     }
   }
 
-  const cleanUpper = expanded.toUpperCase().replace(/\s+/g, ' ').trim();
-  const cleanUnaccent = removeVietnameseTones(expanded);
+  const expandedUpper = expanded.toUpperCase().replace(/\s+/g, ' ').trim();
+  const expandedUnaccent = removeVietnameseTones(expanded);
 
-  // 3. Khớp chính xác với tên chuẩn trong Master List
-  const exactMatch = MASTER_CUSTOMERS.find((c) => c.name === cleanUpper);
+  // 3. Khớp chính xác với tên chuẩn trong danh mục
+  const exactMatch = allCustomers.find(
+    (c) => c.name === cleanUpper || c.name === strippedUpper || c.name === expandedUpper
+  );
   if (exactMatch) return exactMatch.name;
 
   // 4. Khớp không dấu (Unaccented match)
-  const unaccentMatch = MASTER_CUSTOMERS.find((c) => c.nameSearch === cleanUnaccent);
+  const unaccentMatch = allCustomers.find(
+    (c) =>
+      c.nameSearch === cleanUnaccent ||
+      c.nameSearch === strippedUnaccent ||
+      c.nameSearch === expandedUnaccent
+  );
   if (unaccentMatch) return unaccentMatch.name;
 
-  // 5. Thử khớp không dấu với chuỗi gốc (trước khi mở rộng viết tắt)
-  const origUnaccent = removeVietnameseTones(stripped);
-  const origMatch = MASTER_CUSTOMERS.find((c) => c.nameSearch === origUnaccent);
-  if (origMatch) return origMatch.name;
-
-  // 6. Khớp từ khóa bao hàm (Fuzzy substring match)
-  // Nếu chuỗi tìm kiếm đủ dài (>= 3 ký tự)
-  if (cleanUnaccent.length >= 3) {
-    // Tìm các ứng viên có chứa chuỗi tìm kiếm hoặc ngược lại
-    const candidates = MASTER_CUSTOMERS.filter(
-      (c) => c.nameSearch.includes(cleanUnaccent) || cleanUnaccent.includes(c.nameSearch)
+  // 5. Khớp từ khóa bao hàm (Fuzzy substring match)
+  if (expandedUnaccent.length >= 3) {
+    const candidates = allCustomers.filter(
+      (c) => c.nameSearch.includes(expandedUnaccent) || expandedUnaccent.includes(c.nameSearch)
     );
 
     if (candidates.length > 0) {
-      // Ưu tiên ứng viên có số chuyến nhiều nhất trong năm 2026
       candidates.sort((a, b) => b.count - a.count);
       return candidates[0].name;
     }
   }
 
-  // 7. Nếu không tìm thấy trong danh mục master, trả về tên đã làm sạch viết IN HOA
-  return cleanUpper;
+  // 6. Nếu không khớp danh mục, trả về tên đã chuẩn hóa viết IN HOA
+  return expandedUpper || cleanUpper;
 }
 
 /**
  * Tìm kiếm gợi ý Nhà Cung Cấp / Nhóm Khách Hàng theo từ khóa
- * Hỗ trợ gõ không dấu, gõ có tiền tố "a lâm", gõ viết tắt "tn", "cm", "đl"...
+ * Hỗ trợ gõ không dấu, tiền tố xưng hô, viết tắt, và danh mục mở rộng từ DB
  */
-export function searchMasterCustomers(query: string, limit = 15): MasterCustomer[] {
+export function searchMasterCustomers(
+  query: string,
+  limit = 15,
+  customCustomers: MasterCustomer[] = [],
+  customAliases: CustomerAlias[] = []
+): MasterCustomer[] {
+  const allCustomers: MasterCustomer[] =
+    customCustomers && customCustomers.length > 0
+      ? [...customCustomers, ...MASTER_CUSTOMERS]
+      : MASTER_CUSTOMERS;
+
   if (!query || !query.trim()) {
-    // Trả về các khách hàng có số chuyến nhiều nhất làm mặc định
-    return MASTER_CUSTOMERS.slice(0, limit);
+    return allCustomers.slice(0, limit);
   }
 
   const trimmed = query.trim();
+
+  // Kiểm tra nếu query khớp với 1 alias
+  if (customAliases && customAliases.length > 0) {
+    const unaccentQuery = removeVietnameseTones(trimmed);
+    const matchedAlias = customAliases.find(
+      (a) =>
+        a.alias.toLowerCase() === trimmed.toLowerCase() ||
+        a.aliasSearch === unaccentQuery ||
+        removeVietnameseTones(stripVietnameseHonorifics(a.alias)) === unaccentQuery
+    );
+    if (matchedAlias) {
+      const targetCustomer = allCustomers.find((c) => c.name === matchedAlias.targetName);
+      if (targetCustomer) {
+        const others = allCustomers.filter((c) => c.name !== matchedAlias.targetName);
+        return [targetCustomer, ...others.slice(0, limit - 1)];
+      }
+    }
+  }
+
   const stripped = stripVietnameseHonorifics(trimmed);
   const cleanUnaccent = removeVietnameseTones(stripped || trimmed);
 
@@ -146,30 +216,26 @@ export function searchMasterCustomers(query: string, limit = 15): MasterCustomer
     }
   }
 
-  // Điểm số phù hợp:
-  // - Khớp bắt đầu: điểm cao nhất
-  // - Khớp toàn bộ từ: điểm cao
-  // - Khớp chứa từ: điểm vừa
-  // - Ưu tiên số chuyến count
-  const scored = MASTER_CUSTOMERS.map((c) => {
-    let score = 0;
-    if (c.nameSearch === cleanUnaccent || c.nameSearch === expandedUnaccent) {
-      score += 1000;
-    } else if (c.nameSearch.startsWith(cleanUnaccent) || c.nameSearch.startsWith(expandedUnaccent)) {
-      score += 500;
-    } else if (c.nameSearch.includes(cleanUnaccent) || c.nameSearch.includes(expandedUnaccent)) {
-      score += 200;
-    } else if (cleanUnaccent.includes(c.nameSearch)) {
-      score += 100;
-    }
+  const scored = allCustomers
+    .map((c) => {
+      let score = 0;
+      if (c.nameSearch === cleanUnaccent || c.nameSearch === expandedUnaccent) {
+        score += 1000;
+      } else if (c.nameSearch.startsWith(cleanUnaccent) || c.nameSearch.startsWith(expandedUnaccent)) {
+        score += 500;
+      } else if (c.nameSearch.includes(cleanUnaccent) || c.nameSearch.includes(expandedUnaccent)) {
+        score += 200;
+      } else if (cleanUnaccent.includes(c.nameSearch)) {
+        score += 100;
+      }
 
-    // Cộng thêm điểm tần suất (log scale nhẹ)
-    if (score > 0) {
-      score += Math.min(100, Math.log10(c.count + 1) * 30);
-    }
+      // Khách hàng tự thêm (có count = 0 hoặc ít chuyến) vẫn được ưu tiên hiển thị nếu khớp
+      if (score > 0) {
+        score += Math.min(100, Math.log10((c.count || 0) + 1) * 30);
+      }
 
-    return { customer: c, score };
-  })
+      return { customer: c, score };
+    })
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score);
 

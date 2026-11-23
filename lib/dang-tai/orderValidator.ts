@@ -1,6 +1,6 @@
 import { XeDangTai, OcrPhieuCanResult, MatchPhieuCanResult } from './types';
 import { arePlatesMatching } from './plate';
-import { normalizeCustomerName } from './customers';
+import { normalizeCustomerName, CustomerAlias, MasterCustomer } from './customers';
 
 export interface ProcessSlipResult {
   phieu: OcrPhieuCanResult;
@@ -29,7 +29,11 @@ export interface ProcessSlipResult {
 export function processWeighingSlip(
   phieu: OcrPhieuCanResult,
   danhSachXe: XeDangTai[],
-  imageUri?: string
+  imageUri?: string,
+  options?: {
+    customAliases?: CustomerAlias[];
+    customCustomers?: MasterCustomer[];
+  }
 ): ProcessSlipResult {
   const soXePhieu = phieu.soXe || '';
   const soPhieu = phieu.soPhieu || '?';
@@ -97,6 +101,10 @@ export function processWeighingSlip(
     }
   }
 
+  const normalizedCust = phieu.khachHang
+    ? normalizeCustomerName(phieu.khachHang, options?.customAliases, options?.customCustomers)
+    : undefined;
+
   const updatedXe: XeDangTai = {
     ...xeMatched,
     trangThai: isValidOrder ? 'da_can' : xeMatched.daChapNhanHopLe ? 'da_can' : 'sai_stt',
@@ -107,8 +115,8 @@ export function processWeighingSlip(
     ngayCan: ngayCan || undefined,
     gioCan: gioCan || undefined,
     ngayGioCan: ngayGioCan,
-    khachHangCan: (phieu.khachHang ? normalizeCustomerName(phieu.khachHang) : undefined) || xeMatched.khachHangCan,
-    nhaCungCap: (phieu.khachHang ? normalizeCustomerName(phieu.khachHang) : undefined) || xeMatched.nhaCungCap,
+    khachHangCan: normalizedCust || xeMatched.khachHangCan,
+    nhaCungCap: normalizedCust || xeMatched.nhaCungCap,
     loaiHangCan: phieu.loaiHang || xeMatched.loaiHangCan,
     tlXeHangKg: phieu.tlXeHangKg !== undefined ? phieu.tlXeHangKg : xeMatched.tlXeHangKg,
     tlXeKg: phieu.tlXeKg !== undefined ? phieu.tlXeKg : xeMatched.tlXeKg,

@@ -3,6 +3,7 @@ import { isRequestAuthenticated } from '@/lib/auth';
 import { extractDangTaiSlipData } from '@/lib/dang-tai/ocr';
 import { processWeighingSlip, calculateDangTaiSummary } from '@/lib/dang-tai/orderValidator';
 import { getDangTaiList, saveDangTaiList } from '@/lib/dang-tai/storage';
+import { getAllCustomersAndAliases } from '@/lib/dang-tai/customerStorage';
 import { XeDangTai } from '@/lib/dang-tai/types';
 
 export const runtime = 'nodejs';
@@ -80,6 +81,15 @@ export async function POST(req: NextRequest) {
 
     const ocrOutputs = await Promise.all(ocrPromises);
 
+    // Tải bảng ánh xạ bí danh (vd: "A KHU B" -> "A KHU E") và khách hàng tự thêm từ CSDL
+    let customAliases = undefined;
+    let customCustomers = undefined;
+    try {
+      const custData = await getAllCustomersAndAliases();
+      customAliases = custData.aliases;
+      customCustomers = custData.customCustomers;
+    } catch {}
+
     // 2. Lần lượt cập nhật vào danh sách xe và đối soát STT
     for (const item of ocrOutputs) {
       if (!item.ocrData) {
@@ -91,8 +101,11 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Khớp xe và kiểm tra tính hợp lệ của thứ tự STT
-      const processResult = processWeighingSlip(item.ocrData, currentList, item.base64Image);
+      // Khớp xe và kiểm tra tính hợp lệ của thứ tự STT (kèm tự động chuẩn hóa bí danh từ CSDL)
+      const processResult = processWeighingSlip(item.ocrData, currentList, item.base64Image, {
+        customAliases,
+        customCustomers,
+      });
       currentList = processResult.danhSachCapNhat;
 
       scanResults.push({

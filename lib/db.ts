@@ -77,6 +77,18 @@ export async function ensureTables(): Promise<void> {
         ghi_chu TEXT,
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS dang_tai_customers (
+        name VARCHAR(255) PRIMARY KEY,
+        count INT DEFAULT 0,
+        name_search VARCHAR(255) NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS dang_tai_customer_aliases (
+        alias VARCHAR(255) PRIMARY KEY,
+        target_name VARCHAR(255) NOT NULL,
+        alias_search VARCHAR(255) NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
     tablesEnsured = true;
   } catch (err) {
@@ -110,6 +122,22 @@ export async function initSupabaseTables(): Promise<boolean> {
           name_search VARCHAR(255) NOT NULL,
           bien_so_thuong_chay VARCHAR(50),
           ghi_chu TEXT,
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        -- Bảng lưu trữ danh mục Nhà Cung Cấp / Nhóm Khách Hàng tự tạo
+        CREATE TABLE IF NOT EXISTS dang_tai_customers (
+          name VARCHAR(255) PRIMARY KEY,
+          count INT DEFAULT 0,
+          name_search VARCHAR(255) NOT NULL,
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        -- Bảng lưu trữ quy tắc ánh xạ bí danh khách hàng (vd: "A KHU B" -> "A KHU E")
+        CREATE TABLE IF NOT EXISTS dang_tai_customer_aliases (
+          alias VARCHAR(255) PRIMARY KEY,
+          target_name VARCHAR(255) NOT NULL,
+          alias_search VARCHAR(255) NOT NULL,
           updated_at TIMESTAMPTZ DEFAULT NOW()
         );
       `);
@@ -263,6 +291,103 @@ export async function saveDriversListToDb(drivers: TaiXeEntry[]): Promise<boolea
     }
   } catch (err) {
     console.warn('[DB saveDriversList Warning]:', err);
+    return false;
+  }
+}
+
+/**
+ * Đọc danh sách Nhà Cung Cấp tự tạo từ Supabase Postgres
+ */
+export async function getCustomersFromDb(): Promise<{ name: string; count: number; nameSearch: string }[] | null> {
+  const db = getDbPool();
+  if (!db) return null;
+  try {
+    await ensureTables();
+    const res = await db.query('SELECT name, count, name_search AS "nameSearch" FROM dang_tai_customers ORDER BY count DESC, name ASC');
+    return res.rows;
+  } catch (err) {
+    console.warn('[DB getCustomers Warning]:', err);
+    return null;
+  }
+}
+
+/**
+ * Thêm hoặc cập nhật Nhà Cung Cấp vào Supabase Postgres
+ */
+export async function upsertCustomerToDb(customer: { name: string; count?: number; nameSearch: string }): Promise<boolean> {
+  const db = getDbPool();
+  if (!db) return false;
+  try {
+    await ensureTables();
+    await db.query(
+      `INSERT INTO dang_tai_customers (name, count, name_search, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (name) DO UPDATE SET
+         count = dang_tai_customers.count + EXCLUDED.count,
+         name_search = EXCLUDED.name_search,
+         updated_at = NOW()`,
+      [customer.name, customer.count || 0, customer.nameSearch]
+    );
+    return true;
+  } catch (err) {
+    console.warn('[DB upsertCustomer Warning]:', err);
+    return false;
+  }
+}
+
+/**
+ * Đọc danh sách ánh xạ bí danh khách hàng (Customer Aliases) từ Supabase Postgres
+ */
+export async function getCustomerAliasesFromDb(): Promise<{ alias: string; targetName: string; aliasSearch: string; updatedAt?: string }[] | null> {
+  const db = getDbPool();
+  if (!db) return null;
+  try {
+    await ensureTables();
+    const res = await db.query('SELECT alias, target_name AS "targetName", alias_search AS "aliasSearch", updated_at AS "updatedAt" FROM dang_tai_customer_aliases ORDER BY updated_at DESC');
+    return res.rows;
+  } catch (err) {
+    console.warn('[DB getCustomerAliases Warning]:', err);
+    return null;
+  }
+}
+
+/**
+ * Thêm hoặc cập nhật quy tắc ánh xạ bí danh khách hàng vào Supabase Postgres
+ * vd: alias="A KHU B", targetName="A KHU E"
+ */
+export async function upsertCustomerAliasToDb(alias: string, targetName: string, aliasSearch: string): Promise<boolean> {
+  const db = getDbPool();
+  if (!db) return false;
+  try {
+    await ensureTables();
+    await db.query(
+      `INSERT INTO dang_tai_customer_aliases (alias, target_name, alias_search, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (alias) DO UPDATE SET
+         target_name = $2,
+         alias_search = $3,
+         updated_at = NOW()`,
+      [alias, targetName, aliasSearch]
+    );
+    return true;
+  } catch (err) {
+    console.warn('[DB upsertCustomerAlias Warning]:', err);
+    return false;
+  }
+}
+
+/**
+ * Xóa quy tắc ánh xạ bí danh khách hàng khỏi Supabase Postgres
+ */
+export async function deleteCustomerAliasFromDb(alias: string): Promise<boolean> {
+  const db = getDbPool();
+  if (!db) return false;
+  try {
+    await ensureTables();
+    await db.query('DELETE FROM dang_tai_customer_aliases WHERE alias = $1', [alias]);
+    return true;
+  } catch (err) {
+    console.warn('[DB deleteCustomerAlias Warning]:', err);
     return false;
   }
 }

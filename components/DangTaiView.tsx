@@ -12,7 +12,7 @@ import {
 } from '@/lib/dang-tai/plate';
 import DriverCombobox from '@/components/DriverCombobox';
 import CustomerCombobox from '@/components/CustomerCombobox';
-import { normalizeCustomerName } from '@/lib/dang-tai/customers';
+import { normalizeCustomerName, CustomerAlias, MasterCustomer } from '@/lib/dang-tai/customers';
 import { compressImageForOcr } from '@/lib/dang-tai/compressImage';
 
 function getTodayString(): string {
@@ -136,11 +136,17 @@ export default function DangTaiView() {
   const [supplierModalCurrentName, setSupplierModalCurrentName] = useState<string>('');
   const [supplierModalNewName, setSupplierModalNewName] = useState<string>('');
   const [supplierModalApplyAll, setSupplierModalApplyAll] = useState<boolean>(true);
+  const [supplierModalSaveAsAlias, setSupplierModalSaveAsAlias] = useState<boolean>(true);
 
   // Ghép hàng loạt danh sách NCC trong ngày
   const [showBulkSupplierMergeModal, setShowBulkSupplierMergeModal] = useState<boolean>(false);
   const [mergeSourceSupplier, setMergeSourceSupplier] = useState<string>('');
   const [mergeTargetSupplier, setMergeTargetSupplier] = useState<string>('');
+  const [bulkMergeSaveAsAlias, setBulkMergeSaveAsAlias] = useState<boolean>(true);
+
+  // Danh mục CSDL mở rộng: Aliases (A KHU B -> A KHU E) và Custom Customers
+  const [customerAliases, setCustomerAliases] = useState<CustomerAlias[]>([]);
+  const [customCustomers, setCustomCustomers] = useState<MasterCustomer[]>([]);
 
   // Chỉnh sửa nhanh ghi chú (Đưa về ghi chú bình thường)
   const [quickNoteTruck, setQuickNoteTruck] = useState<XeDangTai | null>(null);
@@ -176,6 +182,21 @@ export default function DangTaiView() {
   useEffect(() => {
     loadData(selectedDate);
   }, [selectedDate]);
+
+  // Tải danh mục ánh xạ bí danh (vd: A KHU B -> A KHU E) từ CSDL
+  useEffect(() => {
+    fetch('/api/dang-tai/customers')
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => {
+        if (data.aliases && Array.isArray(data.aliases)) {
+          setCustomerAliases(data.aliases);
+        }
+        if (data.customCustomers && Array.isArray(data.customCustomers)) {
+          setCustomCustomers(data.customCustomers);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Thống kê tổng hợp
   const summary: DangTaiSummary = useMemo(() => {
@@ -424,6 +445,7 @@ export default function DangTaiView() {
     setSupplierModalCurrentName(currentName);
     setSupplierModalNewName(currentName);
     setSupplierModalApplyAll(!!currentName);
+    setSupplierModalSaveAsAlias(true);
     setShowSupplierModal(true);
   };
 
@@ -472,6 +494,29 @@ export default function DangTaiView() {
 
     setItems(updatedList);
     setShowSupplierModal(false);
+
+    // Tự động lưu quy tắc ánh xạ vào CSDL nếu người dùng chọn (vd: A KHU B -> A KHU E)
+    if (
+      supplierModalSaveAsAlias &&
+      oldName &&
+      trimmedNewName &&
+      oldName.toUpperCase() !== trimmedNewName.toUpperCase()
+    ) {
+      fetch('/api/dang-tai/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_alias',
+          alias: oldName,
+          targetName: trimmedNewName,
+        }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((d) => {
+          if (d?.aliases) setCustomerAliases(d.aliases);
+        })
+        .catch(() => {});
+    }
 
     try {
       await fetch('/api/dang-tai', {
@@ -526,6 +571,29 @@ export default function DangTaiView() {
 
     setItems(updatedList);
     setShowBulkSupplierMergeModal(false);
+
+    // Tự động lưu quy tắc vào CSDL nếu người dùng chọn
+    if (
+      bulkMergeSaveAsAlias &&
+      sourceTrimmed &&
+      targetTrimmed &&
+      sourceTrimmed.toUpperCase() !== targetTrimmed.toUpperCase()
+    ) {
+      fetch('/api/dang-tai/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_alias',
+          alias: sourceTrimmed,
+          targetName: targetTrimmed,
+        }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((d) => {
+          if (d?.aliases) setCustomerAliases(d.aliases);
+        })
+        .catch(() => {});
+    }
 
     try {
       await fetch('/api/dang-tai', {
@@ -3094,7 +3162,7 @@ ${varietyStr}
 
               {/* Tùy chọn ghép hàng loạt nếu xe có tên cũ */}
               {supplierModalCurrentName && (
-                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
                   <label className="flex items-start gap-2.5 cursor-pointer">
                     <input
                       type="checkbox"
@@ -3108,6 +3176,23 @@ ${varietyStr}
                       </span>
                       <span className="text-slate-500 text-[11px] block mt-0.5">
                         (Hiện có {items.filter((x) => (x.nhaCungCap || x.khachHangCan || '').trim().toUpperCase() === supplierModalCurrentName.toUpperCase()).length} xe trong ngày đang có tên này)
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 cursor-pointer pt-2 border-t border-slate-200/80">
+                    <input
+                      type="checkbox"
+                      checked={supplierModalSaveAsAlias}
+                      onChange={(e) => setSupplierModalSaveAsAlias(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="text-xs">
+                      <span className="font-bold text-blue-950 block">
+                        💾 Lưu quy tắc ánh xạ vào CSDL
+                      </span>
+                      <span className="text-blue-800 text-[11px] block mt-0.5">
+                        Ghi nhớ: Từ nay mọi phiếu cân hoặc xe có tên &quot;{supplierModalCurrentName}&quot; sẽ tự động đổi thành &quot;{supplierModalNewName || 'tên mới'}&quot;
                       </span>
                     </div>
                   </label>
@@ -3225,8 +3310,29 @@ ${varietyStr}
               </div>
 
               {mergeSourceSupplier && mergeTargetSupplier && mergeSourceSupplier !== mergeTargetSupplier && (
-                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
-                  ⚠️ <strong>Xác nhận hành động:</strong> Tất cả xe có tên &quot;<strong className="text-rose-700">{mergeSourceSupplier}</strong>&quot; sẽ được đổi và ghép về &quot;<strong className="text-emerald-700">{mergeTargetSupplier}</strong>&quot;.
+                <div className="space-y-2">
+                  <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
+                    ⚠️ <strong>Xác nhận hành động:</strong> Tất cả xe có tên &quot;<strong className="text-rose-700">{mergeSourceSupplier}</strong>&quot; sẽ được đổi và ghép về &quot;<strong className="text-emerald-700">{mergeTargetSupplier}</strong>&quot;.
+                  </div>
+
+                  <div className="rounded-xl bg-blue-50/80 border border-blue-200 p-3">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={bulkMergeSaveAsAlias}
+                        onChange={(e) => setBulkMergeSaveAsAlias(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div className="text-xs">
+                        <span className="font-bold text-blue-950 block">
+                          💾 Ghi nhớ quy tắc này vào CSDL
+                        </span>
+                        <span className="text-blue-800 text-[11px] block mt-0.5">
+                          Tự động chuyển đổi &quot;{mergeSourceSupplier}&quot; ➔ &quot;{mergeTargetSupplier}&quot; cho mọi phiếu cân quét sau này.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               )}
             </div>
