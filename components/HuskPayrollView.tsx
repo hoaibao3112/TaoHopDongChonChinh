@@ -31,7 +31,11 @@ const POPULAR_CUSTOMERS = [
   'ĐƯỢC PHƯỜNG',
 ];
 
-export default function HuskPayrollView() {
+export default function HuskPayrollView({
+  onOpenMonthlyView,
+}: {
+  onOpenMonthlyView?: (monthKey: string) => void;
+} = {}) {
   // ─── File & Settings State ────────────────────────────────────────────────
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -1110,6 +1114,22 @@ export default function HuskPayrollView() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {onOpenMonthlyView && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const firstDate = previewRows[0]?.date;
+                    const mKey = extractMonthKey(firstDate) || '10/2026';
+                    onOpenMonthlyView(mKey);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-indigo-200 px-3.5 py-2 text-xs font-bold text-indigo-700 shadow-xs hover:bg-indigo-50 transition cursor-pointer"
+                  title="Xem danh sách tất cả mẻ trấu đã lưu trong CSDL của tháng"
+                >
+                  <span>📋</span>
+                  <span>Xem DS CSDL Tháng</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => handleSaveToMonthlyDb(true)}

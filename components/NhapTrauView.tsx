@@ -22,7 +22,11 @@ import { validateBatchEntries } from '@/lib/nhap-trau/validator';
 import { generateDailyReports } from '@/lib/nhap-trau/reportGenerator';
 import { extractMonthKey, HuskMonthlyRecord } from '@/lib/husk/monthlyStorage';
 
-export default function NhapTrauView() {
+export default function NhapTrauView({
+  onOpenMonthlyView,
+}: {
+  onOpenMonthlyView?: (monthKey: string) => void;
+} = {}) {
   // ─── Step State ─────────────────────────────────────────────────────────────
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
 
@@ -896,15 +900,28 @@ export default function NhapTrauView() {
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => handleSaveToMonthlyDb(true)}
-                disabled={isSavingDb || summary.totalEntries === 0}
-                className="rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-purple-600/20 cursor-pointer flex items-center justify-center gap-1.5 transition-all active:scale-95"
-              >
-                <span>{isSavingDb ? '⏳' : '💾'}</span>
-                <span>Lưu CSDL &amp; Điền Sang NSX TM</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {onOpenMonthlyView && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenMonthlyView(extractMonthKey(effectiveReportDate) || '10/2026')}
+                    className="rounded-xl bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-700 px-3.5 py-2.5 text-xs font-bold shadow-xs cursor-pointer flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                    title="Xem danh sách toàn bộ các mẻ trấu đã lưu trong CSDL của tháng này"
+                  >
+                    <span>📋</span>
+                    <span>Xem DS Tháng {extractMonthKey(effectiveReportDate) || ''}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleSaveToMonthlyDb(true)}
+                  disabled={isSavingDb || summary.totalEntries === 0}
+                  className="rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-purple-600/20 cursor-pointer flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                >
+                  <span>{isSavingDb ? '⏳' : '💾'}</span>
+                  <span>Lưu CSDL &amp; Điền Sang NSX TM</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

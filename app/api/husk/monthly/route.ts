@@ -5,7 +5,9 @@ import {
   saveHuskRecordsByMonth,
   upsertHuskBatch,
   convertHuskRecordsToNSXTM,
-  extractMonthKey,
+  deleteHuskRecord,
+  updateHuskRecord,
+  clearHuskRecordsByMonth,
   HuskMonthlyRecord,
 } from '@/lib/husk/monthlyStorage';
 
@@ -81,5 +83,79 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error('[API Husk Monthly POST Error]:', err);
     return NextResponse.json({ error: 'Lỗi lưu số liệu xuất trấu vào CSDL' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  if (!isRequestAuthenticated(req)) {
+    return NextResponse.json({ error: 'Chưa xác thực phiên đăng nhập' }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const month = searchParams.get('month') || '';
+    const id = searchParams.get('id') || '';
+    const clearAll = searchParams.get('all') === 'true';
+
+    if (!month) {
+      return NextResponse.json({ error: 'Thiếu tháng cần xóa (month)' }, { status: 400 });
+    }
+
+    if (clearAll) {
+      await clearHuskRecordsByMonth(month);
+      return NextResponse.json({
+        success: true,
+        message: `Đã xóa toàn bộ số liệu xuất trấu của Tháng ${month}!`,
+        items: [],
+      });
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: 'Thiếu mã mẻ trấu cần xóa (id)' }, { status: 400 });
+    }
+
+    const result = await deleteHuskRecord(month, id);
+    if (!result.success) {
+      return NextResponse.json({ error: 'Không tìm thấy mẻ trấu để xóa' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Đã xóa mẻ trấu thành công!',
+      items: result.items,
+    });
+  } catch (err: unknown) {
+    console.error('[API Husk Monthly DELETE Error]:', err);
+    return NextResponse.json({ error: 'Lỗi khi xóa mẻ trấu' }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  if (!isRequestAuthenticated(req)) {
+    return NextResponse.json({ error: 'Chưa xác thực phiên đăng nhập' }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    const monthKey = body.monthKey ? String(body.monthKey).trim() : '';
+    const updated = body.item;
+
+    if (!monthKey || !updated || !updated.id) {
+      return NextResponse.json({ error: 'Thiếu thông tin cập nhật mẻ trấu (monthKey, item.id)' }, { status: 400 });
+    }
+
+    const result = await updateHuskRecord(monthKey, updated);
+    if (!result.success) {
+      return NextResponse.json({ error: 'Không tìm thấy mẻ trấu cần sửa' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Đã cập nhật thông tin mẻ trấu thành công!',
+      items: result.items,
+    });
+  } catch (err: unknown) {
+    console.error('[API Husk Monthly PATCH Error]:', err);
+    return NextResponse.json({ error: 'Lỗi khi cập nhật mẻ trấu' }, { status: 500 });
   }
 }

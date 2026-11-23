@@ -263,3 +263,64 @@ export async function upsertHuskBatch(
 
   return { savedMonths, count: newItems.length };
 }
+
+/**
+ * Xóa 1 mẻ xuất trấu khỏi CSDL tháng
+ */
+export async function deleteHuskRecord(
+  monthKey: string,
+  recordId: string
+): Promise<{ success: boolean; items: HuskMonthlyRecord[] }> {
+  const cleanKey = monthKey.trim();
+  const existing = await getHuskRecordsByMonth(cleanKey);
+  const remaining = existing.filter((item) => item.id !== recordId);
+
+  if (remaining.length === existing.length) {
+    return { success: false, items: existing };
+  }
+
+  await saveHuskRecordsByMonth(cleanKey, remaining);
+  return { success: true, items: remaining };
+}
+
+/**
+ * Cập nhật thông tin 1 mẻ xuất trấu trong CSDL tháng (vd: đổi đội Đức/Quý, sửa biển số, đơn giá...)
+ */
+export async function updateHuskRecord(
+  monthKey: string,
+  updated: Partial<HuskMonthlyRecord> & { id: string }
+): Promise<{ success: boolean; items: HuskMonthlyRecord[] }> {
+  const cleanKey = monthKey.trim();
+  const existing = await getHuskRecordsByMonth(cleanKey);
+
+  let found = false;
+  const updatedList = existing.map((item) => {
+    if (item.id === updated.id) {
+      found = true;
+      const mergedItem = { ...item, ...updated, updatedAt: new Date().toISOString() };
+      // Tự tính lại tiền nếu tấn hoặc đơn giá thay đổi
+      if (updated.tons !== undefined || updated.unitPrice !== undefined) {
+        const tons = updated.tons !== undefined ? updated.tons : item.tons;
+        const unitPrice = updated.unitPrice !== undefined ? updated.unitPrice : item.unitPrice;
+        mergedItem.amount = Math.round(tons * unitPrice);
+      }
+      return mergedItem;
+    }
+    return item;
+  });
+
+  if (!found) {
+    return { success: false, items: existing };
+  }
+
+  await saveHuskRecordsByMonth(cleanKey, updatedList);
+  return { success: true, items: updatedList };
+}
+
+/**
+ * Xóa toàn bộ số liệu xuất trấu của một tháng
+ */
+export async function clearHuskRecordsByMonth(monthKey: string): Promise<boolean> {
+  const cleanKey = monthKey.trim();
+  return await saveHuskRecordsByMonth(cleanKey, []);
+}

@@ -1,9 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import {
   extractMonthKey,
   convertHuskRecordsToNSXTM,
   saveHuskRecordsByMonth,
   getHuskRecordsByMonth,
+  deleteHuskRecord,
+  updateHuskRecord,
+  clearHuskRecordsByMonth,
   HuskMonthlyRecord,
 } from '../lib/husk/monthlyStorage';
 
@@ -120,6 +123,39 @@ describe('Husk Monthly Sync & NSX TM Auto-Population', () => {
       expect(found).toBeDefined();
       expect(found?.customer).toBe('TEST KH');
       expect(found?.team).toBe('ĐỨC');
+    });
+
+    it('should update a specific record in monthly storage', async () => {
+      const monthKey = '99/9999';
+      const res = await updateHuskRecord(monthKey, {
+        id: 'test-sync-1',
+        team: 'QUÝ',
+        customer: 'TEST KH UPDATED',
+      });
+      expect(res.success).toBe(true);
+      const updated = res.items.find((r) => r.id === 'test-sync-1');
+      expect(updated?.team).toBe('QUÝ');
+      expect(updated?.customer).toBe('TEST KH UPDATED');
+    });
+
+    it('should delete a single record from monthly storage', async () => {
+      const monthKey = '99/9999';
+      const res = await deleteHuskRecord(monthKey, 'test-sync-1');
+      expect(res.success).toBe(true);
+      expect(res.items.find((r) => r.id === 'test-sync-1')).toBeUndefined();
+    });
+
+    it('should clear all records for a month', async () => {
+      const monthKey = '99/9999';
+      const clearOk = await clearHuskRecordsByMonth(monthKey);
+      expect(clearOk).toBe(true);
+      const remaining = await getHuskRecordsByMonth(monthKey);
+      expect(remaining).toHaveLength(0);
+    });
+
+    afterAll(async () => {
+      // Dọn sạch dữ liệu test
+      await clearHuskRecordsByMonth('99/9999');
     });
   });
 });
