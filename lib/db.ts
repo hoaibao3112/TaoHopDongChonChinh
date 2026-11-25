@@ -94,6 +94,11 @@ export async function ensureTables(): Promise<void> {
         items JSONB NOT NULL DEFAULT '[]'::jsonb,
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS app_role_passwords (
+        role_key VARCHAR(32) PRIMARY KEY,
+        password_value VARCHAR(255) NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
     tablesEnsured = true;
   } catch (err) {
@@ -442,6 +447,54 @@ export async function saveHuskMonthlyToDb(monthKey: string, items: any[]): Promi
     return true;
   } catch (err) {
     console.warn('[DB saveHuskMonthly Warning]:', err);
+    return false;
+  }
+}
+
+/**
+ * Đọc bảng mật khẩu phân quyền từ Supabase Postgres
+ */
+export async function getRolePasswordsFromDb(): Promise<Record<string, string> | null> {
+  const db = getDbPool();
+  if (!db) return null;
+  try {
+    await ensureTables();
+    const res = await db.query('SELECT role_key, password_value FROM app_role_passwords');
+    if (!res.rows || res.rows.length === 0) return null;
+    const map: Record<string, string> = {};
+    for (const row of res.rows) {
+      if (row.role_key && row.password_value) {
+        map[String(row.role_key)] = String(row.password_value);
+      }
+    }
+    return map;
+  } catch (err) {
+    console.warn('[DB getRolePasswords Warning]:', err);
+    return null;
+  }
+}
+
+/**
+ * Lưu bảng mật khẩu phân quyền vào Supabase Postgres
+ */
+export async function saveRolePasswordsToDb(passwords: Record<string, string>): Promise<boolean> {
+  const db = getDbPool();
+  if (!db) return false;
+  try {
+    await ensureTables();
+    for (const [roleKey, passwordValue] of Object.entries(passwords)) {
+      await db.query(
+        `INSERT INTO app_role_passwords (role_key, password_value, updated_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (role_key) DO UPDATE SET
+           password_value = EXCLUDED.password_value,
+           updated_at = NOW()`,
+        [roleKey, passwordValue]
+      );
+    }
+    return true;
+  } catch (err) {
+    console.warn('[DB saveRolePasswords Warning]:', err);
     return false;
   }
 }

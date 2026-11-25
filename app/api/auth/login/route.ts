@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkPassword, setAuthCookie } from '@/lib/auth';
+import { checkPasswordAsync, setAuthCookie } from '@/lib/auth';
 import { checkRateLimit, getClientIp } from '@/lib/security/rateLimit';
 import { z } from 'zod';
 
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const { password } = parsed.data;
-    const authResult = checkPassword(password);
+    const authResult = await checkPasswordAsync(password);
 
     if (!authResult.isAuthenticated || !authResult.role) {
       return NextResponse.json(

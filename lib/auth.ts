@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'crypto';
+import { getRolePasswords } from '@/lib/passwordStore';
 
 export const SESSION_COOKIE_NAME = 'auth_contract_session';
 export const ROLE_COOKIE_NAME = 'auth_user_role';
@@ -156,6 +157,47 @@ export function checkPassword(password: string): AuthCheckResult {
       role: 'admin',
       redirectUrl: '/',
     };
+  }
+
+  return { isAuthenticated: false };
+}
+
+/**
+ * Kiểm tra mật khẩu phân quyền động (đọc từ DB / Redis / File JSON đã cấu hình ở trang Admin)
+ */
+export async function checkPasswordAsync(password: string): Promise<AuthCheckResult> {
+  const clean = password.trim();
+  if (!clean) return { isAuthenticated: false };
+
+  const map = await getRolePasswords();
+
+  if (safeEqual(clean, map.payroll)) {
+    return { isAuthenticated: true, role: 'payroll', redirectUrl: '/tinh-luong' };
+  }
+  if (safeEqual(clean, map.baocao)) {
+    return { isAuthenticated: true, role: 'baocao', redirectUrl: '/bao-cao-chua-xay' };
+  }
+  if (safeEqual(clean, map.contracts)) {
+    return { isAuthenticated: true, role: 'contracts', redirectUrl: '/' };
+  }
+  if (safeEqual(clean, map.husk)) {
+    return { isAuthenticated: true, role: 'husk', redirectUrl: '/xuat-trau' };
+  }
+  if (safeEqual(clean, map.dangtai)) {
+    return { isAuthenticated: true, role: 'dangtai', redirectUrl: '/dang-tai' };
+  }
+  if (safeEqual(clean, map.chingoc)) {
+    return { isAuthenticated: true, role: 'chingoc', redirectUrl: '/bao-cao-nhap-ngay' };
+  }
+
+  // Mật khẩu quản trị viên chính thức từ biến môi trường
+  const adminPw = process.env.APP_PASSWORD;
+  if (adminPw && safeEqual(clean, adminPw)) {
+    return { isAuthenticated: true, role: 'admin', redirectUrl: '/' };
+  }
+
+  if (process.env.NODE_ENV !== 'production' && safeEqual(clean, 'matkhau123')) {
+    return { isAuthenticated: true, role: 'admin', redirectUrl: '/' };
   }
 
   return { isAuthenticated: false };

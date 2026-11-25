@@ -38,6 +38,7 @@ export default function AppHeader() {
   const isBaoCao = pathname.startsWith('/bao-cao-chua-xay');
   const isBaoCaoNhapNgay = pathname.startsWith('/bao-cao-nhap-ngay');
   const isDangTai = pathname.startsWith('/dang-tai');
+  const isAdminMatKhau = pathname.startsWith('/admin-mat-khau');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async (e: React.FormEvent) => {
@@ -152,6 +153,21 @@ export default function AppHeader() {
                 <span>👑</span>
                 <span>Quản Trị Viên</span>
               </div>
+            )}
+
+            {(role === 'contracts' || role === 'admin') && (
+              <Link
+                href="/admin-mat-khau"
+                className={`hidden sm:inline-flex items-center gap-1.5 rounded-xl border px-3 py-1 text-xs font-bold transition-all shadow-2xs ${
+                  isAdminMatKhau
+                    ? 'border-rose-400 bg-rose-600 text-white shadow-sm'
+                    : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:border-rose-300'
+                }`}
+                title="Quản lý mật khẩu tất cả các tab"
+              >
+                <span>🔐</span>
+                <span>QL Mật Khẩu</span>
+              </Link>
             )}
 
             <form action="/api/auth/logout" method="POST" onSubmit={handleLogout}>
@@ -344,6 +360,23 @@ export default function AppHeader() {
               <span>Đăng Tài Xe</span>
               <span className="rounded-full bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
                 Mới
+              </span>
+            </Link>
+          )}
+
+          {canAccessContracts && (
+            <Link
+              href="/admin-mat-khau"
+              className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
+                isAdminMatKhau
+                  ? 'bg-white text-rose-700 shadow-sm ring-2 ring-rose-500/30 font-black scale-[1.02]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
+              }`}
+            >
+              <span className="text-sm sm:text-base">🔐</span>
+              <span>QL Mật Khẩu</span>
+              <span className="rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
+                Admin
               </span>
             </Link>
           )}

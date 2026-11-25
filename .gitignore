@@ -45,3 +45,6 @@ scripts/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local persistent data
+data/auth/

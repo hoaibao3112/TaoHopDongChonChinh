@@ -6,8 +6,11 @@ const PUBLIC_ROUTES = ['/login', '/api/auth/login'];
 export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  // Bỏ qua các đường dẫn công khai
-  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
+  // Bỏ qua các đường dẫn công khai (bao gồm gate riêng cho trang quản lý mật khẩu nếu chưa đăng nhập)
+  if (
+    PUBLIC_ROUTES.some((route) => pathname.startsWith(route)) ||
+    (pathname === '/admin-mat-khau' && !isRequestAuthenticated(request))
+  ) {
     return NextResponse.next();
   }
 
@@ -46,15 +49,16 @@ export function proxy(request: NextRequest): NextResponse {
       pathname === '/' ||
       pathname.startsWith('/contracts') ||
       pathname.startsWith('/bao-cao-chua-xay') ||
-      pathname.startsWith('/bao-cao-nhap-ngay')
+      pathname.startsWith('/bao-cao-nhap-ngay') ||
+      pathname.startsWith('/admin-mat-khau')
     ) {
       return NextResponse.redirect(new URL('/tinh-luong', request.url));
     }
   }
 
-  // 2. Phân quyền cho Chơn Chính ('contracts'): Chỉ vào Tạo Hợp Đồng
+  // 2. Phân quyền cho Chơn Chính ('contracts'): Vào Tạo Hợp Đồng & Quản Lý Mật Khẩu (/admin-mat-khau)
   if (role === 'contracts') {
-    // Nếu cố vào /tinh-luong, /nhap-say, /chum-lo, /xuat-trau hoặc /bao-cao-chua-xay -> redirect về trang chủ /
+    // Cho phép /admin-mat-khau và /api/admin/passwords; chặn các phân hệ tính lương/báo cáo khác
     if (
       pathname.startsWith('/tinh-luong') ||
       pathname.startsWith('/nhap-say') ||
@@ -62,7 +66,8 @@ export function proxy(request: NextRequest): NextResponse {
       pathname.startsWith('/chum-lo') ||
       pathname.startsWith('/xuat-trau') ||
       pathname.startsWith('/bao-cao-chua-xay') ||
-      pathname.startsWith('/bao-cao-nhap-ngay')
+      pathname.startsWith('/bao-cao-nhap-ngay') ||
+      pathname.startsWith('/dang-tai')
     ) {
       return NextResponse.redirect(new URL('/', request.url));
     }
@@ -86,6 +91,13 @@ export function proxy(request: NextRequest): NextResponse {
   if (role === 'chingoc') {
     if (!pathname.startsWith('/bao-cao-nhap-ngay') && !pathname.startsWith('/api/')) {
       return NextResponse.redirect(new URL('/bao-cao-nhap-ngay', request.url));
+    }
+  }
+
+  // 6. Phân quyền cho Đăng Tài Xe ('dangtai') với mật khẩu dangtai: Chỉ vào /dang-tai
+  if (role === 'dangtai') {
+    if (!pathname.startsWith('/dang-tai') && !pathname.startsWith('/api/')) {
+      return NextResponse.redirect(new URL('/dang-tai', request.url));
     }
   }
 
