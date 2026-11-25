@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import ExcelJS from 'exceljs';
 import { HuskMonthlyRecord, extractMonthKey } from '@/lib/husk/monthlyTypes';
+import { roundRiceTons } from '@/lib/rice-payroll/rounding';
+import { parseHuskFromPayrollExcel } from '@/lib/husk/payrollHuskParser';
 
 interface HuskMonthlyListViewProps {
   initialMonth?: string;
@@ -47,6 +49,26 @@ export default function HuskMonthlyListView({
   // Delete modal state
   const [recordToDelete, setRecordToDelete] = useState<HuskMonthlyRecord | null>(null);
   const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
+
+  // Tải file tính lương để tách xuất trấu
+  const payrollInputRef = useRef<HTMLInputElement>(null);
+  const [isImportingPayroll, setIsImportingPayroll] = useState<boolean>(false);
+  const [importedPreview, setImportedPreview] = useState<HuskMonthlyRecord[] | null>(null);
+
+  // Nhập trấu thủ công
+  const [showManualForm, setShowManualForm] = useState<boolean>(false);
+  const [isSavingManual, setIsSavingManual] = useState<boolean>(false);
+  const [manualDate, setManualDate] = useState<string>(() => {
+    const [mm, yyyy] = initialMonth.split('/');
+    return `01/${mm || '11'}/${yyyy || '2026'}`;
+  });
+  const [manualTeam, setManualTeam] = useState<'ĐỨC' | 'QUÝ'>('ĐỨC');
+  const [manualType, setManualType] = useState<'XE' | 'GHE'>('XE');
+  const [manualVehicle, setManualVehicle] = useState<string>('');
+  const [manualCustomer, setManualCustomer] = useState<string>('');
+  const [manualWeightKg, setManualWeightKg] = useState<string>('');
+  const [manualUnitPrice, setManualUnitPrice] = useState<string>('11000');
+  const [manualNote, setManualNote] = useState<string>('');
 
   // ─── Tải dữ liệu từ API CSDL theo tháng ────────────────────────────────────
   const fetchMonthRecords = useCallback(async (month: string) => {
@@ -347,6 +369,135 @@ export default function HuskMonthlyListView({
     };
   }, [filteredRecords]);
 
+  // ─── Đọc file tính lương Excel & tách Xuất Trấu ──────────────────────────
+  const handlePayrollFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsImportingPayroll(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const parsed = parseHuskFromPayrollExcel(buf);
+      if (parsed.length === 0) {
+        throw new Error('Không tìm thấy dòng Xuất Trấu nào trong file tính lương này!');
+      }
+      setImportedPreview(parsed);
+    } catch (err: unknown) {
+      setErrorMessage('Lỗi đọc file tính lương: ' + (err instanceof Error ? err.message : String(err)));
+      setImportedPreview(null);
+    } finally {
+      setIsImportingPayroll(false);
+      if (payrollInputRef.current) payrollInputRef.current.value = '';
+    }
+  };
+
+  const handleConfirmImportPayroll = async () => {
+    if (!importedPreview || importedPreview.length === 0) return;
+    setIsImportingPayroll(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch('/api/husk/monthly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: importedPreview }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Không thể lưu vào CSDL');
+      }
+      const savedMonths: string[] = Array.isArray(data.savedMonths) ? data.savedMonths : [selectedMonth];
+      const targetMonth = savedMonths[0] || selectedMonth;
+      setImportedPreview(null);
+      setSuccessMessage(
+        `✅ Đã tách và lưu thành công ${importedPreview.length} mẻ xuất trấu vào CSDL (Tháng ${savedMonths.join(', ')})!`
+      );
+      if (targetMonth !== selectedMonth) {
+        setSelectedMonth(targetMonth);
+      } else {
+        await fetchMonthRecords(targetMonth);
+      }
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsImportingPayroll(false);
+    }
+  };
+
+  // ─── Nhập trấu thủ công trực tiếp vào CSDL tháng ──────────────────────────
+  const handleAddManualRecord = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const weightKg = parseFloat(manualWeightKg.replace(/[^\d.]/g, '')) || 0;
+    const unitPrice = parseFloat(manualUnitPrice.replace(/[^\d.]/g, '')) || 11000;
+    const mKey = extractMonthKey(manualDate) || selectedMonth;
+
+    if (!manualDate.trim() || !mKey) {
+      setErrorMessage('Vui lòng nhập ngày hợp lệ (dạng DD/MM/YYYY, vd: 15/11/2026).');
+      return;
+    }
+    if (weightKg <= 0) {
+      setErrorMessage('Vui lòng nhập trọng lượng (Kg) lớn hơn 0.');
+      return;
+    }
+
+    const tons = roundRiceTons(weightKg / 1000);
+    const amount = Math.round(tons * unitPrice);
+    const cleanCustomer = manualCustomer.trim().toUpperCase() || 'KHÁCH LẺ';
+    const cleanVehicle =
+      manualVehicle.trim().toUpperCase() || (manualType === 'GHE' ? `Ghe ${cleanCustomer}` : 'Xe');
+
+    const newItem: HuskMonthlyRecord = {
+      id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      date: manualDate.trim(),
+      monthKey: mKey,
+      team: manualTeam,
+      customer: cleanCustomer,
+      vehicle: cleanVehicle,
+      type: manualType,
+      weightKg,
+      tons,
+      unitPrice,
+      amount,
+      note: manualNote.trim() || 'Nhập trấu thủ công',
+      description:
+        manualType === 'GHE'
+          ? `Xuất trấu ghe ${cleanCustomer}`
+          : `Xuất một xe trấu ${cleanVehicle} của ${cleanCustomer}`.replace(/\s+/g, ' ').trim(),
+      sourceTab: 'NHAP_MOI',
+    };
+
+    setIsSavingManual(true);
+    try {
+      const res = await fetch('/api/husk/monthly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: [newItem] }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Lỗi lưu mẻ trấu thủ công');
+      }
+      setManualVehicle('');
+      setManualCustomer('');
+      setManualWeightKg('');
+      setManualNote('');
+      setShowManualForm(false);
+      setSuccessMessage(`✅ Đã thêm 1 mẻ xuất trấu (${tons} tấn) vào CSDL Tháng ${mKey}!`);
+      if (mKey !== selectedMonth) {
+        setSelectedMonth(mKey);
+      } else {
+        await fetchMonthRecords(mKey);
+      }
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSavingManual(false);
+    }
+  };
+
   // Handle custom month submit
   const handleApplyCustomMonth = () => {
     const clean = customMonthInput.trim();
@@ -390,6 +541,38 @@ export default function HuskMonthlyListView({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={payrollInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handlePayrollFileChange}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => payrollInputRef.current?.click()}
+              disabled={isImportingPayroll}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              title="Tải file Excel bảng lương (Đội Đức / Đội Quý) để tự động tách và lưu các dòng Xuất Trấu vào CSDL"
+            >
+              <span>{isImportingPayroll ? '⏳' : '📤'}</span>
+              <span>Tải File Tính Lương</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowManualForm((prev) => !prev);
+                const [mm, yyyy] = selectedMonth.split('/');
+                if (mm && yyyy) setManualDate(`01/${mm}/${yyyy}`);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95"
+              title="Nhập nhanh 1 mẻ xuất trấu thủ công vào CSDL tháng"
+            >
+              <span>➕</span>
+              <span>Nhập Thủ Công</span>
+            </button>
+
             <button
               type="button"
               onClick={() => fetchMonthRecords(selectedMonth)}
@@ -510,6 +693,232 @@ export default function HuskMonthlyListView({
             ✕
           </button>
         </div>
+      )}
+
+      {/* ─── Preview Bóc Tách Từ File Tính Lương ───────────────────────────── */}
+      {importedPreview && importedPreview.length > 0 && (
+        <div className="rounded-3xl border-2 border-violet-300 bg-gradient-to-br from-violet-50 via-purple-50/40 to-white p-5 shadow-md space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-violet-200 pb-3">
+            <div>
+              <h3 className="text-sm font-black text-violet-950 flex items-center gap-2">
+                <span>📤</span>
+                <span>
+                  Đã bóc tách {importedPreview.length} mẻ Xuất Trấu từ file tính lương (
+                  {importedPreview.reduce((s, r) => s + r.tons, 0).toLocaleString('vi-VN')} tấn &bull;{' '}
+                  {importedPreview.reduce((s, r) => s + r.amount, 0).toLocaleString('vi-VN')} đ)
+                </span>
+              </h3>
+              <p className="text-xs text-violet-700 mt-0.5">
+                Các tháng phát hiện:{' '}
+                <strong>
+                  {Array.from(new Set(importedPreview.map((r) => r.monthKey))).join(', ')}
+                </strong>
+                . Bấm &quot;Xác Nhận Lưu CSDL&quot; để cập nhật ngay vào cơ sở dữ liệu theo tháng.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setImportedPreview(null)}
+                className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmImportPayroll}
+                disabled={isImportingPayroll}
+                className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2 text-xs font-black text-white shadow-md hover:from-violet-700 hover:to-indigo-700 disabled:opacity-50 cursor-pointer"
+              >
+                {isImportingPayroll ? '⏳ Đang lưu...' : '💾 Xác Nhận Lưu Vào CSDL'}
+              </button>
+            </div>
+          </div>
+
+          <div className="max-h-56 overflow-y-auto rounded-xl border border-violet-200 bg-white">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-violet-50 text-[11px] font-bold text-violet-900 sticky top-0">
+                <tr>
+                  <th className="px-3 py-2">Ngày</th>
+                  <th className="px-3 py-2">Tháng</th>
+                  <th className="px-3 py-2">Đội</th>
+                  <th className="px-3 py-2">Phương Tiện</th>
+                  <th className="px-3 py-2">Khách Hàng</th>
+                  <th className="px-3 py-2 text-right">Kg</th>
+                  <th className="px-3 py-2 text-right">Tấn</th>
+                  <th className="px-3 py-2 text-right">Thành Tiền</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {importedPreview.map((r, idx) => (
+                  <tr key={idx} className="hover:bg-violet-50/40">
+                    <td className="px-3 py-1.5 font-mono">{r.date}</td>
+                    <td className="px-3 py-1.5 font-bold text-violet-700">{r.monthKey}</td>
+                    <td className="px-3 py-1.5 font-bold">{r.team}</td>
+                    <td className="px-3 py-1.5 font-mono">{r.vehicle}</td>
+                    <td className="px-3 py-1.5 font-semibold">{r.customer}</td>
+                    <td className="px-3 py-1.5 text-right font-mono">{r.weightKg.toLocaleString('vi-VN')}</td>
+                    <td className="px-3 py-1.5 text-right font-bold">{r.tons}</td>
+                    <td className="px-3 py-1.5 text-right font-bold text-emerald-700">
+                      {r.amount.toLocaleString('vi-VN')} đ
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Form Nhập Trấu Thủ Công ──────────────────────────────────────── */}
+      {showManualForm && (
+        <form
+          onSubmit={handleAddManualRecord}
+          className="rounded-3xl border-2 border-amber-300 bg-gradient-to-br from-amber-50/80 via-orange-50/30 to-white p-5 shadow-md space-y-4"
+        >
+          <div className="flex items-center justify-between border-b border-amber-200 pb-3">
+            <div>
+              <h3 className="text-sm font-black text-amber-950 flex items-center gap-2">
+                <span>➕</span>
+                <span>Nhập Mẻ Xuất Trấu Thủ Công Vào CSDL</span>
+              </h3>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Tự động tính số tấn làm tròn &amp; thành tiền, lưu trực tiếp vào CSDL theo tháng của ngày cân.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowManualForm(false)}
+              className="text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+            >
+              ✕ Đóng
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Ngày Cân (DD/MM/YYYY) *</label>
+              <input
+                type="text"
+                required
+                value={manualDate}
+                onChange={(e) => setManualDate(e.target.value)}
+                placeholder="15/11/2026"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Đội Phụ Trách *</label>
+              <select
+                value={manualTeam}
+                onChange={(e) => setManualTeam(e.target.value as 'ĐỨC' | 'QUÝ')}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-amber-500 focus:outline-none"
+              >
+                <option value="ĐỨC">Đội ĐỨC</option>
+                <option value="QUÝ">Đội QUÝ</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Loại Phương Tiện *</label>
+              <select
+                value={manualType}
+                onChange={(e) => {
+                  const v = e.target.value as 'XE' | 'GHE';
+                  setManualType(v);
+                  if (v === 'GHE' && manualUnitPrice === '11000') setManualUnitPrice('7000');
+                  if (v === 'XE' && manualUnitPrice === '7000') setManualUnitPrice('11000');
+                }}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-amber-500 focus:outline-none"
+              >
+                <option value="XE">🚛 Xe (mặc định 11.000đ/tấn)</option>
+                <option value="GHE">🚢 Ghe (mặc định 7.000đ/tấn)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Biển Số Xe / Tên Ghe</label>
+              <input
+                type="text"
+                value={manualVehicle}
+                onChange={(e) => setManualVehicle(e.target.value)}
+                placeholder="VD: 50H 65334 hoặc Ghe BT"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Khách Hàng *</label>
+              <input
+                type="text"
+                required
+                value={manualCustomer}
+                onChange={(e) => setManualCustomer(e.target.value)}
+                placeholder="VD: TRANG BẾN TRE"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Trọng Lượng (Kg) *</label>
+              <input
+                type="number"
+                required
+                min={1}
+                value={manualWeightKg}
+                onChange={(e) => setManualWeightKg(e.target.value)}
+                placeholder="VD: 7930"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Đơn Giá (đ/tấn)</label>
+              <input
+                type="number"
+                min={0}
+                value={manualUnitPrice}
+                onChange={(e) => setManualUnitPrice(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Ghi Chú</label>
+              <input
+                type="text"
+                value={manualNote}
+                onChange={(e) => setManualNote(e.target.value)}
+                placeholder="Không bắt buộc"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+            <div className="text-xs font-semibold text-amber-900">
+              {Number(manualWeightKg) > 0 && (
+                <>
+                  Quy đổi: <strong>{roundRiceTons(Number(manualWeightKg) / 1000)} tấn</strong> &bull; Thành tiền:{' '}
+                  <strong className="text-emerald-700">
+                    {Math.round(
+                      roundRiceTons(Number(manualWeightKg) / 1000) * (Number(manualUnitPrice) || 11000)
+                    ).toLocaleString('vi-VN')}{' '}
+                    đ
+                  </strong>
+                </>
+              )}
+            </div>
+            <button
+              type="submit"
+              disabled={isSavingManual}
+              className="rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 cursor-pointer"
+            >
+              {isSavingManual ? '⏳ Đang lưu...' : '💾 Lưu Mẻ Trấu Vào CSDL'}
+            </button>
+          </div>
+        </form>
       )}
 
       {/* ─── Metric Summary Cards ─────────────────────────────────────────── */}
@@ -716,22 +1125,44 @@ export default function HuskMonthlyListView({
                 : 'Thử điều chỉnh lại từ khóa tìm kiếm hoặc bỏ chọn các bộ lọc Đội / Loại phương tiện.'}
             </p>
 
-            {records.length === 0 && onNavigateToTab && (
-              <div className="mt-5 flex items-center justify-center gap-3">
+            {records.length === 0 && (
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
                 <button
                   type="button"
-                  onClick={() => onNavigateToTab('nhap-trau-moi')}
+                  onClick={() => payrollInputRef.current?.click()}
+                  className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-700 text-white px-4 py-2 text-xs font-bold shadow-md shadow-violet-600/20 hover:from-violet-700 hover:to-purple-800 transition cursor-pointer"
+                >
+                  📤 Tải File Tính Lương (Tách Xuất Trấu)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowManualForm(true);
+                    const [mm, yyyy] = selectedMonth.split('/');
+                    if (mm && yyyy) setManualDate(`01/${mm}/${yyyy}`);
+                  }}
                   className="rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white px-4 py-2 text-xs font-bold shadow-md shadow-amber-600/20 hover:from-amber-700 hover:to-orange-700 transition cursor-pointer"
                 >
-                  🚛 Nhập Trấu Mới Ngay
+                  ➕ Nhập Trấu Thủ Công
                 </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigateToTab('quet-anh-cu')}
-                  className="rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
-                >
-                  📸 Quét Phiếu Cân AI
-                </button>
+                {onNavigateToTab && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToTab('nhap-trau-moi')}
+                      className="rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
+                    >
+                      🚛 Nhập Trấu Mới Ngay
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToTab('quet-anh-cu')}
+                      className="rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-xs font-bold transition cursor-pointer"
+                    >
+                      📸 Quét Phiếu Cân AI
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
