@@ -7,7 +7,7 @@ import { calculateHuskTons } from '@/lib/husk/tonnage';
 import { formatWorkDescription, parseVehicle } from '@/lib/husk/plate';
 import { groupSlipsIfEnabled } from '@/lib/husk/merger';
 import { NSXTMEntry, NSXTMTeamKey } from '@/lib/rice-payroll/nsx-tm-types';
-import { extractMonthKey, HuskMonthlyRecord } from '@/lib/husk/monthlyStorage';
+import { extractMonthKey, HuskMonthlyRecord } from '@/lib/husk/monthlyTypes';
 import {
   saveSlipOriginalImage,
   getSlipOriginalImageUrl,

@@ -20,7 +20,7 @@ import { readWorkbook } from '@/lib/nhap-trau/excelReader';
 import { writeShipments } from '@/lib/nhap-trau/excelWriter';
 import { validateBatchEntries } from '@/lib/nhap-trau/validator';
 import { generateDailyReports } from '@/lib/nhap-trau/reportGenerator';
-import { extractMonthKey, HuskMonthlyRecord } from '@/lib/husk/monthlyStorage';
+import { extractMonthKey, HuskMonthlyRecord } from '@/lib/husk/monthlyTypes';
 
 export default function NhapTrauView({
   onOpenMonthlyView,

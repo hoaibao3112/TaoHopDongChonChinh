@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import ExcelJS from 'exceljs';
-import { HuskMonthlyRecord, extractMonthKey } from '@/lib/husk/monthlyStorage';
+import { HuskMonthlyRecord, extractMonthKey } from '@/lib/husk/monthlyTypes';
 
 interface HuskMonthlyListViewProps {
   initialMonth?: string;
