@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
     card1Sub.value = `Đã cân: ${summary.daCan}  |  Chờ cân: ${summary.choCan}  |  Lệch STT: ${summary.saiStt}`;
     card1Sub.font = { name: FONT_FAMILY, size: 9, bold: true, color: { argb: 'FF3B82F6' } };
     card1Sub.alignment = { horizontal: 'center', vertical: 'middle' };
-    console ja
+
     // Thẻ 2: Ước tính (E4:H5)
     sheet.mergeCells('E4:H4');
     sheet.mergeCells('E5:H5');

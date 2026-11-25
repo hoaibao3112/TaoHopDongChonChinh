@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 import { analyzeRiceMonthlyStats } from '../lib/rice-stats/monthly-stats-parser';
 import { buildRiceStatsExcelBuffer } from '../lib/rice-stats/excel-exporter';
 
