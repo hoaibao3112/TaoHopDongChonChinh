@@ -55,20 +55,52 @@ export default function HuskMonthlyListView({
   const [isImportingPayroll, setIsImportingPayroll] = useState<boolean>(false);
   const [importedPreview, setImportedPreview] = useState<HuskMonthlyRecord[] | null>(null);
 
-  // Nhập trấu thủ công
+  // Nhập trấu thủ công (hỗ trợ nhiều hàng giống tab Nhập Trấu Mới)
+  interface ManualRowDraft {
+    id: string;
+    date: string;
+    team: 'ĐỨC' | 'QUÝ';
+    type: 'XE' | 'GHE';
+    vehicle: string;
+    customer: string;
+    weightKg: string;
+    unitPrice: string;
+    note: string;
+  }
+  const makeEmptyManualRow = (
+    dateStr: string,
+    teamVal: 'ĐỨC' | 'QUÝ' = 'ĐỨC',
+    typeVal: 'XE' | 'GHE' = 'XE'
+  ): ManualRowDraft => ({
+    id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    date: dateStr,
+    team: teamVal,
+    type: typeVal,
+    vehicle: '',
+    customer: '',
+    weightKg: '',
+    unitPrice: typeVal === 'GHE' ? '7000' : '11000',
+    note: '',
+  });
+
   const [showManualForm, setShowManualForm] = useState<boolean>(false);
   const [isSavingManual, setIsSavingManual] = useState<boolean>(false);
-  const [manualDate, setManualDate] = useState<string>(() => {
+  const [manualDefaultDate, setManualDefaultDate] = useState<string>(() => {
     const [mm, yyyy] = initialMonth.split('/');
     return `01/${mm || '11'}/${yyyy || '2026'}`;
   });
-  const [manualTeam, setManualTeam] = useState<'ĐỨC' | 'QUÝ'>('ĐỨC');
-  const [manualType, setManualType] = useState<'XE' | 'GHE'>('XE');
-  const [manualVehicle, setManualVehicle] = useState<string>('');
-  const [manualCustomer, setManualCustomer] = useState<string>('');
-  const [manualWeightKg, setManualWeightKg] = useState<string>('');
-  const [manualUnitPrice, setManualUnitPrice] = useState<string>('11000');
-  const [manualNote, setManualNote] = useState<string>('');
+  const [manualDefaultTeam, setManualDefaultTeam] = useState<'ĐỨC' | 'QUÝ'>('ĐỨC');
+  const [manualDefaultType, setManualDefaultType] = useState<'XE' | 'GHE'>('XE');
+  const [manualRows, setManualRows] = useState<ManualRowDraft[]>(() => {
+    const [mm, yyyy] = initialMonth.split('/');
+    const d = `01/${mm || '11'}/${yyyy || '2026'}`;
+    return [makeEmptyManualRow(d), makeEmptyManualRow(d), makeEmptyManualRow(d)];
+  });
+
+  // Xem & Chỉnh sửa từng mẻ trong CSDL
+  const [viewingRecord, setViewingRecord] = useState<HuskMonthlyRecord | null>(null);
+  const [editingRecord, setEditingRecord] = useState<HuskMonthlyRecord | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
 
   // ─── Tải dữ liệu từ API CSDL theo tháng ────────────────────────────────────
   const fetchMonthRecords = useCallback(async (month: string) => {
@@ -424,77 +456,156 @@ export default function HuskMonthlyListView({
     }
   };
 
-  // ─── Nhập trấu thủ công trực tiếp vào CSDL tháng ──────────────────────────
-  const handleAddManualRecord = async (e: React.FormEvent) => {
+  // ─── Nhập trấu thủ công (Bảng nhiều hàng giống bên Nhập Trấu Mới) ──────────
+  const handleUpdateManualRow = (id: string, field: keyof ManualRowDraft, value: string) => {
+    setManualRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== id) return row;
+        const updated = { ...row, [field]: value };
+        if (field === 'type') {
+          updated.unitPrice = value === 'GHE' ? '7000' : '11000';
+        }
+        return updated;
+      })
+    );
+  };
+
+  const handleApplyManualDefaults = () => {
+    setManualRows((prev) =>
+      prev.map((row) => ({
+        ...row,
+        date: manualDefaultDate,
+        team: manualDefaultTeam,
+        type: manualDefaultType,
+        unitPrice: manualDefaultType === 'GHE' ? '7000' : '11000',
+      }))
+    );
+  };
+
+  const handleAddManualRows = (count: number) => {
+    const news = Array.from({ length: count }, () =>
+      makeEmptyManualRow(manualDefaultDate, manualDefaultTeam, manualDefaultType)
+    );
+    setManualRows((prev) => [...prev, ...news]);
+  };
+
+  const handleRemoveManualRow = (id: string) => {
+    setManualRows((prev) => (prev.length > 1 ? prev.filter((r) => r.id !== id) : prev));
+  };
+
+  const handleSaveManualRows = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const weightKg = parseFloat(manualWeightKg.replace(/[^\d.]/g, '')) || 0;
-    const unitPrice = parseFloat(manualUnitPrice.replace(/[^\d.]/g, '')) || 11000;
-    const mKey = extractMonthKey(manualDate) || selectedMonth;
+    const validRows = manualRows.filter((r) => {
+      const kg = parseFloat(r.weightKg.replace(/[^\d.]/g, '')) || 0;
+      return kg > 0;
+    });
 
-    if (!manualDate.trim() || !mKey) {
-      setErrorMessage('Vui lòng nhập ngày hợp lệ (dạng DD/MM/YYYY, vd: 15/11/2026).');
-      return;
-    }
-    if (weightKg <= 0) {
-      setErrorMessage('Vui lòng nhập trọng lượng (Kg) lớn hơn 0.');
+    if (validRows.length === 0) {
+      setErrorMessage('Vui lòng nhập trọng lượng (Kg) lớn hơn 0 cho ít nhất 1 dòng!');
       return;
     }
 
-    const tons = roundRiceTons(weightKg / 1000);
-    const amount = Math.round(tons * unitPrice);
-    const cleanCustomer = manualCustomer.trim().toUpperCase() || 'KHÁCH LẺ';
-    const cleanVehicle =
-      manualVehicle.trim().toUpperCase() || (manualType === 'GHE' ? `Ghe ${cleanCustomer}` : 'Xe');
+    const itemsToSave: HuskMonthlyRecord[] = [];
+    for (const row of validRows) {
+      const mKey = extractMonthKey(row.date) || selectedMonth;
+      if (!row.date.trim() || !mKey) {
+        setErrorMessage('Có dòng bị sai định dạng ngày (cần dạng DD/MM/YYYY, vd: 15/11/2026).');
+        return;
+      }
+      const weightKg = parseFloat(row.weightKg.replace(/[^\d.]/g, '')) || 0;
+      const unitPrice = parseFloat(row.unitPrice.replace(/[^\d.]/g, '')) || (row.type === 'GHE' ? 7000 : 11000);
+      const tons = roundRiceTons(weightKg);
+      const amount = Math.round(tons * unitPrice);
+      const cleanCustomer = row.customer.trim().toUpperCase() || 'KHÁCH LẺ';
+      const cleanVehicle =
+        row.vehicle.trim().toUpperCase() || (row.type === 'GHE' ? `Ghe ${cleanCustomer}` : 'Xe');
 
-    const newItem: HuskMonthlyRecord = {
-      id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      date: manualDate.trim(),
-      monthKey: mKey,
-      team: manualTeam,
-      customer: cleanCustomer,
-      vehicle: cleanVehicle,
-      type: manualType,
-      weightKg,
-      tons,
-      unitPrice,
-      amount,
-      note: manualNote.trim() || 'Nhập trấu thủ công',
-      description:
-        manualType === 'GHE'
-          ? `Xuất trấu ghe ${cleanCustomer}`
-          : `Xuất một xe trấu ${cleanVehicle} của ${cleanCustomer}`.replace(/\s+/g, ' ').trim(),
-      sourceTab: 'NHAP_MOI',
-    };
+      itemsToSave.push({
+        id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        date: row.date.trim(),
+        monthKey: mKey,
+        team: row.team,
+        customer: cleanCustomer,
+        vehicle: cleanVehicle,
+        type: row.type,
+        weightKg,
+        tons,
+        unitPrice,
+        amount,
+        note: row.note.trim() || 'Nhập trấu thủ công',
+        description:
+          row.type === 'GHE'
+            ? `Xuất trấu ghe ${cleanCustomer}`
+            : `Xuất một xe trấu ${cleanVehicle} của ${cleanCustomer}`.replace(/\s+/g, ' ').trim(),
+        sourceTab: 'NHAP_MOI',
+      });
+    }
 
     setIsSavingManual(true);
     try {
       const res = await fetch('/api/husk/monthly', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: [newItem] }),
+        body: JSON.stringify({ items: itemsToSave }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Lỗi lưu mẻ trấu thủ công');
       }
-      setManualVehicle('');
-      setManualCustomer('');
-      setManualWeightKg('');
-      setManualNote('');
+      const savedMonths: string[] = Array.isArray(data.savedMonths) ? data.savedMonths : [selectedMonth];
+      const targetMonth = savedMonths[0] || selectedMonth;
+      setManualRows([
+        makeEmptyManualRow(manualDefaultDate, manualDefaultTeam, manualDefaultType),
+        makeEmptyManualRow(manualDefaultDate, manualDefaultTeam, manualDefaultType),
+        makeEmptyManualRow(manualDefaultDate, manualDefaultTeam, manualDefaultType),
+      ]);
       setShowManualForm(false);
-      setSuccessMessage(`✅ Đã thêm 1 mẻ xuất trấu (${tons} tấn) vào CSDL Tháng ${mKey}!`);
-      if (mKey !== selectedMonth) {
-        setSelectedMonth(mKey);
+      setSuccessMessage(
+        `✅ Đã lưu thành công ${itemsToSave.length} mẻ xuất trấu vào CSDL (Tháng ${savedMonths.join(', ')})!`
+      );
+      if (targetMonth !== selectedMonth) {
+        setSelectedMonth(targetMonth);
       } else {
-        await fetchMonthRecords(mKey);
+        await fetchMonthRecords(targetMonth);
       }
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : String(err));
     } finally {
       setIsSavingManual(false);
+    }
+  };
+
+  // ─── Lưu chỉnh sửa 1 mẻ trấu ──────────────────────────────────────────────
+  const handleSaveEditRecord = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRecord) return;
+    setIsSavingEdit(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    try {
+      const res = await fetch('/api/husk/monthly', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          monthKey: selectedMonth,
+          item: editingRecord,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.items)) {
+        setRecords(data.items);
+        setSuccessMessage(`✅ Đã cập nhật mẻ trấu của "${editingRecord.customer}"!`);
+        setEditingRecord(null);
+      } else {
+        throw new Error(data.error || 'Cập nhật mẻ trấu thất bại');
+      }
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -564,10 +675,16 @@ export default function HuskMonthlyListView({
               onClick={() => {
                 setShowManualForm((prev) => !prev);
                 const [mm, yyyy] = selectedMonth.split('/');
-                if (mm && yyyy) setManualDate(`01/${mm}/${yyyy}`);
+                if (mm && yyyy) {
+                  const d = `01/${mm}/${yyyy}`;
+                  setManualDefaultDate(d);
+                  setManualRows((rows) =>
+                    rows.map((r) => (r.weightKg ? r : { ...r, date: d }))
+                  );
+                }
               }}
               className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95"
-              title="Nhập nhanh 1 mẻ xuất trấu thủ công vào CSDL tháng"
+              title="Mở bảng nhập nhiều dòng xuất trấu xe/ghe vào CSDL tháng"
             >
               <span>➕</span>
               <span>Nhập Thủ Công</span>
@@ -770,20 +887,20 @@ export default function HuskMonthlyListView({
         </div>
       )}
 
-      {/* ─── Form Nhập Trấu Thủ Công ──────────────────────────────────────── */}
+      {/* ─── Form Nhập Trấu Thủ Công (Bảng nhiều hàng giống Nhập Trấu Mới) ── */}
       {showManualForm && (
         <form
-          onSubmit={handleAddManualRecord}
+          onSubmit={handleSaveManualRows}
           className="rounded-3xl border-2 border-amber-300 bg-gradient-to-br from-amber-50/80 via-orange-50/30 to-white p-5 shadow-md space-y-4"
         >
-          <div className="flex items-center justify-between border-b border-amber-200 pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 pb-3">
             <div>
               <h3 className="text-sm font-black text-amber-950 flex items-center gap-2">
                 <span>➕</span>
-                <span>Nhập Mẻ Xuất Trấu Thủ Công Vào CSDL</span>
+                <span>Bảng Nhập Xuất Trấu Thủ Công (Nhiều Dòng - Xe &amp; Ghe)</span>
               </h3>
               <p className="text-xs text-amber-800 mt-0.5">
-                Tự động tính số tấn làm tròn &amp; thành tiền, lưu trực tiếp vào CSDL theo tháng của ngày cân.
+                Cài nhanh thông số mặc định hoặc thêm nhiều dòng Xe/Ghe cùng lúc, tự động quy đổi số tấn &amp; lưu thẳng vào CSDL tháng.
               </p>
             </div>
             <button
@@ -795,127 +912,222 @@ export default function HuskMonthlyListView({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Ngày Cân (DD/MM/YYYY) *</label>
-              <input
-                type="text"
-                required
-                value={manualDate}
-                onChange={(e) => setManualDate(e.target.value)}
-                placeholder="15/11/2026"
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:outline-none"
-              />
-            </div>
+          {/* Thanh cài nhanh mặc định */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-white/90 p-3">
+            <div className="flex flex-wrap items-center gap-2.5 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-slate-700">Ngày nhanh:</span>
+                <input
+                  type="text"
+                  value={manualDefaultDate}
+                  onChange={(e) => setManualDefaultDate(e.target.value)}
+                  placeholder="DD/MM/YYYY"
+                  className="w-28 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-800"
+                />
+              </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Đội Phụ Trách *</label>
-              <select
-                value={manualTeam}
-                onChange={(e) => setManualTeam(e.target.value as 'ĐỨC' | 'QUÝ')}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-amber-500 focus:outline-none"
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-slate-700">Đội:</span>
+                <select
+                  value={manualDefaultTeam}
+                  onChange={(e) => setManualDefaultTeam(e.target.value as 'ĐỨC' | 'QUÝ')}
+                  className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-bold text-slate-800"
+                >
+                  <option value="ĐỨC">ĐỨC</option>
+                  <option value="QUÝ">QUÝ</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-slate-700">Loại:</span>
+                <div className="inline-flex rounded-lg border border-slate-300 bg-slate-100 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setManualDefaultType('XE')}
+                    className={`px-2.5 py-0.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                      manualDefaultType === 'XE' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600'
+                    }`}
+                  >
+                    Xe (11.000đ)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setManualDefaultType('GHE')}
+                    className={`px-2.5 py-0.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                      manualDefaultType === 'GHE' ? 'bg-white text-emerald-700 shadow-2xs' : 'text-slate-600'
+                    }`}
+                  >
+                    Ghe (7.000đ)
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleApplyManualDefaults}
+                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] cursor-pointer"
               >
-                <option value="ĐỨC">Đội ĐỨC</option>
-                <option value="QUÝ">Đội QUÝ</option>
-              </select>
+                Áp dụng tất cả
+              </button>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Loại Phương Tiện *</label>
-              <select
-                value={manualType}
-                onChange={(e) => {
-                  const v = e.target.value as 'XE' | 'GHE';
-                  setManualType(v);
-                  if (v === 'GHE' && manualUnitPrice === '11000') setManualUnitPrice('7000');
-                  if (v === 'XE' && manualUnitPrice === '7000') setManualUnitPrice('11000');
-                }}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-amber-500 focus:outline-none"
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleAddManualRows(1)}
+                className="rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900 cursor-pointer"
               >
-                <option value="XE">🚛 Xe (mặc định 11.000đ/tấn)</option>
-                <option value="GHE">🚢 Ghe (mặc định 7.000đ/tấn)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Biển Số Xe / Tên Ghe</label>
-              <input
-                type="text"
-                value={manualVehicle}
-                onChange={(e) => setManualVehicle(e.target.value)}
-                placeholder="VD: 50H 65334 hoặc Ghe BT"
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Khách Hàng *</label>
-              <input
-                type="text"
-                required
-                value={manualCustomer}
-                onChange={(e) => setManualCustomer(e.target.value)}
-                placeholder="VD: TRANG BẾN TRE"
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Trọng Lượng (Kg) *</label>
-              <input
-                type="number"
-                required
-                min={1}
-                value={manualWeightKg}
-                onChange={(e) => setManualWeightKg(e.target.value)}
-                placeholder="VD: 7930"
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-amber-500 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Đơn Giá (đ/tấn)</label>
-              <input
-                type="number"
-                min={0}
-                value={manualUnitPrice}
-                onChange={(e) => setManualUnitPrice(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-amber-500 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Ghi Chú</label>
-              <input
-                type="text"
-                value={manualNote}
-                onChange={(e) => setManualNote(e.target.value)}
-                placeholder="Không bắt buộc"
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:border-amber-500 focus:outline-none"
-              />
+                + Thêm 1 dòng
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddManualRows(5)}
+                className="rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900 cursor-pointer"
+              >
+                + Thêm 5 dòng
+              </button>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          {/* Bảng nhập nhiều hàng */}
+          <div className="overflow-x-auto rounded-2xl border border-amber-200 bg-white">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-amber-50/90 text-[11px] font-bold text-amber-950 border-b border-amber-200">
+                <tr>
+                  <th className="px-2.5 py-2 text-center w-10">STT</th>
+                  <th className="px-2.5 py-2 w-28">Ngày</th>
+                  <th className="px-2.5 py-2 w-24">Đội</th>
+                  <th className="px-2.5 py-2 w-24">Loại</th>
+                  <th className="px-2.5 py-2 min-w-[130px]">Biển Số / Tên Ghe</th>
+                  <th className="px-2.5 py-2 min-w-[150px]">Khách Hàng</th>
+                  <th className="px-2.5 py-2 w-28 text-right">Trọng Lượng (Kg)</th>
+                  <th className="px-2.5 py-2 w-20 text-right">Số Tấn</th>
+                  <th className="px-2.5 py-2 w-24 text-right">Đơn Giá</th>
+                  <th className="px-2.5 py-2 w-28 text-right">Thành Tiền</th>
+                  <th className="px-2.5 py-2 min-w-[120px]">Ghi Chú</th>
+                  <th className="px-2.5 py-2 text-center w-12">Xóa</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {manualRows.map((row, idx) => {
+                  const kg = parseFloat(row.weightKg.replace(/[^\d.]/g, '')) || 0;
+                  const price = parseFloat(row.unitPrice.replace(/[^\d.]/g, '')) || 0;
+                  const tons = roundRiceTons(kg);
+                  const amount = Math.round(tons * price);
+                  return (
+                    <tr key={row.id} className="hover:bg-amber-50/30">
+                      <td className="px-2.5 py-1.5 text-center text-slate-400 font-bold">{idx + 1}</td>
+                      <td className="px-1.5 py-1.5">
+                        <input
+                          type="text"
+                          value={row.date}
+                          onChange={(e) => handleUpdateManualRow(row.id, 'date', e.target.value)}
+                          placeholder="DD/MM/YYYY"
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs font-mono focus:border-amber-500 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-1.5 py-1.5">
+                        <select
+                          value={row.team}
+                          onChange={(e) => handleUpdateManualRow(row.id, 'team', e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 px-1.5 py-1 text-xs font-bold focus:border-amber-500 focus:outline-none"
+                        >
+                          <option value="ĐỨC">ĐỨC</option>
+                          <option value="QUÝ">QUÝ</option>
+                        </select>
+                      </td>
+                      <td className="px-1.5 py-1.5">
+                        <select
+                          value={row.type}
+                          onChange={(e) => handleUpdateManualRow(row.id, 'type', e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 px-1.5 py-1 text-xs font-bold focus:border-amber-500 focus:outline-none"
+                        >
+                          <option value="XE">🚛 Xe</option>
+                          <option value="GHE">🚤 Ghe</option>
+                        </select>
+                      </td>
+                      <td className="px-1.5 py-1.5">
+                        <input
+                          type="text"
+                          value={row.vehicle}
+                          onChange={(e) => handleUpdateManualRow(row.id, 'vehicle', e.target.value)}
+                          placeholder={row.type === 'GHE' ? 'Tên ghe...' : 'VD: 50H 65334'}
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold focus:border-amber-500 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-1.5 py-1.5">
+                        <input
+                          type="text"
+                          value={row.customer}
+                          onChange={(e) => handleUpdateManualRow(row.id, 'customer', e.target.value)}
+                          placeholder="Khách hàng..."
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold focus:border-amber-500 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-1.5 py-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.weightKg}
+                          onChange={(e) => handleUpdateManualRow(row.id, 'weightKg', e.target.value)}
+                          placeholder="Kg..."
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs font-mono text-right font-bold focus:border-amber-500 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-mono font-bold text-amber-800">
+                        {tons > 0 ? tons : '—'}
+                      </td>
+                      <td className="px-1.5 py-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.unitPrice}
+                          onChange={(e) => handleUpdateManualRow(row.id, 'unitPrice', e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs font-mono text-right focus:border-amber-500 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-mono font-bold text-emerald-700">
+                        {amount > 0 ? `${amount.toLocaleString('vi-VN')} đ` : '—'}
+                      </td>
+                      <td className="px-1.5 py-1.5">
+                        <input
+                          type="text"
+                          value={row.note}
+                          onChange={(e) => handleUpdateManualRow(row.id, 'note', e.target.value)}
+                          placeholder="Ghi chú"
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs focus:border-amber-500 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-1.5 py-1.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveManualRow(row.id)}
+                          className="rounded p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                          title="Xóa dòng này"
+                        >
+                          🗑️
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
             <div className="text-xs font-semibold text-amber-900">
-              {Number(manualWeightKg) > 0 && (
-                <>
-                  Quy đổi: <strong>{roundRiceTons(Number(manualWeightKg) / 1000)} tấn</strong> &bull; Thành tiền:{' '}
-                  <strong className="text-emerald-700">
-                    {Math.round(
-                      roundRiceTons(Number(manualWeightKg) / 1000) * (Number(manualUnitPrice) || 11000)
-                    ).toLocaleString('vi-VN')}{' '}
-                    đ
-                  </strong>
-                </>
-              )}
+              Số dòng hợp lệ (có Kg &gt; 0):{' '}
+              <strong>
+                {manualRows.filter((r) => (parseFloat(r.weightKg) || 0) > 0).length} dòng
+              </strong>
             </div>
             <button
               type="submit"
               disabled={isSavingManual}
               className="rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 cursor-pointer"
             >
-              {isSavingManual ? '⏳ Đang lưu...' : '💾 Lưu Mẻ Trấu Vào CSDL'}
+              {isSavingManual ? '⏳ Đang lưu...' : '💾 Lưu Tất Cả Vào CSDL'}
             </button>
           </div>
         </form>
@@ -1139,7 +1351,7 @@ export default function HuskMonthlyListView({
                   onClick={() => {
                     setShowManualForm(true);
                     const [mm, yyyy] = selectedMonth.split('/');
-                    if (mm && yyyy) setManualDate(`01/${mm}/${yyyy}`);
+                    if (mm && yyyy) setManualDefaultDate(`01/${mm}/${yyyy}`);
                   }}
                   className="rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white px-4 py-2 text-xs font-bold shadow-md shadow-amber-600/20 hover:from-amber-700 hover:to-orange-700 transition cursor-pointer"
                 >
@@ -1250,15 +1462,33 @@ export default function HuskMonthlyListView({
                         {r.description || r.note || '—'}
                       </td>
                       <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => setRecordToDelete(r)}
-                          disabled={isDeleting === r.id}
-                          className="rounded-lg p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                          title="Xóa mẻ trấu này khỏi CSDL tháng"
-                        >
-                          🗑️
-                        </button>
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setViewingRecord(r)}
+                            className="rounded-lg p-1.5 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 transition-colors cursor-pointer"
+                            title="Xem chi tiết mẻ trấu này"
+                          >
+                            👁️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingRecord({ ...r })}
+                            className="rounded-lg p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"
+                            title="Chỉnh sửa mẻ trấu này"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRecordToDelete(r)}
+                            disabled={isDeleting === r.id}
+                            className="rounded-lg p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Xóa mẻ trấu này khỏi CSDL tháng"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1289,6 +1519,275 @@ export default function HuskMonthlyListView({
           </div>
         )}
       </div>
+
+      {/* ─── Modal Xem Chi Tiết 1 Mẻ ──────────────────────────────────────── */}
+      {viewingRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <span>👁️</span>
+                <span>Chi Tiết Mẻ Xuất Trấu</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setViewingRecord(null)}
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 rounded-2xl p-4 border border-slate-200/70">
+              <div>
+                <span className="text-slate-400 block">Ngày cân</span>
+                <strong className="text-slate-900 font-mono">{viewingRecord.date}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Tháng CSDL</span>
+                <strong className="text-indigo-700">{viewingRecord.monthKey}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Đội phụ trách</span>
+                <strong className="text-slate-900">Đội {viewingRecord.team}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Loại phương tiện</span>
+                <strong className="text-slate-900">{viewingRecord.type === 'GHE' ? '🚤 Ghe' : '🚛 Xe'}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Biển số / Tên ghe</span>
+                <strong className="text-slate-900">{viewingRecord.vehicle}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Khách hàng</span>
+                <strong className="text-slate-900">{viewingRecord.customer}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Trọng lượng</span>
+                <strong className="text-slate-900 font-mono">{(viewingRecord.weightKg || 0).toLocaleString('vi-VN')} kg</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Số tấn quy đổi</span>
+                <strong className="text-amber-800 font-mono">{viewingRecord.tons} tấn</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Đơn giá</span>
+                <strong className="text-slate-900 font-mono">{(viewingRecord.unitPrice || 11000).toLocaleString('vi-VN')} đ/tấn</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Thành tiền</span>
+                <strong className="text-emerald-700 font-mono text-sm">{(viewingRecord.amount || 0).toLocaleString('vi-VN')} đ</strong>
+              </div>
+              <div className="col-span-2">
+                <span className="text-slate-400 block">Diễn giải công việc</span>
+                <span className="text-slate-800 font-medium">{viewingRecord.description || '—'}</span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-slate-400 block">Ghi chú</span>
+                <span className="text-slate-700">{viewingRecord.note || '—'}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const rec = viewingRecord;
+                  setViewingRecord(null);
+                  setEditingRecord({ ...rec });
+                }}
+                className="rounded-xl bg-amber-600 hover:bg-amber-700 px-4 py-2 text-xs font-bold text-white cursor-pointer"
+              >
+                ✏️ Chỉnh Sửa Mẻ Này
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingRecord(null)}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modal Chỉnh Sửa 1 Mẻ ─────────────────────────────────────────── */}
+      {editingRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <form
+            onSubmit={handleSaveEditRecord}
+            className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <span>✏️</span>
+                <span>Chỉnh Sửa Mẻ Xuất Trấu</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingRecord(null)}
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Ngày Cân</label>
+                <input
+                  type="text"
+                  required
+                  value={editingRecord.date}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, date: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono font-semibold"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Đội Phụ Trách</label>
+                <select
+                  value={editingRecord.team}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, team: e.target.value as 'ĐỨC' | 'QUÝ' })}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-bold"
+                >
+                  <option value="ĐỨC">Đội ĐỨC</option>
+                  <option value="QUÝ">Đội QUÝ</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Loại Phương Tiện</label>
+                <select
+                  value={editingRecord.type}
+                  onChange={(e) => {
+                    const newType = e.target.value as 'XE' | 'GHE';
+                    const newPrice = newType === 'GHE' ? 7000 : 11000;
+                    const tons = roundRiceTons(editingRecord.weightKg);
+                    setEditingRecord({
+                      ...editingRecord,
+                      type: newType,
+                      unitPrice: newPrice,
+                      tons,
+                      amount: Math.round(tons * newPrice),
+                    });
+                  }}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-bold"
+                >
+                  <option value="XE">🚛 Xe (11.000đ/tấn)</option>
+                  <option value="GHE">🚤 Ghe (7.000đ/tấn)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Biển Số / Tên Ghe</label>
+                <input
+                  type="text"
+                  value={editingRecord.vehicle}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, vehicle: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-semibold"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block font-bold text-slate-700 mb-1">Khách Hàng</label>
+                <input
+                  type="text"
+                  required
+                  value={editingRecord.customer}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, customer: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-semibold"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Trọng Lượng (Kg)</label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={editingRecord.weightKg}
+                  onChange={(e) => {
+                    const kg = Number(e.target.value) || 0;
+                    const tons = roundRiceTons(kg);
+                    const amount = Math.round(tons * (editingRecord.unitPrice || 11000));
+                    setEditingRecord({ ...editingRecord, weightKg: kg, tons, amount });
+                  }}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Số Tấn (Quy Đổi)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={editingRecord.tons}
+                  onChange={(e) => {
+                    const tons = Number(e.target.value) || 0;
+                    const amount = Math.round(tons * (editingRecord.unitPrice || 11000));
+                    setEditingRecord({ ...editingRecord, tons, amount });
+                  }}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono font-bold text-amber-800"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Đơn Giá (đ/tấn)</label>
+                <input
+                  type="number"
+                  value={editingRecord.unitPrice}
+                  onChange={(e) => {
+                    const unitPrice = Number(e.target.value) || 0;
+                    const amount = Math.round((editingRecord.tons || 0) * unitPrice);
+                    setEditingRecord({ ...editingRecord, unitPrice, amount });
+                  }}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Thành Tiền (đ)</label>
+                <input
+                  type="number"
+                  value={editingRecord.amount}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, amount: Number(e.target.value) || 0 })}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono font-bold text-emerald-700"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block font-bold text-slate-700 mb-1">Diễn Giải Công Việc</label>
+                <input
+                  type="text"
+                  value={editingRecord.description || ''}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, description: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block font-bold text-slate-700 mb-1">Ghi Chú</label>
+                <input
+                  type="text"
+                  value={editingRecord.note || ''}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, note: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingRecord(null)}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                disabled={isSavingEdit}
+                className="rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-5 py-2 text-xs font-black text-white shadow-md hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 cursor-pointer"
+              >
+                {isSavingEdit ? '⏳ Đang lưu...' : '💾 Lưu Thay Đổi'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* ─── Modal Xác Nhận Xóa 1 Mẻ ──────────────────────────────────────── */}
       {recordToDelete && (

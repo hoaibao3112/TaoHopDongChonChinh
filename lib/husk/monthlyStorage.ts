@@ -22,7 +22,7 @@ export function convertHuskRecordsToNSXTM(records: HuskMonthlyRecord[]): NSXTMEn
       }
     }
 
-    const tons = r.tons || roundRiceTons(r.weightKg / 1000);
+    const tons = r.tons || roundRiceTons(r.weightKg);
     const unitPrice = r.unitPrice || 11000;
     const amount = r.amount || Math.round(tons * unitPrice);
     const team: NSXTMTeamKey = r.team === 'QUÝ' ? 'QUÝ' : 'ĐỨC';
