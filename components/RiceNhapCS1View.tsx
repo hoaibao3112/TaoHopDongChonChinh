@@ -46,6 +46,13 @@ export default function RiceNhapCS1View() {
 
   // ── State: Chế độ xem (ALL / NGHỊ / NGUYÊN) ──────────────────────────────
   const [viewMode, setViewMode] = useState<CS1ViewMode>('ALL');
+  const [workerTab, setWorkerTab] = useState<CS1TeamKey>('NGHỊ');
+
+  useEffect(() => {
+    if (viewMode === 'NGHỊ' || viewMode === 'NGUYÊN') {
+      setWorkerTab(viewMode);
+    }
+  }, [viewMode]);
 
   // ── State: Gán Đội cho từng mẻ (key = batchId, value = 'NGHỊ' | 'NGUYÊN')
   const [teamAssignmentMap, setTeamAssignmentMap] = useState<Record<string, CS1TeamKey>>({});
@@ -1538,12 +1545,12 @@ export default function RiceNhapCS1View() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Cột trái 2/3: Danh sách công nhân */}
           <div className="lg:col-span-2 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-            <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
                   <span>👥</span>
                   <span>
-                    Bảng Công Nhân &amp; Tạm Ứng — {viewMode === 'NGUYÊN' ? 'Đội Anh Nguyên' : 'Đội Anh Nghị'}
+                    Bảng Công Nhân &amp; Tạm Ứng — {workerTab === 'NGUYÊN' ? 'Đội Anh Nguyên' : 'Đội Anh Nghị'}
                   </span>
                 </h2>
                 <p className="text-[11px] text-slate-500">
@@ -1551,10 +1558,36 @@ export default function RiceNhapCS1View() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Tab chuyển qua lại giữa Đội Anh Nghị và Đội Anh Nguyên */}
+                <div className="flex items-center gap-1 rounded-xl bg-slate-200/70 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setWorkerTab('NGHỊ')}
+                    className={`rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
+                      workerTab === 'NGHỊ'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    👷 Đội Anh Nghị ({workersNghi.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWorkerTab('NGUYÊN')}
+                    className={`rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
+                      workerTab === 'NGUYÊN'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    👷 Đội Anh Nguyên ({workersNguyen.length})
+                  </button>
+                </div>
+
                 <button
                   onClick={() => setShowWorkerAdd(!showWorkerAdd)}
-                  className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-white hover:bg-orange-700 transition-all shadow-2xs"
+                  className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-700 transition-all shadow-2xs cursor-pointer"
                 >
                   {showWorkerAdd ? 'Đóng' : '+ Thêm công nhân'}
                 </button>
@@ -1595,7 +1628,7 @@ export default function RiceNhapCS1View() {
                       className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
                     />
                     <button
-                      onClick={() => handleAddWorker(viewMode === 'NGUYÊN' ? 'NGUYÊN' : 'NGHỊ')}
+                      onClick={() => handleAddWorker(workerTab)}
                       className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-700 transition-all shrink-0"
                     >
                       Lưu
@@ -1618,8 +1651,8 @@ export default function RiceNhapCS1View() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(viewMode === 'NGUYÊN' ? workersNguyen : workersNghi).map((w, idx) => {
-                    const currentTeam = viewMode === 'NGUYÊN' ? 'NGUYÊN' : 'NGHỊ';
+                  {(workerTab === 'NGUYÊN' ? workersNguyen : workersNghi).map((w, idx) => {
+                    const currentTeam = workerTab;
                     return (
                       <tr key={w.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-2 py-1.5 text-center text-slate-500 font-mono">{idx + 1}</td>
@@ -1690,7 +1723,16 @@ export default function RiceNhapCS1View() {
               </div>
 
               <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-600">Tiền nhập trấu ({currentTrauItems.length} chuyến):</span>
+                <span className="text-slate-600 flex items-center gap-1.5">
+                  <span>Tiền nhập trấu ({currentTrauItems.length} chuyến):</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowTrauPanel((prev) => !prev)}
+                    className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 hover:bg-amber-200 cursor-pointer"
+                  >
+                    {showTrauPanel ? 'Ẩn bảng trấu' : '👁️ Xem/Sửa'}
+                  </button>
+                </span>
                 <span className="font-bold font-mono text-slate-900">{formatMoney(totalMoneyTrau)} đ</span>
               </div>
 
@@ -1757,6 +1799,136 @@ export default function RiceNhapCS1View() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Bảng Chi Tiết Nhập Trấu CS1 (Đội Nghị & Đội Nguyên) ───────────── */}
+      {selectedMonthKey && showTrauPanel && (
+        <div className="rounded-2xl border-2 border-amber-300 bg-white p-5 shadow-md space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 pb-3">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-wider text-amber-950 flex items-center gap-2">
+                <span>🌾</span>
+                <span>
+                  Bảng Nhập Trấu CS1 — {workerTab === 'NGUYÊN' ? 'Đội Anh Nguyên' : 'Đội Anh Nghị'}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Thêm hoặc xóa chuyến trấu của Đội {workerTab === 'NGUYÊN' ? 'Nguyên' : 'Nghị'} để tự động cộng vào tổng tiền lương &amp; xuất Excel sheet Nhập Trấu.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowTrauPanel(false)}
+              className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
+            >
+              ✕ Đóng
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5 rounded-xl border border-amber-100 bg-amber-50/60 p-3 text-xs">
+            <input
+              type="text"
+              placeholder="Ngày (DD/MM/YYYY)"
+              value={newTrauDate}
+              onChange={(e) => setNewTrauDate(e.target.value)}
+              className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 font-mono"
+            />
+            <input
+              type="text"
+              placeholder="Phương tiện (ÔNG 5...)"
+              value={newTrauVehicle}
+              onChange={(e) => setNewTrauVehicle(e.target.value)}
+              className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 font-bold uppercase"
+            />
+            <input
+              type="number"
+              placeholder="Số lượng (tấn)"
+              value={newTrauQty}
+              onChange={(e) => setNewTrauQty(e.target.value)}
+              className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 font-mono"
+            />
+            <input
+              type="number"
+              placeholder="Đơn giá"
+              value={newTrauPrice}
+              onChange={(e) => setNewTrauPrice(e.target.value)}
+              className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 font-mono"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const qty = parseFloat(newTrauQty) || 0;
+                const price = parseFloat(newTrauPrice) || 27273;
+                if (!newTrauDate.trim() || qty <= 0) return;
+                const newItem: NhapTrauItem = {
+                  id: `trau-${Date.now()}`,
+                  date: newTrauDate.trim(),
+                  doiNhap: workerTab,
+                  phuongTien: newTrauVehicle.trim().toUpperCase() || 'ÔNG 5',
+                  soLuong: qty,
+                  donGia: price,
+                  thanhTien: Math.round(qty * price),
+                };
+                if (workerTab === 'NGUYÊN') {
+                  setTrauNguyen((prev) => [...prev, newItem]);
+                } else {
+                  setTrauNghi((prev) => [...prev, newItem]);
+                }
+                setNewTrauDate('');
+              }}
+              className="rounded-lg bg-amber-600 px-3 py-1.5 font-bold text-white hover:bg-amber-700 cursor-pointer"
+            >
+              + Thêm chuyến trấu
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 font-bold text-slate-700 border-b border-slate-200">
+                <tr>
+                  <th className="px-3 py-2 text-center w-10">STT</th>
+                  <th className="px-3 py-2">Ngày</th>
+                  <th className="px-3 py-2">Đội Nhập</th>
+                  <th className="px-3 py-2">Phương Tiện</th>
+                  <th className="px-3 py-2 text-right">Số Lượng (Tấn)</th>
+                  <th className="px-3 py-2 text-right">Đơn Giá</th>
+                  <th className="px-3 py-2 text-right">Thành Tiền</th>
+                  <th className="px-3 py-2 text-center w-14">Xóa</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(workerTab === 'NGUYÊN' ? trauNguyen : trauNghi).map((t, idx) => (
+                  <tr key={t.id} className="hover:bg-amber-50/30">
+                    <td className="px-3 py-2 text-center text-slate-400 font-mono">{idx + 1}</td>
+                    <td className="px-3 py-2 font-mono">{t.date}</td>
+                    <td className="px-3 py-2 font-bold">{t.doiNhap}</td>
+                    <td className="px-3 py-2 font-bold text-slate-800">{t.phuongTien}</td>
+                    <td className="px-3 py-2 text-right font-mono">{t.soLuong}</td>
+                    <td className="px-3 py-2 text-right font-mono">{formatMoney(t.donGia)}</td>
+                    <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">
+                      {formatMoney(t.thanhTien)} đ
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (workerTab === 'NGUYÊN') {
+                            setTrauNguyen((prev) => prev.filter((x) => x.id !== t.id));
+                          } else {
+                            setTrauNghi((prev) => prev.filter((x) => x.id !== t.id));
+                          }
+                        }}
+                        className="rounded p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
