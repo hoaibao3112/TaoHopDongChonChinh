@@ -6,7 +6,7 @@ export const SESSION_COOKIE_NAME = 'auth_contract_session';
 export const ROLE_COOKIE_NAME = 'auth_user_role';
 export const SESSION_COOKIE_MAX_AGE = 60 * 60 * 12; // 12 giờ
 
-export type UserRole = 'payroll' | 'contracts' | 'admin' | 'husk' | 'baocao' | 'dangtai';
+export type UserRole = 'payroll' | 'contracts' | 'admin' | 'husk' | 'baocao' | 'dangtai' | 'chingoc';
 
 export interface AuthCheckResult {
   isAuthenticated: boolean;
@@ -57,7 +57,7 @@ export function verifySessionToken(token: string): UserRole | null {
     if (hmacBuf.length !== expectedBuf.length) return null;
     if (!timingSafeEqual(hmacBuf, expectedBuf)) return null;
 
-    const validRoles: UserRole[] = ['payroll', 'contracts', 'admin', 'husk', 'baocao', 'dangtai'];
+    const validRoles: UserRole[] = ['payroll', 'contracts', 'admin', 'husk', 'baocao', 'dangtai', 'chingoc'];
     if (!validRoles.includes(role as UserRole)) return null;
     return role as UserRole;
   } catch {
@@ -127,6 +127,14 @@ export function checkPassword(password: string): AuthCheckResult {
       isAuthenticated: true,
       role: 'dangtai',
       redirectUrl: '/dang-tai',
+    };
+  }
+
+  if (safeEqual(clean, 'chingoc')) {
+    return {
+      isAuthenticated: true,
+      role: 'chingoc',
+      redirectUrl: '/bao-cao-nhap-ngay',
     };
   }
 
@@ -222,7 +230,8 @@ export function getRequestUserRole(request: NextRequest): UserRole {
     roleCookie === 'contracts' ||
     roleCookie === 'husk' ||
     roleCookie === 'baocao' ||
-    roleCookie === 'dangtai'
+    roleCookie === 'dangtai' ||
+    roleCookie === 'chingoc'
   ) {
     return roleCookie;
   }
@@ -258,7 +267,8 @@ export async function getServerComponentUserRole(): Promise<UserRole> {
     roleCookie === 'contracts' ||
     roleCookie === 'husk' ||
     roleCookie === 'baocao' ||
-    roleCookie === 'dangtai'
+    roleCookie === 'dangtai' ||
+    roleCookie === 'chingoc'
   ) {
     return roleCookie;
   }

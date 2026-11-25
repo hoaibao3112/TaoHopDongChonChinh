@@ -42,7 +42,12 @@ export function proxy(request: NextRequest): NextResponse {
   // 1. Phân quyền cho Hoài Bảo ('payroll'): Chỉ vào Tính Lương Nông Sản (không vào Báo cáo chưa xay)
   if (role === 'payroll') {
     // Nếu cố vào trang chủ / hoặc các trang contracts hoặc bao-cao-chua-xay -> redirect về /tinh-luong
-    if (pathname === '/' || pathname.startsWith('/contracts') || pathname.startsWith('/bao-cao-chua-xay')) {
+    if (
+      pathname === '/' ||
+      pathname.startsWith('/contracts') ||
+      pathname.startsWith('/bao-cao-chua-xay') ||
+      pathname.startsWith('/bao-cao-nhap-ngay')
+    ) {
       return NextResponse.redirect(new URL('/tinh-luong', request.url));
     }
   }
@@ -56,7 +61,8 @@ export function proxy(request: NextRequest): NextResponse {
       pathname.startsWith('/nhap-say-cs1') ||
       pathname.startsWith('/chum-lo') ||
       pathname.startsWith('/xuat-trau') ||
-      pathname.startsWith('/bao-cao-chua-xay')
+      pathname.startsWith('/bao-cao-chua-xay') ||
+      pathname.startsWith('/bao-cao-nhap-ngay')
     ) {
       return NextResponse.redirect(new URL('/', request.url));
     }
@@ -73,6 +79,13 @@ export function proxy(request: NextRequest): NextResponse {
   if (role === 'baocao') {
     if (!pathname.startsWith('/bao-cao-chua-xay') && !pathname.startsWith('/api/')) {
       return NextResponse.redirect(new URL('/bao-cao-chua-xay', request.url));
+    }
+  }
+
+  // 5. Phân quyền cho Chị Ngọc ('chingoc') với mật khẩu chingoc: Chỉ vào /bao-cao-nhap-ngay
+  if (role === 'chingoc') {
+    if (!pathname.startsWith('/bao-cao-nhap-ngay') && !pathname.startsWith('/api/')) {
+      return NextResponse.redirect(new URL('/bao-cao-nhap-ngay', request.url));
     }
   }
 

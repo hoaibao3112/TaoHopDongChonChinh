@@ -18,7 +18,8 @@ export default function AppHeader() {
         val === 'admin' ||
         val === 'husk' ||
         val === 'baocao' ||
-        val === 'dangtai'
+        val === 'dangtai' ||
+        val === 'chingoc'
       ) {
         return val;
       }
@@ -35,6 +36,7 @@ export default function AppHeader() {
   const isChumLo = pathname.startsWith('/chum-lo');
   const isXuatTrau = pathname.startsWith('/xuat-trau');
   const isBaoCao = pathname.startsWith('/bao-cao-chua-xay');
+  const isBaoCaoNhapNgay = pathname.startsWith('/bao-cao-nhap-ngay');
   const isDangTai = pathname.startsWith('/dang-tai');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -59,6 +61,7 @@ export default function AppHeader() {
   const canAccessPayroll = role === 'payroll' || role === 'admin' || role === null;
   const canAccessHusk = role === 'husk' || role === 'payroll' || role === 'admin' || role === null;
   const canAccessBaoCao = role === 'baocao' || role === 'admin';
+  const canAccessBaoCaoNhapNgay = role === 'chingoc' || role === 'admin';
   const canAccessDangTai = role === 'dangtai' || role === 'admin';
 
   return (
@@ -113,6 +116,13 @@ export default function AppHeader() {
               <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-900 shadow-2xs">
                 <span>📊</span>
                 <span>Báo Cáo Chưa Xay</span>
+              </div>
+            )}
+
+            {role === 'chingoc' && (
+              <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-900 shadow-2xs">
+                <span>📅</span>
+                <span>Báo Cáo Nhập Ngày</span>
               </div>
             )}
 
@@ -299,6 +309,23 @@ export default function AppHeader() {
               <span className="text-sm sm:text-base">🌾</span>
               <span>Báo Cáo Chưa Xay</span>
               <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
+                Mới
+              </span>
+            </Link>
+          )}
+
+          {canAccessBaoCaoNhapNgay && (
+            <Link
+              href="/bao-cao-nhap-ngay"
+              className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
+                isBaoCaoNhapNgay
+                  ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-indigo-500/30 font-black scale-[1.02]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
+              }`}
+            >
+              <span className="text-sm sm:text-base">📅</span>
+              <span>Báo Cáo Nhập Ngày</span>
+              <span className="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
                 Mới
               </span>
             </Link>
