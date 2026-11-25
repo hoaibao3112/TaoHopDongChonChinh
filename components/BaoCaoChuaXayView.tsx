@@ -8,12 +8,23 @@ import {
   parseUngroundKhoExcel,
   parseUngroundTuoiExcel,
 } from '@/lib/rice-payroll/unground-report-parser';
+import {
+  DailyIntakeKhoRow,
+  DailyIntakeTuoiRow,
+  buildDailyIntakeReport,
+  parseDailyIntakeKhoExcel,
+  parseDailyIntakeTuoiExcel,
+  getYesterdayDateStr,
+  formatKgVN,
+} from '@/lib/rice-payroll/daily-intake-report';
 import sampleUngroundData from '@/data/sample-unground-data.json';
 
 const LOCAL_STORAGE_KHO = 'unground_kho_batches_v2';
 const LOCAL_STORAGE_TUOI = 'unground_tuoi_batches_v2';
 const LOCAL_STORAGE_META = 'unground_file_meta_v2';
 const LOCAL_STORAGE_LOSS = 'unground_custom_loss_v2';
+const LOCAL_STORAGE_DAILY_KHO = 'daily_intake_kho_v1';
+const LOCAL_STORAGE_DAILY_TUOI = 'daily_intake_tuoi_v1';
 
 function formatMoney(num: number): string {
   return new Intl.NumberFormat('vi-VN').format(Math.round(num));
@@ -50,6 +61,10 @@ export default function BaoCaoChuaXayView() {
   // Dữ liệu mẻ
   const [khoBatches, setKhoBatches] = useState<UngroundKhoBatch[]>([]);
   const [tuoiBatches, setTuoiBatches] = useState<UngroundTuoiBatch[]>([]);
+  const [dailyKhoRows, setDailyKhoRows] = useState<DailyIntakeKhoRow[]>([]);
+  const [dailyTuoiRows, setDailyTuoiRows] = useState<DailyIntakeTuoiRow[]>([]);
+  const [dailyDate, setDailyDate] = useState<string>(() => getYesterdayDateStr());
+  const [copiedDaily, setCopiedDaily] = useState(false);
 
   // Metadata file server / local
   const [fileMeta, setFileMeta] = useState<FileMeta | null>(null);
@@ -74,7 +89,7 @@ export default function BaoCaoChuaXayView() {
     const y = today.getFullYear();
     return `${m}/${y}`;
   });
-  const [activeTab, setActiveTab] = useState<'SUMMARY' | 'KHO' | 'TUOI' | 'UPLOAD'>('SUMMARY');
+  const [activeTab, setActiveTab] = useState<'SUMMARY' | 'DAILY_INTAKE' | 'KHO' | 'TUOI' | 'UPLOAD'>('SUMMARY');
 
   // Bản đồ tùy chỉnh % hao hụt cho từng loại lúa
   const [customLossMap, setCustomLossMap] = useState<Record<string, number>>({});
@@ -114,6 +129,37 @@ export default function BaoCaoChuaXayView() {
         }
       } catch (e) {
         console.warn('Không thể đọc từ localStorage:', e);
+      }
+
+      let loadedDailyFromLocal = false;
+      try {
+        const rawDailyKho = localStorage.getItem(LOCAL_STORAGE_DAILY_KHO);
+        const rawDailyTuoi = localStorage.getItem(LOCAL_STORAGE_DAILY_TUOI);
+        if (rawDailyKho && rawDailyTuoi) {
+          const pk = JSON.parse(rawDailyKho);
+          const pt = JSON.parse(rawDailyTuoi);
+          if (Array.isArray(pk) && Array.isArray(pt) && (pk.length > 0 || pt.length > 0)) {
+            setDailyKhoRows(pk);
+            setDailyTuoiRows(pt);
+            loadedDailyFromLocal = true;
+          }
+        }
+      } catch {}
+
+      if (!loadedDailyFromLocal) {
+        fetch('/api/rice-payroll/daily-intake-report')
+          .then((res) => res.json())
+          .then((json) => {
+            if (Array.isArray(json.khoRows)) {
+              setDailyKhoRows(json.khoRows);
+              try { localStorage.setItem(LOCAL_STORAGE_DAILY_KHO, JSON.stringify(json.khoRows)); } catch {}
+            }
+            if (Array.isArray(json.tuoiRows)) {
+              setDailyTuoiRows(json.tuoiRows);
+              try { localStorage.setItem(LOCAL_STORAGE_DAILY_TUOI, JSON.stringify(json.tuoiRows)); } catch {}
+            }
+          })
+          .catch(() => {});
       }
 
       // Nếu LocalStorage chưa có dữ liệu -> nạp từ Server API hoặc Fallback tĩnh
@@ -183,17 +229,45 @@ export default function BaoCaoChuaXayView() {
     });
   }, [tuoiBatches, selectedMonth]);
 
-  // Tính toán báo cáo
+  // Tính toán báo cáo chưa xay
   const report = useMemo(() => {
     return buildUngroundReport(khoBatches, filteredTuoiBatches, reportDate, customLossMap);
   }, [khoBatches, filteredTuoiBatches, reportDate, customLossMap]);
 
-  // Sao chép báo cáo Zalo
+  // Danh sách ngày cân có trong dữ liệu 2 file (mới nhất lên đầu)
+  const availableDailyDates = useMemo(() => {
+    const dateSet = new Set<string>();
+    dailyKhoRows.forEach((r) => r.ngayCan && dateSet.add(r.ngayCan));
+    dailyTuoiRows.forEach((r) => r.ngayCan && dateSet.add(r.ngayCan));
+    return Array.from(dateSet).sort((a, b) => {
+      const [da, ma, ya] = a.split('/').map(Number);
+      const [db, mb, yb] = b.split('/').map(Number);
+      return Date.UTC(yb || 0, (mb || 1) - 1, db || 1) - Date.UTC(ya || 0, (ma || 1) - 1, da || 1);
+    });
+  }, [dailyKhoRows, dailyTuoiRows]);
+
+  // Tính toán Báo cáo Nhập Ngày (Lúa Tươi & Lúa Khô)
+  const dailyReport = useMemo(() => {
+    return buildDailyIntakeReport(dailyKhoRows, dailyTuoiRows, dailyDate);
+  }, [dailyKhoRows, dailyTuoiRows, dailyDate]);
+
+  // Sao chép báo cáo Zalo (Chưa xay)
   const handleCopyZalo = async () => {
     try {
       await navigator.clipboard.writeText(report.zaloText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
+    } catch {
+      alert('Không thể sao chép tự động, vui lòng chọn văn bản và sao chép thủ công.');
+    }
+  };
+
+  // Sao chép báo cáo Zalo (Nhập ngày)
+  const handleCopyDailyZalo = async () => {
+    try {
+      await navigator.clipboard.writeText(dailyReport.zaloText);
+      setCopiedDaily(true);
+      setTimeout(() => setCopiedDaily(false), 2500);
     } catch {
       alert('Không thể sao chép tự động, vui lòng chọn văn bản và sao chép thủ công.');
     }
@@ -225,6 +299,8 @@ export default function BaoCaoChuaXayView() {
       localStorage.removeItem(LOCAL_STORAGE_TUOI);
       localStorage.removeItem(LOCAL_STORAGE_META);
       localStorage.removeItem(LOCAL_STORAGE_LOSS);
+      localStorage.removeItem(LOCAL_STORAGE_DAILY_KHO);
+      localStorage.removeItem(LOCAL_STORAGE_DAILY_TUOI);
     } catch {}
     setKhoBatches(sampleUngroundData.kho as UngroundKhoBatch[]);
     setTuoiBatches(sampleUngroundData.tuoi as UngroundTuoiBatch[]);
@@ -244,11 +320,13 @@ export default function BaoCaoChuaXayView() {
       // 1. Đọc và parse TRỰC TIẾP ngay tại trình duyệt (cực nhanh, không sợ lỗi mạng)
       const buf = await file.arrayBuffer();
       const batches = parseUngroundKhoExcel(buf);
-      if (batches.length === 0) {
-        throw new Error('Không tìm thấy mẻ lúa khô nào có trạng thái chưa xay (cột Ngày xay trống). Vui lòng kiểm tra lại file!');
+      const dailyRows = parseDailyIntakeKhoExcel(buf);
+      if (batches.length === 0 && dailyRows.length === 0) {
+        throw new Error('Không tìm thấy mẻ lúa khô nào hợp lệ. Vui lòng kiểm tra lại file!');
       }
 
       setKhoBatches(batches);
+      setDailyKhoRows(dailyRows);
       const newMeta: FileMeta = {
         ...(fileMeta || { kho: null, tuoi: null }),
         kho: { name: file.name, updatedAt: new Date().toISOString() },
@@ -260,6 +338,7 @@ export default function BaoCaoChuaXayView() {
       // 2. Lưu VĨNH VIỄN vào LocalStorage của trình duyệt (mở máy ngày hôm sau vẫn còn)
       try {
         localStorage.setItem(LOCAL_STORAGE_KHO, JSON.stringify(batches));
+        localStorage.setItem(LOCAL_STORAGE_DAILY_KHO, JSON.stringify(dailyRows));
         localStorage.setItem(LOCAL_STORAGE_META, JSON.stringify(newMeta));
       } catch (stErr) {
         console.warn('Lỗi ghi LocalStorage:', stErr);
@@ -294,11 +373,13 @@ export default function BaoCaoChuaXayView() {
       // 1. Đọc và parse TRỰC TIẾP ngay tại trình duyệt
       const buf = await file.arrayBuffer();
       const batches = parseUngroundTuoiExcel(buf);
-      if (batches.length === 0) {
-        throw new Error('Không tìm thấy mẻ lúa tươi nào chưa xay (cột Máy 1, Máy 2, NSX trống). Vui lòng kiểm tra lại file!');
+      const dailyRows = parseDailyIntakeTuoiExcel(buf);
+      if (batches.length === 0 && dailyRows.length === 0) {
+        throw new Error('Không tìm thấy mẻ lúa tươi nào hợp lệ. Vui lòng kiểm tra lại file!');
       }
 
       setTuoiBatches(batches);
+      setDailyTuoiRows(dailyRows);
       const newMeta: FileMeta = {
         ...(fileMeta || { kho: null, tuoi: null }),
         tuoi: { name: file.name, updatedAt: new Date().toISOString() },
@@ -310,6 +391,7 @@ export default function BaoCaoChuaXayView() {
       // 2. Lưu VĨNH VIỄN vào LocalStorage của trình duyệt
       try {
         localStorage.setItem(LOCAL_STORAGE_TUOI, JSON.stringify(batches));
+        localStorage.setItem(LOCAL_STORAGE_DAILY_TUOI, JSON.stringify(dailyRows));
         localStorage.setItem(LOCAL_STORAGE_META, JSON.stringify(newMeta));
       } catch (stErr) {
         console.warn('Lỗi ghi LocalStorage:', stErr);
@@ -593,7 +675,7 @@ export default function BaoCaoChuaXayView() {
       </div>
 
       {/* ─── Navigation Sub-Tabs ────────────────────────────────────────── */}
-      <div className="flex border-b border-slate-200 gap-2">
+      <div className="flex flex-wrap border-b border-slate-200 gap-2">
         <button
           onClick={() => setActiveTab('SUMMARY')}
           className={`py-2.5 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer ${
@@ -603,6 +685,16 @@ export default function BaoCaoChuaXayView() {
           }`}
         >
           📊 Bảng Tổng Hợp &amp; Tùy Chỉnh KCS
+        </button>
+        <button
+          onClick={() => setActiveTab('DAILY_INTAKE')}
+          className={`py-2.5 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'DAILY_INTAKE'
+              ? 'border-indigo-600 text-indigo-800 bg-indigo-50/50 rounded-t-lg'
+              : 'border-transparent text-slate-600 hover:text-indigo-800'
+          }`}
+        >
+          📅 Báo Cáo Nhập Ngày (Tươi &amp; Khô)
         </button>
         <button
           onClick={() => setActiveTab('KHO')}
@@ -635,6 +727,183 @@ export default function BaoCaoChuaXayView() {
           📁 Nạp File Mới
         </button>
       </div>
+
+      {/* ─── TAB MỚI: BÁO CÁO LÚA TƯƠI & LÚA KHÔ NHẬP NGÀY ───────────────── */}
+      {activeTab === 'DAILY_INTAKE' && (
+        <div className="space-y-5">
+          {/* Thanh chọn ngày báo cáo */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-indigo-950 whitespace-nowrap">
+                  📅 Ngày nhập lúa báo cáo:
+                </label>
+                <input
+                  type="text"
+                  value={dailyDate}
+                  onChange={(e) => setDailyDate(e.target.value)}
+                  placeholder="DD/MM/YYYY"
+                  className="w-32 rounded-lg border border-indigo-300 px-3 py-1.5 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:outline-none bg-white"
+                />
+              </div>
+
+              {availableDailyDates.length > 0 && (
+                <select
+                  value={availableDailyDates.includes(dailyDate) ? dailyDate : ''}
+                  onChange={(e) => e.target.value && setDailyDate(e.target.value)}
+                  className="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="">-- Chọn ngày có trong file --</option>
+                  {availableDailyDates.slice(0, 30).map((d) => (
+                    <option key={d} value={d}>
+                      Ngày {d}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setDailyDate(getYesterdayDateStr())}
+                className="rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 transition cursor-pointer"
+              >
+                ⏪ Lùi 1 ngày (Hôm qua)
+              </button>
+            </div>
+
+            <div className="text-xs text-indigo-700 font-semibold">
+              Tổng dòng dữ liệu: {dailyTuoiRows.length} tươi + {dailyKhoRows.length} khô
+            </div>
+          </div>
+
+          {/* 4 Thẻ KPI Nhập Ngày */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+                Tổng Lượng Ngày {dailyReport.reportDate}
+              </span>
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-2xl font-black text-indigo-900">
+                  {formatKgVN(dailyReport.totalKg)}
+                </span>
+                <span className="text-xs font-bold text-indigo-700">kg</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                Nhận Theo Hợp Đồng
+              </span>
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-2xl font-bold text-emerald-800">
+                  {formatKgVN(dailyReport.contractKg)}
+                </span>
+                <span className="text-xs font-bold text-emerald-600">kg</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                Nhận Ngoài Hợp Đồng (&apos;00)
+              </span>
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-2xl font-bold text-amber-800">
+                  {formatKgVN(dailyReport.outsideContractKg)}
+                </span>
+                <span className="text-xs font-bold text-amber-600">kg</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">
+                PT Lúa Khô Chưa Về (Chờ TT)
+              </span>
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-2xl font-black text-rose-700">
+                  {String(dailyReport.pendingVehicles.count).padStart(2, '0')}
+                </span>
+                <span className="text-xs font-bold text-rose-600">phương tiện</span>
+              </div>
+              {dailyReport.pendingVehicles.minDate && (
+                <div className="mt-1 text-[11px] text-rose-600">
+                  {dailyReport.pendingVehicles.minDate} - {dailyReport.pendingVehicles.maxDate}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Khung văn bản Zalo Báo Cáo Nhập Ngày */}
+          <div className="rounded-3xl border-2 border-indigo-400 bg-gradient-to-br from-indigo-50/70 via-blue-50/40 to-white p-6 shadow-md space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-200/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-white text-base">
+                  💬
+                </span>
+                <div>
+                  <h2 className="text-sm font-black uppercase tracking-wider text-indigo-950">
+                    Báo Cáo Lúa Tươi &amp; Lúa Khô Nhập Ngày (Gửi Zalo 1 Click)
+                  </h2>
+                  <p className="text-[11px] text-indigo-700">
+                    Tự động cộng 2 file, phân loại HĐ / ngoài HĐ, cơ sở sấy và đếm PT chưa về chờ TT
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCopyDailyZalo}
+                className={`rounded-xl px-5 py-2.5 text-xs font-black shadow-md transition-all flex items-center gap-2 cursor-pointer ${
+                  copiedDaily
+                    ? 'bg-emerald-600 text-white ring-2 ring-emerald-400 scale-105'
+                    : 'bg-indigo-700 hover:bg-indigo-800 text-white active:scale-95'
+                }`}
+              >
+                <span>{copiedDaily ? '✓' : '📋'}</span>
+                <span>{copiedDaily ? 'Đã Sao Chép!' : 'Sao Chép Báo Cáo Nhập Ngày'}</span>
+              </button>
+            </div>
+
+            <div className="relative rounded-2xl border border-indigo-300 bg-white p-5 font-mono text-xs sm:text-sm text-slate-800 shadow-inner whitespace-pre-line leading-relaxed">
+              {dailyReport.zaloText}
+            </div>
+          </div>
+
+          {/* Chi tiết phương tiện chưa về chờ TT */}
+          {dailyReport.pendingVehicles.vehicles.length > 0 && (
+            <div className="overflow-hidden rounded-2xl border border-rose-200 bg-white shadow-sm">
+              <div className="border-b border-rose-100 bg-rose-50/60 px-5 py-3 flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-rose-900">
+                  🚢 Chi Tiết Các Dòng Phương Tiện Lúa Khô Chưa Về, Chờ Thanh Toán ({dailyReport.pendingVehicles.count} PT)
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-700 font-bold">
+                      <th className="px-4 py-2.5">Ngày Cân</th>
+                      <th className="px-4 py-2.5">Phương Tiện</th>
+                      <th className="px-4 py-2.5">Loại Lúa</th>
+                      <th className="px-4 py-2.5 text-right">Số Lượng (kg)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {dailyReport.pendingVehicles.vehicles.map((v, idx) => (
+                      <tr key={idx} className="hover:bg-rose-50/30">
+                        <td className="px-4 py-2 font-mono text-slate-700">{v.ngayCan}</td>
+                        <td className="px-4 py-2 font-bold text-slate-900">{v.phuongTien}</td>
+                        <td className="px-4 py-2 text-slate-700">{v.loaiLua}</td>
+                        <td className="px-4 py-2 text-right font-mono font-semibold text-slate-800">
+                          {formatKgVN(v.slKg)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ─── TAB 1: BẢNG TỔNG HỢP & TÙY CHỈNH KCS ───────────────────────── */}
       {activeTab === 'SUMMARY' && (
