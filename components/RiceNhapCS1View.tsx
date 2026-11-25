@@ -81,8 +81,123 @@ export default function RiceNhapCS1View() {
   const [showTrauPanel, setShowTrauPanel] = useState(false);
   const [newTrauDate, setNewTrauDate] = useState('');
   const [newTrauVehicle, setNewTrauVehicle] = useState('ÔNG 5');
-  const [newTrauQty, setNewTrauQty] = useState('11');
+  const [newTrauQty, setNewTrauQty] = useState('');
   const [newTrauPrice, setNewTrauPrice] = useState('27273');
+  const [newTrauMoney, setNewTrauMoney] = useState('');
+  const [editingTrauId, setEditingTrauId] = useState<string | null>(null);
+
+  const computeTrauMoney = (vehicle: string, tonsNum: number, priceNum: number): number => {
+    if (isNaN(tonsNum) || tonsNum <= 0) return 0;
+    const isOng5 = (vehicle || '').toUpperCase().includes('ÔNG 5');
+    if (isOng5) {
+      if (Math.abs(tonsNum - 11) < 0.01) return 300000;
+      if (Math.abs(tonsNum - 22) < 0.01) return 600000;
+      return Math.round((tonsNum * (priceNum || 27273)) / 1000) * 1000;
+    }
+    return Math.round((tonsNum * (priceNum || 27000)) / 1000) * 1000;
+  };
+
+  const handleTrauTonsChange = (val: string) => {
+    setNewTrauQty(val);
+    const tons = parseFloat(val);
+    const isOng5 = newTrauVehicle.toUpperCase().includes('ÔNG 5');
+    const price = parseInt(newTrauPrice.replace(/\D/g, ''), 10) || (isOng5 ? 27273 : 27000);
+    if (!isNaN(tons) && tons > 0) {
+      const money = computeTrauMoney(newTrauVehicle, tons, price);
+      setNewTrauMoney(money > 0 ? String(money) : '');
+    } else {
+      setNewTrauMoney('');
+    }
+  };
+
+  const handleTrauPriceChange = (val: string) => {
+    setNewTrauPrice(val);
+    const price = parseInt(val.replace(/\D/g, ''), 10) || 0;
+    const tons = parseFloat(newTrauQty);
+    if (!isNaN(tons) && tons > 0 && price > 0) {
+      const money = Math.round((tons * price) / 1000) * 1000;
+      setNewTrauMoney(money > 0 ? String(money) : '');
+    }
+  };
+
+  const handleSelectTrauPreset = (vehicle: string, tons: number, price: number, money: number) => {
+    setNewTrauVehicle(vehicle);
+    setNewTrauQty(String(tons));
+    setNewTrauPrice(String(price));
+    setNewTrauMoney(String(money));
+  };
+
+  const handleStartEditTrau = (item: NhapTrauItem) => {
+    setEditingTrauId(item.id);
+    setNewTrauDate(item.date);
+    setNewTrauVehicle(item.phuongTien);
+    setNewTrauQty(String(item.soLuong));
+    const isOng5 = (item.phuongTien || '').toUpperCase().includes('ÔNG 5');
+    const defaultDonGia = isOng5 ? 27273 : (item.donGia || 27000);
+    setNewTrauPrice(String(defaultDonGia));
+    setNewTrauMoney(String(item.thanhTien));
+  };
+
+  const handleCancelEditTrau = () => {
+    setEditingTrauId(null);
+    setNewTrauDate('');
+    setNewTrauVehicle('ÔNG 5');
+    setNewTrauQty('');
+    setNewTrauPrice('27273');
+    setNewTrauMoney('');
+  };
+
+  const handleSaveTrauItem = () => {
+    const tons = parseFloat(newTrauQty);
+    const vehicle = newTrauVehicle.trim().toUpperCase() || 'ÔNG 5';
+    const isOng5 = vehicle.includes('ÔNG 5');
+    const price = parseInt(newTrauPrice.replace(/\D/g, ''), 10) || (isOng5 ? 27273 : 27000);
+    const manualMoney = parseInt(newTrauMoney.replace(/\D/g, ''), 10);
+    if (!newTrauDate.trim() || isNaN(tons) || tons <= 0) return;
+
+    const thanhTien =
+      !isNaN(manualMoney) && manualMoney > 0
+        ? manualMoney
+        : computeTrauMoney(vehicle, tons, price);
+
+    const calculatedPrice = isOng5
+      ? 27273
+      : (price > 0 ? price : (tons > 0 ? Math.round(thanhTien / tons) : 27000));
+
+    const setter = workerTab === 'NGUYÊN' ? setTrauNguyen : setTrauNghi;
+
+    if (editingTrauId) {
+      setter((prev) =>
+        prev.map((t) =>
+          t.id === editingTrauId
+            ? {
+                ...t,
+                date: newTrauDate.trim(),
+                phuongTien: vehicle,
+                soLuong: tons,
+                donGia: calculatedPrice,
+                thanhTien,
+              }
+            : t
+        )
+      );
+      setEditingTrauId(null);
+    } else {
+      const newItem: NhapTrauItem = {
+        id: `trau-${Date.now()}`,
+        date: newTrauDate.trim(),
+        doiNhap: workerTab,
+        phuongTien: vehicle,
+        soLuong: tons,
+        donGia: calculatedPrice,
+        thanhTien,
+      };
+      setter((prev) => [...prev, newItem]);
+    }
+    setNewTrauDate('');
+    setNewTrauQty('');
+    setNewTrauMoney('');
+  };
 
   // ── State: Nước đá thủ công (nếu muốn chỉnh) ────────────────────────────
   const [waterDaysCustom, setWaterDaysCustom] = useState<{ NGHI?: number; NGUYEN?: number }>({});
@@ -1803,132 +1918,227 @@ export default function RiceNhapCS1View() {
         </div>
       )}
 
-      {/* ─── Bảng Chi Tiết Nhập Trấu CS1 (Đội Nghị & Đội Nguyên) ───────────── */}
+      {/* ─── Bảng Chi Tiết Nhập Trấu CS1 (Đội Nghị & Đội Nguyên - Giống CS2) ── */}
       {selectedMonthKey && showTrauPanel && (
-        <div className="rounded-2xl border-2 border-amber-300 bg-white p-5 shadow-md space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 pb-3">
+        <div className="rounded-2xl border-2 border-yellow-300 bg-white p-5 shadow-md space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-yellow-100 pb-3">
             <div>
               <h3 className="text-sm font-black uppercase tracking-wider text-amber-950 flex items-center gap-2">
                 <span>🌾</span>
                 <span>
-                  Bảng Nhập Trấu CS1 — {workerTab === 'NGUYÊN' ? 'Đội Anh Nguyên' : 'Đội Anh Nghị'}
+                  Quản Lý Nhập Trấu CS1 — {workerTab === 'NGUYÊN' ? 'Đội Anh Nguyên' : 'Đội Anh Nghị'}
                 </span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Thêm hoặc xóa chuyến trấu của Đội {workerTab === 'NGUYÊN' ? 'Nguyên' : 'Nghị'} để tự động cộng vào tổng tiền lương &amp; xuất Excel sheet Nhập Trấu.
+                Xe <strong>Ông 5</strong> mặc định <strong>27.273đ/tấn</strong> (11t = 300k · 22t = 600k), ghe/xe ngoài mặc định <strong>27.000đ/tấn</strong>. Tự động cộng vào lương &amp; xuất sheet Nhập Trấu.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowTrauPanel(false)}
-              className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
-            >
-              ✕ Đóng
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => { setWorkerTab('NGHỊ'); handleCancelEditTrau(); }}
+                  className={`rounded-lg px-3 py-1 text-xs font-bold cursor-pointer ${
+                    workerTab === 'NGHỊ' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600'
+                  }`}
+                >
+                  Đội Nghị ({trauNghi.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setWorkerTab('NGUYÊN'); handleCancelEditTrau(); }}
+                  className={`rounded-lg px-3 py-1 text-xs font-bold cursor-pointer ${
+                    workerTab === 'NGUYÊN' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600'
+                  }`}
+                >
+                  Đội Nguyên ({trauNguyen.length})
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTrauPanel(false)}
+                className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
+              >
+                ✕ Đóng
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5 rounded-xl border border-amber-100 bg-amber-50/60 p-3 text-xs">
-            <input
-              type="text"
-              placeholder="Ngày (DD/MM/YYYY)"
-              value={newTrauDate}
-              onChange={(e) => setNewTrauDate(e.target.value)}
-              className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 font-mono"
-            />
-            <input
-              type="text"
-              placeholder="Phương tiện (ÔNG 5...)"
-              value={newTrauVehicle}
-              onChange={(e) => setNewTrauVehicle(e.target.value)}
-              className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 font-bold uppercase"
-            />
-            <input
-              type="number"
-              placeholder="Số lượng (tấn)"
-              value={newTrauQty}
-              onChange={(e) => setNewTrauQty(e.target.value)}
-              className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 font-mono"
-            />
-            <input
-              type="number"
-              placeholder="Đơn giá"
-              value={newTrauPrice}
-              onChange={(e) => setNewTrauPrice(e.target.value)}
-              className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 font-mono"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                const qty = parseFloat(newTrauQty) || 0;
-                const price = parseFloat(newTrauPrice) || 27273;
-                if (!newTrauDate.trim() || qty <= 0) return;
-                const newItem: NhapTrauItem = {
-                  id: `trau-${Date.now()}`,
-                  date: newTrauDate.trim(),
-                  doiNhap: workerTab,
-                  phuongTien: newTrauVehicle.trim().toUpperCase() || 'ÔNG 5',
-                  soLuong: qty,
-                  donGia: price,
-                  thanhTien: Math.round(qty * price),
-                };
-                if (workerTab === 'NGUYÊN') {
-                  setTrauNguyen((prev) => [...prev, newItem]);
-                } else {
-                  setTrauNghi((prev) => [...prev, newItem]);
-                }
-                setNewTrauDate('');
-              }}
-              className="rounded-lg bg-amber-600 px-3 py-1.5 font-bold text-white hover:bg-amber-700 cursor-pointer"
-            >
-              + Thêm chuyến trấu
-            </button>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 font-bold text-slate-700 border-b border-slate-200">
-                <tr>
-                  <th className="px-3 py-2 text-center w-10">STT</th>
-                  <th className="px-3 py-2">Ngày</th>
-                  <th className="px-3 py-2">Đội Nhập</th>
-                  <th className="px-3 py-2">Phương Tiện</th>
-                  <th className="px-3 py-2 text-right">Số Lượng (Tấn)</th>
-                  <th className="px-3 py-2 text-right">Đơn Giá</th>
-                  <th className="px-3 py-2 text-right">Thành Tiền</th>
-                  <th className="px-3 py-2 text-center w-14">Xóa</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {(workerTab === 'NGUYÊN' ? trauNguyen : trauNghi).map((t, idx) => (
-                  <tr key={t.id} className="hover:bg-amber-50/30">
-                    <td className="px-3 py-2 text-center text-slate-400 font-mono">{idx + 1}</td>
-                    <td className="px-3 py-2 font-mono">{t.date}</td>
-                    <td className="px-3 py-2 font-bold">{t.doiNhap}</td>
-                    <td className="px-3 py-2 font-bold text-slate-800">{t.phuongTien}</td>
-                    <td className="px-3 py-2 text-right font-mono">{t.soLuong}</td>
-                    <td className="px-3 py-2 text-right font-mono">{formatMoney(t.donGia)}</td>
-                    <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">
-                      {formatMoney(t.thanhTien)} đ
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (workerTab === 'NGUYÊN') {
-                            setTrauNguyen((prev) => prev.filter((x) => x.id !== t.id));
-                          } else {
-                            setTrauNghi((prev) => prev.filter((x) => x.id !== t.id));
-                          }
-                        }}
-                        className="rounded p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
+          {/* Danh sách chuyến trấu */}
+          <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+            {(workerTab === 'NGUYÊN' ? trauNguyen : trauNghi).map((t) => {
+              const isOng5 = (t.phuongTien || '').toUpperCase().includes('ÔNG 5');
+              return (
+                <div
+                  key={t.id}
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-yellow-50/50 border border-yellow-200 text-xs"
+                >
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-slate-800">{t.phuongTien}</span>
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          isOng5 ? 'bg-amber-100 text-amber-800' : 'bg-teal-100 text-teal-800'
+                        }`}
                       >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        {isOng5 ? 'Xe Ông 5 (27.273đ)' : `Ghe ngoài (${formatMoney(t.donGia)}đ)`}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      📅 {t.date} · ⚖️ <strong className="text-slate-700">{t.soLuong} tấn</strong> · Đơn giá:{' '}
+                      <strong className="text-amber-900">{formatMoney(t.donGia)}đ</strong>/tấn
+                    </div>
+                  </div>
+                  <div className="text-right flex items-center gap-2">
+                    <span className="font-extrabold text-amber-900">{formatMoney(t.thanhTien)}đ</span>
+                    <button
+                      type="button"
+                      onClick={() => handleStartEditTrau(t)}
+                      className="px-2 py-1 rounded bg-amber-100 text-amber-800 text-[11px] font-bold cursor-pointer hover:bg-amber-200"
+                    >
+                      Sửa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (workerTab === 'NGUYÊN') {
+                          setTrauNguyen((prev) => prev.filter((x) => x.id !== t.id));
+                        } else {
+                          setTrauNghi((prev) => prev.filter((x) => x.id !== t.id));
+                        }
+                      }}
+                      className="px-2 py-1 rounded bg-rose-100 text-rose-700 text-[11px] font-bold cursor-pointer hover:bg-rose-200"
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Nút chọn nhanh mẫu xe/ghe trấu (giống CS2) */}
+          <div className="pt-2 border-t border-yellow-200 space-y-1.5">
+            <span className="text-[11px] font-bold text-slate-600 block">⚡ Điền nhanh chuyến trấu:</span>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleSelectTrauPreset('ÔNG 5', 11, 27273, 300000)}
+                className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold border border-amber-300 transition-colors cursor-pointer"
+              >
+                🚐 Nửa xe Ông 5 (11t = 300k · 27.273đ)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectTrauPreset('ÔNG 5', 22, 27273, 600000)}
+                className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold border border-amber-300 transition-colors cursor-pointer"
+              >
+                🚛 Nguyên xe Ông 5 (22t = 600k · 27.273đ)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectTrauPreset('TÀU ĐÔ 49', 19, 27000, 513000)}
+                className="px-2.5 py-1 rounded-lg bg-teal-100 hover:bg-teal-200 text-teal-900 text-[11px] font-bold border border-teal-300 transition-colors cursor-pointer"
+              >
+                🚤 Tàu Đô 49 (19t = 513k · 27.000đ)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectTrauPreset('GHE NGOÀI', 20, 27000, 540000)}
+                className="px-2.5 py-1 rounded-lg bg-teal-100 hover:bg-teal-200 text-teal-900 text-[11px] font-bold border border-teal-300 transition-colors cursor-pointer"
+              >
+                🚤 Ghe ngoài (20t = 540k · 27.000đ)
+              </button>
+            </div>
+          </div>
+
+          {/* Form thêm / sửa chuyến trấu */}
+          <div className="pt-2 border-t border-yellow-200 space-y-2.5 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Ngày nhập:</label>
+                <input
+                  type="text"
+                  placeholder="dd/mm/yyyy"
+                  value={newTrauDate}
+                  onChange={(e) => setNewTrauDate(e.target.value)}
+                  className="w-full rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Xe / Ghe:</label>
+                <input
+                  type="text"
+                  placeholder="vd: ÔNG 5"
+                  value={newTrauVehicle}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setNewTrauVehicle(val);
+                    const isO5 = val.toUpperCase().includes('ÔNG 5');
+                    const p = isO5 ? 27273 : 27000;
+                    setNewTrauPrice(String(p));
+                    const tons = parseFloat(newTrauQty);
+                    if (!isNaN(tons) && tons > 0) {
+                      const m = computeTrauMoney(val, tons, p);
+                      setNewTrauMoney(m > 0 ? String(m) : '');
+                    }
+                  }}
+                  className="w-full rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs font-bold uppercase"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Số lượng (tấn):</label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="vd: 11 hoặc 20"
+                  value={newTrauQty}
+                  onChange={(e) => handleTrauTonsChange(e.target.value)}
+                  className="w-full rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs font-black text-amber-800 text-right"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Đơn giá (đ/tấn):</label>
+                <input
+                  type="number"
+                  step={500}
+                  placeholder="vd: 27273 hoặc 27000"
+                  value={newTrauPrice}
+                  onChange={(e) => handleTrauPriceChange(e.target.value)}
+                  className="w-full rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs font-bold text-slate-800 text-right"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="flex-1 min-w-[200px] flex items-center gap-1.5">
+                <label className="text-[11px] font-bold text-slate-600 whitespace-nowrap">Thành tiền:</label>
+                <input
+                  type="text"
+                  placeholder="Thành tiền VNĐ"
+                  value={newTrauMoney ? parseInt(newTrauMoney, 10).toLocaleString('vi-VN') : ''}
+                  onChange={(e) => setNewTrauMoney(e.target.value.replace(/\D/g, ''))}
+                  className="flex-1 rounded-lg border border-amber-200 bg-amber-50/50 px-2.5 py-1.5 text-xs font-black text-amber-900"
+                />
+                <span className="text-xs text-slate-500 font-bold">đ</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveTrauItem}
+                disabled={!newTrauDate.trim() || !newTrauQty}
+                className="rounded-lg bg-amber-600 px-4 py-1.5 font-bold text-xs text-white hover:bg-amber-700 disabled:opacity-40 cursor-pointer shadow-2xs"
+              >
+                {editingTrauId ? '✓ Lưu sửa' : '+ Thêm chuyến'}
+              </button>
+              {editingTrauId && (
+                <button
+                  type="button"
+                  onClick={handleCancelEditTrau}
+                  className="rounded-lg bg-slate-200 px-3 py-1.5 font-bold text-xs text-slate-700 hover:bg-slate-300 cursor-pointer"
+                >
+                  Hủy
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
