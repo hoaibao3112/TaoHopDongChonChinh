@@ -38,6 +38,7 @@ export default function AppHeader() {
   const isBaoCao = pathname.startsWith('/bao-cao-chua-xay');
   const isBaoCaoNhapNgay = pathname.startsWith('/bao-cao-nhap-ngay');
   const isDangTai = pathname.startsWith('/dang-tai');
+  const isThongKeLua = pathname.startsWith('/thong-ke-lua');
   const isAdminMatKhau = pathname.startsWith('/admin-mat-khau');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -64,6 +65,8 @@ export default function AppHeader() {
   const canAccessBaoCao = role === 'baocao' || role === 'admin';
   const canAccessBaoCaoNhapNgay = role === 'chingoc' || role === 'admin';
   const canAccessDangTai = role === 'dangtai' || role === 'admin';
+  const canAccessThongKeLua =
+    role === 'admin' || role === 'payroll' || role === 'baocao' || role === 'contracts' || role === null;
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur-md transition-all shadow-xs">
@@ -359,6 +362,23 @@ export default function AppHeader() {
               <span className="text-sm sm:text-base">🚛</span>
               <span>Đăng Tài Xe</span>
               <span className="rounded-full bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
+                Mới
+              </span>
+            </Link>
+          )}
+
+          {canAccessThongKeLua && (
+            <Link
+              href="/thong-ke-lua"
+              className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
+                isThongKeLua
+                  ? 'bg-white text-emerald-700 shadow-sm ring-2 ring-emerald-500/30 font-black scale-[1.02]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
+              }`}
+            >
+              <span className="text-sm sm:text-base">📊</span>
+              <span>Thống Kê Lúa Tháng</span>
+              <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
                 Mới
               </span>
             </Link>

@@ -78,9 +78,13 @@ export function proxy(request: NextRequest): NextResponse {
     }
   }
 
-  // 4. Phân quyền cho Báo Cáo ('baocao') với mật khẩu baocao: Chỉ vào /bao-cao-chua-xay
+  // 4. Phân quyền cho Báo Cáo ('baocao') với mật khẩu baocao: Chỉ vào /bao-cao-chua-xay và /thong-ke-lua
   if (role === 'baocao') {
-    if (!pathname.startsWith('/bao-cao-chua-xay') && !pathname.startsWith('/api/')) {
+    if (
+      !pathname.startsWith('/bao-cao-chua-xay') &&
+      !pathname.startsWith('/thong-ke-lua') &&
+      !pathname.startsWith('/api/')
+    ) {
       return NextResponse.redirect(new URL('/bao-cao-chua-xay', request.url));
     }
   }
