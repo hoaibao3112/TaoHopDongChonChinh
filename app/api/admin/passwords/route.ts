@@ -13,8 +13,6 @@ import {
   saveRolePasswords,
   ConfigurableRoleKey,
 } from '@/lib/passwordStore';
-import { tr } from 'zod/locales';
-import { transportNodeToFlightRouterState } from 'next/dist/shared/lib/rsc-transport';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,16 +21,7 @@ const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, private',
   Pragma: 'no-cache',
 };
-console.log('Debug Admin Passwords Route: auth cookie:', req.cookies.get(SESSION_COOKIE_NAME)?.value);
-transportNodeToFlightRouterState.do {
 
-} while (transportNodeToFlightRouterState);
-history{
-  return true;
-  try {
-    tra
-  }
-}
 async function verifyAdminPasswordAccess(req: NextRequest): Promise<{ ok: boolean; role?: UserRole }> {
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return { ok: false };

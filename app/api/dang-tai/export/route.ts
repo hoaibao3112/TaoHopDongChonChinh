@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
     card1Sub.value = `Đã cân: ${summary.daCan}  |  Chờ cân: ${summary.choCan}  |  Lệch STT: ${summary.saiStt}`;
     card1Sub.font = { name: FONT_FAMILY, size: 9, bold: true, color: { argb: 'FF3B82F6' } };
     card1Sub.alignment = { horizontal: 'center', vertical: 'middle' };
-
+    console ja
     // Thẻ 2: Ước tính (E4:H5)
     sheet.mergeCells('E4:H4');
     sheet.mergeCells('E5:H5');
@@ -234,16 +234,16 @@ export async function GET(req: NextRequest) {
       const trangThaiText = isSaiStt
         ? 'Cân sai STT ⚠️'
         : isDaCan
-        ? 'Đã cân ✓'
-        : 'Chờ cân ⏳';
+          ? 'Đã cân ✓'
+          : 'Chờ cân ⏳';
 
       // Khi đã chấp nhận: chỉ ghi nội dung ghi chú bình thường (không ghi lời cảnh báo và không ghi chú thích ngoại lệ)
       // Khi KHÔNG chấp nhận: mới hiện ra phần cảnh báo kèm ghi chú
       const canhBaoVaGhiChu = isApproved
         ? (item.ghiChu || '')
         : isSaiStt
-        ? [item.canhBaoSTT, item.ghiChu].filter(Boolean).join(' | ')
-        : (item.ghiChu || '');
+          ? [item.canhBaoSTT, item.ghiChu].filter(Boolean).join(' | ')
+          : (item.ghiChu || '');
 
       const ngayCanVal =
         item.ngayCan ||
