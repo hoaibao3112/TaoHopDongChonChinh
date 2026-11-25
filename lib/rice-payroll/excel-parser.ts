@@ -82,7 +82,9 @@ function findColumnIndexes(headerRow: unknown[]) {
     if (text.includes('loại lúa')) colRiceType = idx;
     if (text.includes('mã lô')) colBatchCode = idx;
     if (text.includes('số lượng') && text.includes('kg')) colFreshWeight = idx;
-    if (text.includes('tăng bo') && text.includes('lúa tươi')) colFreshBoVehicle = idx;
+    if (text.includes('phương tiện') && text.includes('tăng bo') && !text.includes('lúa khô') && !text.includes('sau sấy')) {
+      colFreshBoVehicle = idx;
+    }
     if (text.includes('ngày') && text.includes('nhập sấy')) colDryDate = idx;
     if (text.includes('cơ sở sấy') || text.includes('địa điểm sấy')) colDryFacility = idx;
     if (text.includes('cân nhập sấy')) colDryWeight = idx;
