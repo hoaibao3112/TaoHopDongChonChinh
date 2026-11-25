@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as XLSX from 'xlsx';
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/rice-payroll/export-monthly/route';
-import { SESSION_COOKIE_NAME, ROLE_COOKIE_NAME } from '@/lib/auth';
+import { SESSION_COOKIE_NAME, ROLE_COOKIE_NAME, signSessionToken } from '@/lib/auth';
 
 describe('Export Monthly Excel - Kiểm tra định dạng đầu ra chuẩn theo mẫu DOI_THANH-XUAT_CS1_T10_2026', () => {
   it('xuất file Excel có Sheet BK với dòng tổng cộng trên đầu và công thức SUBTOTAL', async () => {
@@ -10,7 +10,7 @@ describe('Export Monthly Excel - Kiểm tra định dạng đầu ra chuẩn the
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        cookie: `${SESSION_COOKIE_NAME}=authenticated; ${ROLE_COOKIE_NAME}=payroll`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}; ${ROLE_COOKIE_NAME}=payroll`,
       },
       body: JSON.stringify({
         month: 10,

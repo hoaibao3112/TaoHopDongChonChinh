@@ -35,7 +35,7 @@ describe('Rice Nhập Sấy CS1: Đội Nghị & Đội Nguyên - Cơ Sở I', (
   it('xuất Excel Đội Nghị đúng 4 sheets chuẩn, không có lỗi #VALUE!', async () => {
     const { POST } = await import('../app/api/rice-payroll/cs1-export/route');
     const { NextRequest } = await import('next/server');
-    const { SESSION_COOKIE_NAME } = await import('../lib/auth');
+    const { SESSION_COOKIE_NAME, signSessionToken } = await import('../lib/auth');
     const XLSX = await import('xlsx');
 
     const mockBatches: CS1Batch[] = [
@@ -75,7 +75,7 @@ describe('Rice Nhập Sấy CS1: Đội Nghị & Đội Nguyên - Cơ Sở I', (
     const reqNghi = new NextRequest('http://localhost:3000/api/rice-payroll/cs1-export', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
@@ -117,7 +117,7 @@ describe('Rice Nhập Sấy CS1: Đội Nghị & Đội Nguyên - Cơ Sở I', (
     const reqNguyen = new NextRequest('http://localhost:3000/api/rice-payroll/cs1-export', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
@@ -157,7 +157,7 @@ describe('Rice Nhập Sấy CS1: Đội Nghị & Đội Nguyên - Cơ Sở I', (
   it('hỗ trợ tách mẻ sấy dở dang và mẻ thủ công phân bổ chính xác cho 2 đội', async () => {
     const { POST } = await import('../app/api/rice-payroll/cs1-export/route');
     const { NextRequest } = await import('next/server');
-    const { SESSION_COOKIE_NAME } = await import('../lib/auth');
+    const { SESSION_COOKIE_NAME, signSessionToken } = await import('../lib/auth');
     const XLSX = await import('xlsx');
 
     // Mẻ gốc 70 tấn sấy dở dang ngày 16/11 Đội Nghị làm 40 tấn, Đội Nguyên qua ngày 17/11 làm 30 tấn
@@ -207,7 +207,7 @@ describe('Rice Nhập Sấy CS1: Đội Nghị & Đội Nguyên - Cơ Sở I', (
     const reqNghi = new NextRequest('http://localhost:3000/api/rice-payroll/cs1-export', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
@@ -231,7 +231,7 @@ describe('Rice Nhập Sấy CS1: Đội Nghị & Đội Nguyên - Cơ Sở I', (
     const reqNguyen = new NextRequest('http://localhost:3000/api/rice-payroll/cs1-export', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({

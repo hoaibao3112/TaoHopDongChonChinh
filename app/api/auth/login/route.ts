@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkPasswordAsync, setAuthCookie } from '@/lib/auth';
+import { checkPasswordAsync, computePasswordVersion, setAuthCookie } from '@/lib/auth';
 import { checkRateLimit, getClientIp } from '@/lib/security/rateLimit';
 import { z } from 'zod';
 
@@ -56,14 +56,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const response = NextResponse.json({
-      success: true,
-      message: 'Đăng nhập thành công',
-      role: authResult.role,
-      redirectUrl: authResult.redirectUrl,
-    });
+    const response = NextResponse.json(
+      {
+        success: true,
+        message: 'Đăng nhập thành công',
+        role: authResult.role,
+        redirectUrl: authResult.redirectUrl,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+          Pragma: 'no-cache',
+        },
+      }
+    );
 
-    setAuthCookie(response, authResult.role);
+    const pwVersion = computePasswordVersion(password.trim());
+    setAuthCookie(response, authResult.role, request, pwVersion);
     return response;
   } catch (err) {
     console.error('[API Login Error]:', err);

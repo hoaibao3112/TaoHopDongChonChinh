@@ -1,5 +1,11 @@
 import React from 'react';
-import { getServerComponentUserRole, isServerComponentAuthenticated } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import {
+  SESSION_COOKIE_NAME,
+  computePasswordVersion,
+  verifySessionJwt,
+} from '@/lib/auth';
+import { getRolePasswords } from '@/lib/passwordStore';
 import AppHeader from '@/components/AppHeader';
 import AdminPasswordsView from '@/components/AdminPasswordsView';
 import AdminPasswordGate from './AdminPasswordGate';
@@ -10,11 +16,18 @@ export const metadata = {
 };
 
 export default async function AdminMatKhauPage() {
-  const isAuth = await isServerComponentAuthenticated();
-  const role = await getServerComponentUserRole();
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const payload = token ? verifySessionJwt(token) : null;
 
-  // Yêu cầu mật khẩu "chonchinh" (role contracts) hoặc tài khoản quản trị "admin"
-  const hasAccess = isAuth && (role === 'contracts' || role === 'admin');
+  let hasAccess = !!payload && (payload.role === 'contracts' || payload.role === 'admin');
+
+  if (hasAccess && payload?.role === 'contracts' && payload.pv) {
+    const currentMap = await getRolePasswords();
+    if (payload.pv !== computePasswordVersion(currentMap.contracts)) {
+      hasAccess = false;
+    }
+  }
 
   if (!hasAccess) {
     return <AdminPasswordGate />;

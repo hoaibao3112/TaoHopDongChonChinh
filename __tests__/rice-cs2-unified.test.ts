@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { NextRequest } from 'next/server';
-import { SESSION_COOKIE_NAME } from '../lib/auth';
+import { SESSION_COOKIE_NAME, signSessionToken } from '../lib/auth';
 import XLSX from 'xlsx';
 import { POST } from '../app/api/rice-payroll/cs2-unified-export/route';
 import { isCoSo2 } from '../lib/rice-payroll/facility-filter';
@@ -55,7 +55,7 @@ describe('Rice Payroll CS2: Phân Hệ Gộp Nhập & Xuất Đội Dương (Cơ
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/cs2-unified-export', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
@@ -146,7 +146,7 @@ describe('Rice Payroll CS2: Phân Hệ Gộp Nhập & Xuất Đội Dương (Cơ
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/cs2-unified-export', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
@@ -180,7 +180,7 @@ describe('Rice Payroll CS2: Phân Hệ Gộp Nhập & Xuất Đội Dương (Cơ
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/cs2-unified-export', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
@@ -235,7 +235,7 @@ describe('Rice Payroll CS2: Phân Hệ Gộp Nhập & Xuất Đội Dương (Cơ
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/cs2-unified-export', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
@@ -270,7 +270,7 @@ describe('Rice Payroll CS2: Phân Hệ Gộp Nhập & Xuất Đội Dương (Cơ
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/cs2-unified-export', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({

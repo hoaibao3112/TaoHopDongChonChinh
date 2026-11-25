@@ -21,13 +21,14 @@ describe('Xuất NSX TM - Kiểm tra định dạng 19 Cột chuẩn theo mẫu 
 
     // Call POST function from route
     const { POST } = await import('@/app/api/rice-payroll/xuat-nsx-tm-export/route');
+    const { SESSION_COOKIE_NAME, signSessionToken } = await import('@/lib/auth');
     const { NextRequest } = await import('next/server');
 
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/xuat-nsx-tm-export', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Cookie: 'auth_contract_session=authenticated',
+        Cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
       },
       body: JSON.stringify({
         monthKey: '10/2026',

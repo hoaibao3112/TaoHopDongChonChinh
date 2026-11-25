@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET, POST } from '@/app/api/quick-notes/route';
-import { SESSION_COOKIE_NAME } from '@/lib/auth';
+import { SESSION_COOKIE_NAME, signSessionToken } from '@/lib/auth';
 
 describe('Quick Notes API (Upstash Redis)', () => {
   it('từ chối truy cập 401 khi chưa đăng nhập (Bảo mật H1)', async () => {
@@ -20,7 +20,7 @@ describe('Quick Notes API (Upstash Redis)', () => {
   it('xử lý GET ghi chú trả về định dạng chuẩn khi đã đăng nhập', async () => {
     const req = new NextRequest('http://localhost:3000/api/quick-notes?scope=cs1', {
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('admin')}`,
       },
     });
     const res = await GET(req);
@@ -35,7 +35,7 @@ describe('Quick Notes API (Upstash Redis)', () => {
     const req = new NextRequest('http://localhost:3000/api/quick-notes', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('admin')}`,
       },
       body: JSON.stringify({ scope: 'cs1', text: testText }),
     });

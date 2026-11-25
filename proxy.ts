@@ -23,8 +23,9 @@ export function proxy(request: NextRequest): NextResponse {
     return NextResponse.next();
   }
 
-  // Kiểm tra xác thực
-  if (!isRequestAuthenticated(request)) {
+  // Kiểm tra xác thực JWT từ cookie HttpOnly
+  const role = getRequestUserRole(request);
+  if (!role) {
     // Nếu là API route -> trả JSON 401
     if (pathname.startsWith('/api/')) {
       return NextResponse.json(
@@ -38,9 +39,6 @@ export function proxy(request: NextRequest): NextResponse {
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
-
-  // Phân quyền theo vai trò (Role-based access control)
-  const role = getRequestUserRole(request);
 
   // 1. Phân quyền cho Hoài Bảo ('payroll'): Chỉ vào Tính Lương Nông Sản (không vào Báo cáo chưa xay)
   if (role === 'payroll') {

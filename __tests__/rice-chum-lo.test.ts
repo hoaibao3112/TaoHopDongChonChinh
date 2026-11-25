@@ -74,7 +74,7 @@ describe('Rice Chụm Lò CS1: Đội Nguyên - Cơ Sở I', () => {
   it('xuất Excel Chụm Lò đúng 2 sheets chuẩn, không có lỗi #VALUE!', async () => {
     const { POST } = await import('../app/api/rice-payroll/chum-lo-export/route');
     const { NextRequest } = await import('next/server');
-    const { SESSION_COOKIE_NAME } = await import('../lib/auth');
+    const { SESSION_COOKIE_NAME, signSessionToken } = await import('../lib/auth');
     const XLSX = await import('xlsx');
 
     const mockBatches: ChumLoBatch[] = [
@@ -113,7 +113,7 @@ describe('Rice Chụm Lò CS1: Đội Nguyên - Cơ Sở I', () => {
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/chum-lo-export', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({

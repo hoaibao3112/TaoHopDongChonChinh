@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as XLSX from 'xlsx';
 import { NextRequest } from 'next/server';
-import { SESSION_COOKIE_NAME } from '@/lib/auth';
+import { SESSION_COOKIE_NAME, signSessionToken } from '@/lib/auth';
 import { formatExcelDate } from '@/lib/rice-payroll/excel-parser';
 import { getDefaultClassification, getSampleDetail } from '@/lib/rice-payroll/sample-classification';
 import {
@@ -65,7 +65,7 @@ describe('Rice Payroll: Tính lương giữa tháng (Tháng 11) & các tháng t�
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/export-monthly', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
@@ -141,7 +141,7 @@ describe('Rice Payroll: Tính lương giữa tháng (Tháng 11) & các tháng t�
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/export-monthly', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
@@ -211,7 +211,7 @@ describe('Rice Payroll: Tính lương giữa tháng (Tháng 11) & các tháng t�
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/nhap-export', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({

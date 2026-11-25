@@ -50,13 +50,13 @@ describe('Rice Payroll: Lọc đúng Cơ Sở I và trích xuất đúng 52 mẻ
   it('xuất Excel không có bất kỳ lỗi #VALUE! nào trong toàn bộ bảng kê', async () => {
     const { POST } = await import('../app/api/rice-payroll/export-monthly/route');
     const { NextRequest } = await import('next/server');
-    const { SESSION_COOKIE_NAME } = await import('../lib/auth');
+    const { SESSION_COOKIE_NAME, signSessionToken } = await import('../lib/auth');
     const XLSX = await import('xlsx');
 
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/export-monthly', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({

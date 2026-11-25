@@ -127,13 +127,13 @@ describe('Báo Cáo Lúa Khô Chưa Xay (Theo Đầu Lúa Khô)', () => {
   it('xuất file Excel báo cáo đúng 3 sheets: TỔNG HỢP CHƯA XAY, LÚA KHÔ NẰM TÀI, LÚA TƯƠI CHỜ SẤY', async () => {
     const { POST } = await import('../app/api/rice-payroll/unground-report/route');
     const { NextRequest } = await import('next/server');
-    const { SESSION_COOKIE_NAME } = await import('../lib/auth');
+    const { SESSION_COOKIE_NAME, signSessionToken } = await import('../lib/auth');
     const XLSX = await import('xlsx');
 
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/unground-report', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('baocao')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({

@@ -60,7 +60,14 @@
     "rawNames": [
       "LÂM TÂY NINH"
     ],
-    "count": 60
+    "count": 59
+  },
+  {
+    "name": "VIỄN U MINH THƯỢNG",
+    "rawNames": [
+      "VIỄN U MINH THƯỢNG"
+    ],
+    "count": 57
   },
   {
     "name": "DÂN MỘC HÓA",
@@ -68,13 +75,6 @@
       "DÂN MỘC HÓA"
     ],
     "count": 57
-  },
-  {
-    "name": "VIỄN U MINH THƯỢNG",
-    "rawNames": [
-      "VIỄN U MINH THƯỢNG"
-    ],
-    "count": 55
   },
   {
     "name": "PHÚ BA SAO",
@@ -154,6 +154,13 @@
     "count": 34
   },
   {
+    "name": "TÂM TÂY NINH",
+    "rawNames": [
+      "TÂM TÂY NINH"
+    ],
+    "count": 33
+  },
+  {
     "name": "CẨM AN GIANG",
     "rawNames": [
       "CẨM AN GIANG"
@@ -173,13 +180,6 @@
       "SÁU TẤN ĐỨC HÒA"
     ],
     "count": 31
-  },
-  {
-    "name": "TÂM TÂY NINH",
-    "rawNames": [
-      "TÂM TÂY NINH"
-    ],
-    "count": 30
   },
   {
     "name": "TÝ THÔNG ĐĂK LĂK",
@@ -301,6 +301,13 @@
     "count": 19
   },
   {
+    "name": "AN DINH BÀ",
+    "rawNames": [
+      "AN DINH BÀ"
+    ],
+    "count": 18
+  },
+  {
     "name": "DẬU ĐĂK LĂK",
     "rawNames": [
       "DẬU ĐĂK LĂK"
@@ -357,13 +364,6 @@
     "count": 14
   },
   {
-    "name": "AN DINH BÀ",
-    "rawNames": [
-      "AN DINH BÀ"
-    ],
-    "count": 14
-  },
-  {
     "name": "LÀ TÂN KIỀU",
     "rawNames": [
       "LÀ TÂN KIỀU"
@@ -406,6 +406,13 @@
     "count": 11
   },
   {
+    "name": "YẾN TÂY NINH",
+    "rawNames": [
+      "YẾN TÂY NINH"
+    ],
+    "count": 11
+  },
+  {
     "name": "ĐẤT NHÀ HƯNG ĐIỀN",
     "rawNames": [
       "ĐẤT NHÀ HƯNG ĐIỀN"
@@ -444,13 +451,6 @@
     "name": "VŨ THẠNH HÓA",
     "rawNames": [
       "VŨ THẠNH HÓA"
-    ],
-    "count": 9
-  },
-  {
-    "name": "YẾN TÂY NINH",
-    "rawNames": [
-      "YẾN TÂY NINH"
     ],
     "count": 9
   },
@@ -553,6 +553,13 @@
     "count": 5
   },
   {
+    "name": "QUÂN HƯNG HÀ",
+    "rawNames": [
+      "QUÂN HƯNG HÀ"
+    ],
+    "count": 5
+  },
+  {
     "name": "SƯƠNG TÂN HÒA",
     "rawNames": [
       "SƯƠNG TÂN HÒA"
@@ -577,6 +584,13 @@
     "name": "ĐÔN MỸ PHƯỚC TÂY",
     "rawNames": [
       "ĐÔN MỸ PHƯỚC TÂY"
+    ],
+    "count": 4
+  },
+  {
+    "name": "LOAN KIẾN TƯỜNG",
+    "rawNames": [
+      "LOAN KIẾN TƯỜNG"
     ],
     "count": 4
   },
@@ -672,13 +686,6 @@
     "count": 2
   },
   {
-    "name": "QUÂN HƯNG HÀ",
-    "rawNames": [
-      "QUÂN HƯNG HÀ"
-    ],
-    "count": 2
-  },
-  {
     "name": "YẾN ĐĂK LĂK",
     "rawNames": [
       "YẾN ĐĂK LĂK"
@@ -724,13 +731,6 @@
     "name": "TUẤN ĐẮK LẮK",
     "rawNames": [
       "TUẤN ĐẮK LẮK"
-    ],
-    "count": 2
-  },
-  {
-    "name": "LOAN KIẾN TƯỜNG",
-    "rawNames": [
-      "LOAN KIẾN TƯỜNG"
     ],
     "count": 2
   },

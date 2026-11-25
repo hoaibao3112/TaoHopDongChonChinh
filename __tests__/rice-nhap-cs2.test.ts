@@ -65,7 +65,7 @@ describe('Rice Nhập Sấy CS2: Đội Dương - Cơ Sở II', () => {
   it('xuất Excel Nhập Sấy CS2 đúng 4 sheets (tasks), không có lỗi #VALUE!', async () => {
     const { POST } = await import('../app/api/rice-payroll/nhap-export/route');
     const { NextRequest } = await import('next/server');
-    const { SESSION_COOKIE_NAME } = await import('../lib/auth');
+    const { SESSION_COOKIE_NAME, signSessionToken } = await import('../lib/auth');
     const XLSX = await import('xlsx');
 
     // Giả lập danh sách mẻ nhập sấy chuẩn như trong hình mẫu
@@ -107,7 +107,7 @@ describe('Rice Nhập Sấy CS2: Đội Dương - Cơ Sở II', () => {
     const req = new NextRequest('http://localhost:3000/api/rice-payroll/nhap-export', {
       method: 'POST',
       headers: {
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
@@ -229,7 +229,7 @@ describe('Rice Nhập Sấy CS2: Đội Dương - Cơ Sở II', () => {
   it('xuất Excel Nhập Trấu dùng đúng 1 đơn giá 27.000đ khi in ra và Thành tiền khớp 100% như trong form (ảnh thực tế)', async () => {
     const { POST } = await import('../app/api/rice-payroll/nhap-export/route');
     const { NextRequest } = await import('next/server');
-    const { SESSION_COOKIE_NAME } = await import('../lib/auth');
+    const { SESSION_COOKIE_NAME, signSessionToken } = await import('../lib/auth');
     const XLSX = await import('xlsx');
 
     const customTrauItems: NhapTrauItem[] = [
@@ -268,7 +268,7 @@ describe('Rice Nhập Sấy CS2: Đội Dương - Cơ Sở II', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        cookie: `${SESSION_COOKIE_NAME}=authenticated`,
+        cookie: `${SESSION_COOKIE_NAME}=${signSessionToken('payroll')}`,
       },
       body: JSON.stringify(payload),
     });
