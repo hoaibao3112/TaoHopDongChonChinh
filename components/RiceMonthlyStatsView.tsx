@@ -2,6 +2,16 @@
 
 import React, { useState, useMemo } from 'react';
 import { RiceMonthlyStatsResult } from '@/lib/rice-stats/types';
+import {
+  BuyerRankingChart,
+  CostCharts,
+  DailyStackedBarChart,
+  FinancialCharts,
+  LossAndKcsCharts,
+  MillingCharts,
+  RegionBarChart,
+  VarietyDonutChart,
+} from './RiceStatsCharts';
 
 type ActiveTab = 'overview' | 'buyers' | 'costs' | 'loss' | 'milling' | 'financial';
 
@@ -359,40 +369,16 @@ export default function RiceMonthlyStatsView() {
           {/* TAB 1: OVERVIEW & VARIETIES & DAILY TREND */}
           {activeTab === 'overview' && (
             <div className="space-y-5">
-              {/* Daily Intake Chart */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                <h3 className="text-sm font-black text-slate-900 mb-3">
-                  Biểu Đồ Sản Lượng Nhập Theo Ngày ({stats.monthKey === 'ALL' ? 'Cả năm' : `Tháng ${stats.monthKey}`})
-                </h3>
-                {stats.dailyTrend.length === 0 ? (
-                  <p className="text-xs text-slate-500">Không có dữ liệu ngày trong kỳ.</p>
-                ) : (
-                  <div className="flex items-end gap-1.5 h-44 overflow-x-auto pb-2 pt-4">
-                    {stats.dailyTrend.map((d) => {
-                      const heightPct = Math.max(4, Math.round((d.totalKg / maxDailyKg) * 100));
-                      return (
-                        <div
-                          key={d.date}
-                          className="flex flex-col items-center min-w-[28px] flex-1 group"
-                          title={`${d.date}: ${fmtTons(d.totalKg)} tấn (${d.lots} lô)`}
-                        >
-                          <span className="text-[9px] font-bold text-slate-500 opacity-0 group-hover:opacity-100 transition">
-                            {fmtTons(d.totalKg)}t
-                          </span>
-                          <div className="w-full flex flex-col justify-end h-32 bg-slate-100 rounded-t-md overflow-hidden">
-                            <div
-                              style={{ height: `${heightPct}%` }}
-                              className="w-full bg-gradient-to-t from-emerald-600 to-teal-400 rounded-t-md transition-all"
-                            />
-                          </div>
-                          <span className="mt-1 text-[10px] font-semibold text-slate-600">
-                            {d.date.slice(0, 5)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <div className="lg:col-span-2">
+                  <DailyStackedBarChart
+                    data={stats.dailyTrend}
+                    monthLabel={stats.monthKey === 'ALL' ? 'Cả năm' : `Tháng ${stats.monthKey}`}
+                  />
+                </div>
+                <div>
+                  <VarietyDonutChart varieties={stats.varieties} />
+                </div>
               </div>
 
               {/* Varieties Table */}
@@ -437,6 +423,11 @@ export default function RiceMonthlyStatsView() {
           {/* TAB 2: BUYERS, SUPPLIERS & REGIONS */}
           {activeTab === 'buyers' && (
             <div className="space-y-5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <BuyerRankingChart buyers={stats.buyers} />
+                <RegionBarChart regions={stats.regions} />
+              </div>
+
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs overflow-x-auto">
                 <h3 className="text-sm font-black text-slate-900 mb-3">Bảng Xếp Hạng Nhân Viên Thu Mua</h3>
                 <table className="w-full text-left text-xs">
@@ -525,7 +516,9 @@ export default function RiceMonthlyStatsView() {
 
           {/* TAB 3: COST STRUCTURE */}
           {activeTab === 'costs' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="space-y-5">
+              <CostCharts cost={stats.costBreakdown} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <div className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-xs space-y-3">
                 <h3 className="text-sm font-black text-emerald-900">Chi Phí &amp; Giá Thành Lúa Tươi Qua Sấy</h3>
                 <div className="divide-y divide-slate-100 text-xs">
@@ -562,12 +555,14 @@ export default function RiceMonthlyStatsView() {
                   </div>
                 </div>
               </div>
+              </div>
             </div>
           )}
 
           {/* TAB 4: LOSS, FACILITIES & KCS */}
           {activeTab === 'loss' && (
             <div className="space-y-5">
+              <LossAndKcsCharts facilities={stats.facilities} kcs={stats.kcsByVariety} />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs overflow-x-auto">
                   <h3 className="text-sm font-black text-slate-900 mb-3">Hiệu Suất Theo Cơ Sở Sấy</h3>
@@ -661,6 +656,7 @@ export default function RiceMonthlyStatsView() {
           {/* TAB 5: MILLING PROGRESS */}
           {activeTab === 'milling' && (
             <div className="space-y-5">
+              <MillingCharts milling={stats.milling} />
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <p className="text-[11px] font-bold text-slate-500 uppercase">Đã Xay / Tổng Lô</p>
@@ -727,6 +723,7 @@ export default function RiceMonthlyStatsView() {
           {/* TAB 6: FINANCIAL & DEBT */}
           {activeTab === 'financial' && (
             <div className="space-y-5">
+              <FinancialCharts financial={stats.financial} />
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <p className="text-[11px] font-bold text-slate-500 uppercase">Tổng Tiền Hàng</p>
