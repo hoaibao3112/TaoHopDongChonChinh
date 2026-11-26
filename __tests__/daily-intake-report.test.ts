@@ -65,7 +65,7 @@ describe('Daily Intake Report (Báo cáo Lúa tươi & Lúa khô nhập ngày)',
 
     expect(report.zaloText).toContain('Dạ, e gửi Báo cáo Lúa tươi và Lúa khô nhập ngày 24/11/2026:');
     expect(report.zaloText).toContain('Tổng lượng: 1.072.620 kg');
-    expect(report.zaloText).toContain('Tổng lượng Nếp khô: 268.129 kg');
+    expect(report.zaloText).toContain('Tổng lượng Lúa khô Nếp: 268.129 kg');
     expect(report.zaloText).toContain('Từ ngày 18/11/2026 - 24/11/2026: còn tổng cộng 06 phương tiện lúa khô chưa về, chờ thanh toán');
   });
 });

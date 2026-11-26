@@ -105,21 +105,34 @@ function normalizePendingStatus(cells: unknown[]): boolean {
 }
 
 function formatTuoiRiceLabel(rawType: string): string {
-  const upper = rawType.trim().toUpperCase();
+  const clean = rawType.trim();
+  const upper = clean.toUpperCase();
   if (!upper) return 'Lúa tươi khác';
   if (upper.includes('TL6T') && (upper.includes('LOẠI 2') || upper.includes('LOAI 2'))) {
-    return 'Lúa TL6T Loại 2';
+    return 'Lúa tươi TL6T Loại 2';
   }
   if (upper.includes('TL6T')) {
-    return `Lúa ${upper}`;
+    return `Lúa tươi ${upper}`;
   }
-  return `Lúa tươi ${rawType.trim()}`;
+  if (upper.startsWith('LÚA TƯƠI')) {
+    return clean;
+  }
+  const withoutLua = clean.replace(/^lúa\s+/i, '').trim();
+  return `Lúa tươi ${withoutLua}`;
 }
 
 function formatKhoRiceLabel(rawType: string): string {
-  const upper = rawType.trim().toUpperCase();
-  if (upper === 'NẾP' || upper === 'NEP') return 'Nếp';
-  return rawType.trim();
+  const clean = rawType.trim();
+  const upper = clean.toUpperCase();
+  if (!upper) return 'Lúa khô khác';
+  if (upper === 'NẾP' || upper === 'NEP') return 'Lúa khô Nếp';
+  if (upper.startsWith('LÚA KHÔ')) return clean;
+  const normalized = clean
+    .replace(/^lúa\s+khô\s+/i, '')
+    .replace(/^lúa\s+/i, '')
+    .replace(/\s+khô$/i, '')
+    .trim();
+  return `Lúa khô ${normalized}`;
 }
 
 function normalizeFacilityLabel(rawFacility: string): string {
@@ -426,11 +439,11 @@ export function buildDailyIntakeReport(
   lines.push('');
 
   if (khoByType.length === 1) {
-    lines.push(`* Tổng lượng ${khoByType[0].label} khô: ${formatKgVN(khoTotalKg)} kg`);
+    lines.push(`* Tổng lượng ${khoByType[0].label}: ${formatKgVN(khoTotalKg)} kg`);
   } else {
     lines.push(`* Tổng lượng lúa khô: ${formatKgVN(khoTotalKg)} kg`);
     for (const k of khoByType) {
-      lines.push(`- ${k.label} khô: ${formatKgVN(k.kg)} kg`);
+      lines.push(`- ${k.label}: ${formatKgVN(k.kg)} kg`);
     }
   }
   lines.push('');
