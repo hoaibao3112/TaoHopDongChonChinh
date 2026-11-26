@@ -12,6 +12,7 @@ import {
 } from '@/lib/dang-tai/plate';
 import DriverCombobox from '@/components/DriverCombobox';
 import CustomerCombobox from '@/components/CustomerCombobox';
+import DangTaiDateNavigator from '@/components/DangTaiDateNavigator';
 import { normalizeCustomerName, CustomerAlias, MasterCustomer } from '@/lib/dang-tai/customers';
 import { compressImageForOcr } from '@/lib/dang-tai/compressImage';
 
@@ -1371,6 +1372,13 @@ ${varietyStr}
           </div>
         </div>
       </div>
+
+      {/* BỘ CHỌN NGÀY / TUẦN / THÁNG / NĂM TRỰC QUAN */}
+      <DangTaiDateNavigator
+        selectedDate={selectedDate}
+        todayStr={getTodayString()}
+        onSelectDate={(iso) => setSelectedDate(iso)}
+      />
 
       {/* BANNER CHẾ ĐỘ LỊCH SỬ KHI XEM NGÀY CŨ (CHO PHÉP MỞ KHÓA CẬP NHẬT) */}
       {isHistoricalDate && (
