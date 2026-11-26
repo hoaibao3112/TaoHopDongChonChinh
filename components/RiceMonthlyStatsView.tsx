@@ -5,6 +5,7 @@ import { RiceMonthlyStatsResult } from '@/lib/rice-stats/types';
 import { renderAllStatsChartsClient } from '@/lib/rice-stats/client-chart-png';
 import {
   BuyerRankingChart,
+  ContractCharts,
   CostCharts,
   DailyStackedBarChart,
   FinancialCharts,
@@ -14,7 +15,7 @@ import {
   VarietyDonutChart,
 } from './RiceStatsCharts';
 
-type ActiveTab = 'overview' | 'buyers' | 'costs' | 'loss' | 'milling' | 'financial';
+type ActiveTab = 'overview' | 'buyers' | 'costs' | 'loss' | 'milling' | 'financial' | 'contracts';
 
 function fmtNum(n: number, decimals = 0): string {
   return n.toLocaleString('vi-VN', {
@@ -34,6 +35,7 @@ function fmtMoney(n: number): string {
 export default function RiceMonthlyStatsView() {
   const [freshFile, setFreshFile] = useState<File | null>(null);
   const [dryFile, setDryFile] = useState<File | null>(null);
+  const [contractFile, setContractFile] = useState<File | null>(null);
   const [useLocalSample, setUseLocalSample] = useState(false);
   const [monthKey, setMonthKey] = useState<string>('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
@@ -48,14 +50,16 @@ export default function RiceMonthlyStatsView() {
     localSample?: boolean;
     fFile?: File | null;
     dFile?: File | null;
+    cFile?: File | null;
   }) => {
     const f = opts?.fFile !== undefined ? opts.fFile : freshFile;
     const d = opts?.dFile !== undefined ? opts.dFile : dryFile;
+    const c = opts?.cFile !== undefined ? opts.cFile : contractFile;
     const useSample = opts?.localSample !== undefined ? opts.localSample : useLocalSample;
     const targetMonth = opts?.overrideMonth !== undefined ? opts.overrideMonth : monthKey;
 
-    if (!f && !d && !useSample) {
-      setError('Vui lòng chọn ít nhất 1 file Excel Lúa Tươi hoặc Lúa Khô (hoặc bấm Nạp file mặc định).');
+    if (!f && !d && !c && !useSample) {
+      setError('Vui lòng chọn ít nhất 1 file Excel Lúa Tươi, Lúa Khô hoặc Hợp Đồng (hoặc bấm Nạp 3 file mặc định).');
       return;
     }
 
@@ -65,6 +69,7 @@ export default function RiceMonthlyStatsView() {
       const fd = new FormData();
       if (f) fd.append('freshFile', f);
       if (d) fd.append('dryFile', d);
+      if (c) fd.append('contractFile', c);
       if (useSample) fd.append('useLocalSample', 'true');
       if (targetMonth) fd.append('monthKey', targetMonth);
 
@@ -190,14 +195,14 @@ export default function RiceMonthlyStatsView() {
             disabled={isExporting}
             className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 text-xs sm:text-sm font-bold shadow-sm transition cursor-pointer disabled:opacity-50"
           >
-            {isExporting ? '⏳ Đang tạo file...' : '📥 Xuất Excel Tổng Hợp (6 Sheets)'}
+            {isExporting ? '⏳ Đang tạo file...' : `📥 Xuất Excel Tổng Hợp (${stats.contracts ? '7' : '6'} Sheets)`}
           </button>
         )}
       </div>
 
       {/* Upload & Filter Panel */}
       <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/40 p-4">
             <label className="block text-xs font-black uppercase tracking-wider text-emerald-800 mb-2">
               🌾 File Nhập Lúa Tươi (LUA TUOI)
@@ -239,6 +244,27 @@ export default function RiceMonthlyStatsView() {
               </p>
             )}
           </div>
+
+          <div className="rounded-2xl border border-dashed border-sky-300 bg-sky-50/40 p-4">
+            <label className="block text-xs font-black uppercase tracking-wider text-sky-800 mb-2">
+              📋 File Hợp Đồng Lúa (CHI TIẾT HĐ)
+            </label>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                setContractFile(file);
+                if (file) setUseLocalSample(false);
+              }}
+              className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-sky-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white hover:file:bg-sky-700 cursor-pointer"
+            />
+            {contractFile && (
+              <p className="mt-1.5 text-[11px] font-semibold text-sky-700">
+                Đã chọn: {contractFile.name}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
@@ -258,7 +284,7 @@ export default function RiceMonthlyStatsView() {
               disabled={isLoading}
               className="rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-4 py-2.5 text-xs sm:text-sm font-bold transition cursor-pointer disabled:opacity-50"
             >
-              ⚡ Nạp 2 File Mặc Định Trên Hệ Thống
+              ⚡ Nạp 3 File Mặc Định Trên Hệ Thống
             </button>
           </div>
 
@@ -349,6 +375,9 @@ export default function RiceMonthlyStatsView() {
                   { id: 'loss', label: '4. Hao Hụt, Sấy & KCS' },
                   { id: 'milling', label: '5. Tiến Độ Xay Sát' },
                   { id: 'financial', label: '6. Tài Chính & Công Nợ' },
+                  ...(stats.contracts
+                    ? [{ id: 'contracts' as ActiveTab, label: '7. Hợp Đồng & Tiền Cọc' }]
+                    : []),
                 ] as { id: ActiveTab; label: string }[]
               ).map((t) => (
                 <button
@@ -801,6 +830,146 @@ export default function RiceMonthlyStatsView() {
                             {fmtMoney(d.payable)}
                           </td>
                           <td className="py-2 font-semibold">{d.alertType}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* TAB 7: CONTRACTS & DEPOSITS & 3-FILE CROSS CHECK */}
+          {activeTab === 'contracts' && stats.contracts && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="rounded-2xl border border-sky-200 bg-white p-4">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Tổng Sản Lượng Ký HĐ</p>
+                  <p className="mt-1 text-xl font-black text-sky-700">
+                    {fmtTons(stats.contracts.totalContractKg)} tấn
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {stats.contracts.totalContracts} hợp đồng • Giá trị: {fmtMoney(stats.contracts.totalContractAmount)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-emerald-200 bg-white p-4">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Đã Nhận / Còn Lại</p>
+                  <p className="mt-1 text-xl font-black text-emerald-700">
+                    {fmtTons(stats.contracts.totalReceivedKg)} tấn ({stats.contracts.completionPercent}%)
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Còn chưa giao: {fmtTons(stats.contracts.totalRemainingKg)} tấn
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200 bg-white p-4">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Tổng Tiền Cọc / Đã Trừ</p>
+                  <p className="mt-1 text-lg font-black text-amber-700">
+                    {fmtMoney(stats.contracts.totalDeposit)}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Đã trừ: {fmtMoney(stats.contracts.totalDepositDeducted)} ({stats.contracts.depositRecoveryPercent}%)
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-rose-200 bg-white p-4">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Tiền Cọc Còn Treo</p>
+                  <p className="mt-1 text-lg font-black text-rose-700">
+                    {fmtMoney(stats.contracts.totalDepositRemaining)}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {stats.contracts.depositAlerts.length} HĐ cần theo dõi thu hồi
+                  </p>
+                </div>
+              </div>
+
+              <ContractCharts contracts={stats.contracts} />
+
+              {/* Cross-check Price Comparison */}
+              {stats.contracts.crossCheck.priceComparison.length > 0 && (
+                <div className="rounded-2xl border border-indigo-200 bg-white p-5 shadow-xs overflow-x-auto">
+                  <h3 className="text-sm font-black text-indigo-900 mb-3">
+                    Đối Chiếu Đơn Giá Ký Hợp Đồng vs Giá Mua Thực Tế Trong Kỳ
+                  </h3>
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500 uppercase text-[11px]">
+                        <th className="py-2 pr-3">Loại Lúa</th>
+                        <th className="py-2 pr-3 text-right">SL Ký HĐ (Tấn)</th>
+                        <th className="py-2 pr-3 text-right">Giá HĐ BQ</th>
+                        <th className="py-2 pr-3 text-right">SL Thực Nhập (Tấn)</th>
+                        <th className="py-2 pr-3 text-right">Giá Thực Tế BQ</th>
+                        <th className="py-2 text-right">Chênh Lệch (Thực - HĐ)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {stats.contracts.crossCheck.priceComparison.map((p) => (
+                        <tr key={p.variety} className="hover:bg-slate-50">
+                          <td className="py-2 pr-3 font-bold text-slate-900">{p.variety}</td>
+                          <td className="py-2 pr-3 text-right">{fmtTons(p.contractKg)}</td>
+                          <td className="py-2 pr-3 text-right font-semibold">{fmtNum(p.avgContractPrice)} đ</td>
+                          <td className="py-2 pr-3 text-right">{fmtTons(p.actualKg)}</td>
+                          <td className="py-2 pr-3 text-right font-semibold">{p.avgActualPrice > 0 ? `${fmtNum(p.avgActualPrice)} đ` : '-'}</td>
+                          <td className={`py-2 text-right font-bold ${p.priceDiff > 0 ? 'text-rose-700' : p.priceDiff < 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
+                            {p.priceDiff === 0 ? '-' : `${p.priceDiff > 0 ? '+' : ''}${fmtNum(p.priceDiff)} đ`}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* KCS & Deposit Alerts */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs overflow-x-auto">
+                  <h3 className="text-sm font-black text-slate-900 mb-3">Bảng KCS Ký Hợp Đồng</h3>
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500 uppercase text-[11px]">
+                        <th className="py-2 pr-2">KCS</th>
+                        <th className="py-2 pr-2 text-right">Số HĐ</th>
+                        <th className="py-2 pr-2 text-right">SL Ký (Tấn)</th>
+                        <th className="py-2 pr-2 text-right">% HT</th>
+                        <th className="py-2 text-right">Cọc Còn Lại</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {stats.contracts.kcsRanking.map((k) => (
+                        <tr key={k.kcs} className="hover:bg-slate-50">
+                          <td className="py-2 pr-2 font-bold text-slate-900">{k.kcs}</td>
+                          <td className="py-2 pr-2 text-right">{k.contractCount}</td>
+                          <td className="py-2 pr-2 text-right font-semibold">{fmtTons(k.totalContractKg)}</td>
+                          <td className="py-2 pr-2 text-right text-emerald-700 font-bold">{k.completionPercent}%</td>
+                          <td className="py-2 text-right text-rose-700 font-semibold">{fmtMoney(k.totalDepositRemaining)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="rounded-2xl border border-rose-200 bg-white p-5 shadow-xs overflow-x-auto">
+                  <h3 className="text-sm font-black text-rose-900 mb-3">
+                    ⚠️ Cảnh Báo Tiền Cọc Còn Treo / Quá Hạn ({stats.contracts.depositAlerts.length} HĐ)
+                  </h3>
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500 uppercase text-[11px]">
+                        <th className="py-2 pr-2">Số HĐ</th>
+                        <th className="py-2 pr-2">Nhà Cung Cấp</th>
+                        <th className="py-2 pr-2">Dự Kiến</th>
+                        <th className="py-2 pr-2 text-right">Còn Hàng</th>
+                        <th className="py-2 text-right">Cọc Còn Lại</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {stats.contracts.depositAlerts.slice(0, 40).map((d, idx) => (
+                        <tr key={`${d.contractNo}-${idx}`} className="hover:bg-rose-50/40">
+                          <td className="py-2 pr-2 font-mono font-bold">{d.contractNo}</td>
+                          <td className="py-2 pr-2 font-semibold">{d.supplier}</td>
+                          <td className="py-2 pr-2">{d.expectedDate}</td>
+                          <td className="py-2 pr-2 text-right">{fmtTons(d.remainingKg)}t</td>
+                          <td className="py-2 text-right font-bold text-rose-700">{fmtMoney(d.depositRemaining)}</td>
                         </tr>
                       ))}
                     </tbody>

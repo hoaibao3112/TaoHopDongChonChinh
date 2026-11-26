@@ -498,6 +498,49 @@ export async function buildRiceStatsExcelBuffer(
     };
   });
 
+  // ============================================================================
+  // SHEET 7 (NẾU CÓ FILE HỢP ĐỒNG): HỢP ĐỒNG, TIỀN CỌC & ĐỐI CHIẾU 3 FILE
+  // ============================================================================
+  if (stats.contracts) {
+    const ct = stats.contracts;
+    const ws7 = wb.addWorksheet('7. Hop Dong & Tien Coc');
+    setupSheetPrint(ws7, 'FF0284C7');
+    ws7.columns = [
+      { width: 24 }, { width: 14 }, { width: 18 }, { width: 18 }, { width: 18 },
+      { width: 14 }, { width: 20 }, { width: 20 }, { width: 20 }, { width: 26 },
+    ];
+    addBanner(ws7, 10, `HỢP ĐỒNG LÚA, TIỀN CỌC & ĐỐI CHIẾU 3 FILE — ${periodLabel}`, exportTime, 'FF0369A1');
+
+    addSectionHeading(ws7, 5, 10, 'I. XẾP HẠNG KCS KÝ HỢP ĐỒNG', 'FF0369A1');
+    const kHead = ws7.getRow(6);
+    kHead.values = ['KCS KÝ HĐ', 'SỐ HĐ', 'SL KÝ HĐ (KG)', 'ĐÃ NHẬN (KG)', 'CÒN LẠI (KG)', '% HT', 'TIỀN CỌC (VNĐ)', 'CỌC CÒN LẠI (VNĐ)'];
+    styleTableHeader(kHead, 8, 'FF0369A1');
+
+    ct.kcsRanking.forEach((k, idx) => {
+      const r = ws7.getRow(7 + idx);
+      r.values = [k.kcs, k.contractCount, k.totalContractKg, k.totalReceivedKg, k.totalRemainingKg, k.completionPercent, k.totalDeposit, k.totalDepositRemaining];
+      styleDataRow(r, 8, idx % 2 === 1, { numCols: [2, 3, 4, 5, 7, 8], pctCols: [6], boldCols: [1, 3] });
+    });
+
+    const chartRow7 = 8 + ct.kcsRanking.length;
+    if (charts.contract) {
+      embedChartImage(wb, ws7, charts.contract, 0, chartRow7, 580, 300);
+    }
+
+    const alertRow7 = chartRow7 + 17;
+    addSectionHeading(ws7, alertRow7, 10, `II. CẢNH BÁO TIỀN CỌC CÒN TREO / QUÁ HẠN (${ct.depositAlerts.length} HĐ)`, 'FFBE123C');
+    const a7Head = ws7.getRow(alertRow7 + 1);
+    a7Head.values = ['SỐ HĐ', 'NGÀY DỰ KIẾN', 'NHÀ CUNG CẤP', 'KCS', 'LOẠI LÚA', 'SL HĐ (KG)', 'SL CÒN LẠI', 'TIỀN CỌC', 'CỌC CÒN LẠI', 'LÝ DO'];
+    styleTableHeader(a7Head, 10, 'FFBE123C');
+
+    ct.depositAlerts.forEach((d, idx) => {
+      const r = ws7.getRow(alertRow7 + 2 + idx);
+      r.values = [d.contractNo, d.expectedDate, d.supplier, d.kcs, d.variety, d.contractKg, d.remainingKg, d.deposit, d.depositRemaining, d.alertReason];
+      styleDataRow(r, 10, idx % 2 === 1, { numCols: [6, 7, 8, 9], boldCols: [3, 9] });
+      r.getCell(9).font = { name: FONT, size: 10, bold: true, color: { argb: 'FFBE123C' } };
+    });
+  }
+
   const outBuf = await wb.xlsx.writeBuffer();
   return Buffer.from(outBuf);
 }

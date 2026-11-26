@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { buildContractMonthlyStats, parseContractWorkbook } from './contract-stats-parser';
 import {
   BuyerStat,
   CostBreakdownStat,
@@ -142,6 +143,7 @@ function isSummaryOrEmptyRow(row: unknown[], dateCol: number, weightCol: number)
 }
 
 interface FreshNormalizedRow {
+  contractNo: string;
   dateStr: string;
   monthKey: string;
   day: number;
@@ -182,6 +184,7 @@ interface FreshNormalizedRow {
 }
 
 interface DryNormalizedRow {
+  contractNo: string;
   dateStr: string;
   monthKey: string;
   day: number;
@@ -223,6 +226,7 @@ function parseFreshWorkbook(buffer: Buffer): FreshNormalizedRow[] {
   if (headerIdx === -1) return [];
 
   const headers = (rows[headerIdx] || []).map(normalizeHeader);
+  const cContractNo = findCol(headers, ['SỐ HĐ', 'HĐ'], 0);
   const cDate = findCol(headers, ['NGÀY CÂN'], 1);
   const cBuyer = findCol(headers, ['NHÂN VIÊN THU MUA'], 2);
   const cSupplier = findCol(headers, ['KHÁCH HÀNG'], 3);
@@ -282,6 +286,7 @@ function parseFreshWorkbook(buffer: Buffer): FreshNormalizedRow[] {
     const paymentDate = payDateInfo ? payDateInfo.dateStr : normalizeText(r[cPayDate]);
 
     result.push({
+      contractNo: normalizeText(r[cContractNo]),
       dateStr: dateInfo.dateStr,
       monthKey: dateInfo.monthKey,
       day: dateInfo.day,
@@ -339,6 +344,7 @@ function parseDryWorkbook(buffer: Buffer): DryNormalizedRow[] {
   if (headerIdx === -1) return [];
 
   const headers = (rows[headerIdx] || []).map(normalizeHeader);
+  const cContractNo = findCol(headers, ['SỐ HĐ', 'HĐ'], 0);
   const cDate = findCol(headers, ['NGÀY CÂN'], 1);
   const cBuyer = findCol(headers, ['NHÂN VIÊN THU MUA'], 2);
   const cSupplier = findCol(headers, ['NHÀ CUNG CẤP'], 3);
@@ -375,6 +381,7 @@ function parseDryWorkbook(buffer: Buffer): DryNormalizedRow[] {
     const payDateInfo = parseExcelDateInfo(r[cPayDate]);
 
     result.push({
+      contractNo: normalizeText(r[cContractNo]),
       dateStr: dateInfo.dateStr,
       monthKey: dateInfo.monthKey,
       day: dateInfo.day,
@@ -414,17 +421,28 @@ function sortMonthKeysDesc(months: Set<string>): string[] {
   });
 }
 
+function isOutsideContractCode(code: string): boolean {
+  const c = code.trim().replace(/^'+/, '').toUpperCase();
+  return !c || c === '0' || c === '00' || c === '-' || c.includes('NGOÀI');
+}
+
 export function analyzeRiceMonthlyStats(params: {
   freshBuffer?: Buffer | null;
   dryBuffer?: Buffer | null;
+  contractBuffer?: Buffer | null;
   monthKey?: string;
 }): RiceMonthlyStatsResult {
   const allFresh = params.freshBuffer ? parseFreshWorkbook(params.freshBuffer) : [];
   const allDry = params.dryBuffer ? parseDryWorkbook(params.dryBuffer) : [];
+  const allContracts = params.contractBuffer ? parseContractWorkbook(params.contractBuffer) : [];
 
   const monthSet = new Set<string>();
   for (const r of allFresh) monthSet.add(r.monthKey);
   for (const r of allDry) monthSet.add(r.monthKey);
+  for (const c of allContracts) {
+    if (c.expectedMonthKey) monthSet.add(c.expectedMonthKey);
+    else if (c.signMonthKey) monthSet.add(c.signMonthKey);
+  }
 
   const availableMonths = sortMonthKeysDesc(monthSet);
   const selectedMonth =
@@ -1009,11 +1027,35 @@ export function analyzeRiceMonthlyStats(params: {
     .map(([bank, v]) => ({ bank, count: v.count, totalPaid: v.totalPaid }))
     .sort((a, b) => b.totalPaid - a.totalPaid);
 
+  let inContractKg = 0;
+  let outsideContractKg = 0;
+  for (const r of freshRows) {
+    if (isOutsideContractCode(r.contractNo)) outsideContractKg += r.weightKg;
+    else inContractKg += r.weightKg;
+  }
+  for (const r of dryRows) {
+    if (isOutsideContractCode(r.contractNo)) outsideContractKg += r.weightKg;
+    else inContractKg += r.weightKg;
+  }
+
+  const contractsStats =
+    allContracts.length > 0
+      ? buildContractMonthlyStats({
+          allRows: allContracts,
+          monthKey: selectedMonth,
+          inContractKg,
+          outsideContractKg,
+          actualVarieties: varieties,
+        })
+      : undefined;
+
   return {
     monthKey: selectedMonth,
     availableMonths,
     hasFreshFile: freshRows.length > 0 || allFresh.length > 0,
     hasDryFile: dryRows.length > 0 || allDry.length > 0,
+    hasContractFile: allContracts.length > 0,
+    contracts: contractsStats,
     overview: {
       monthKey: selectedMonth,
       freshLots: freshRows.length,

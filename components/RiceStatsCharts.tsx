@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import {
   BuyerStat,
+  ContractMonthlyStats,
   CostBreakdownStat,
   DailyIntakePoint,
   FacilityDryStat,
@@ -635,6 +636,100 @@ export function FinancialCharts({ financial }: { financial: FinancialSummaryStat
         centerLabel="Thực Trả"
         centerValue={fmtMoneyShort(financial.totalPayable)}
       />
+    </div>
+  );
+}
+
+export function ContractCharts({ contracts }: { contracts: ContractMonthlyStats }) {
+  const maxForecastKg = Math.max(...contracts.forecastByDate.map((f) => f.expectedKg), 1);
+  const maxKcsKg = Math.max(...contracts.kcsRanking.map((k) => k.totalContractKg), 1);
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <DonutChart
+          title="Tiến Độ Giao Hàng Theo Hợp Đồng"
+          subtitle={`Hoàn thành ${contracts.completionPercent}% trên tổng ${fmtTons(contracts.totalContractKg)} tấn đã ký`}
+          slices={[
+            { label: 'Đã nhận thực tế', value: contracts.totalReceivedKg, displayValue: `${fmtTons(contracts.totalReceivedKg)}t`, color: '#059669' },
+            { label: 'Còn lại chưa giao', value: Math.max(0, contracts.totalRemainingKg), displayValue: `${fmtTons(Math.max(0, contracts.totalRemainingKg))}t`, color: '#F59E0B' },
+          ]}
+          centerLabel="Hoàn Thành"
+          centerValue={`${contracts.completionPercent}%`}
+        />
+
+        <DonutChart
+          title="Đối Chiếu Nhập Trong HĐ vs Mua Ngoài"
+          subtitle="Dựa trên cột Số HĐ từ 2 file Lúa Tươi & Lúa Khô trong kỳ"
+          slices={[
+            { label: 'Nhập theo Hợp Đồng', value: contracts.crossCheck.inContractKg, displayValue: `${fmtTons(contracts.crossCheck.inContractKg)}t`, color: '#2563EB' },
+            { label: 'Mua ngoài Hợp Đồng (00)', value: contracts.crossCheck.outsideContractKg, displayValue: `${fmtTons(contracts.crossCheck.outsideContractKg)}t`, color: '#EC4899' },
+          ]}
+          centerLabel="Trong HĐ"
+          centerValue={`${contracts.crossCheck.inContractPercent}%`}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+          <h3 className="text-sm font-black text-slate-900">Biểu Đồ Dự Báo Lịch Nhận Hàng Theo Ngày</h3>
+          <p className="text-[11px] text-slate-500 mb-3">
+            Lượng lúa dự kiến về theo ngày (tấn) giúp bố trí lò sấy &amp; tăng bo
+          </p>
+          {contracts.forecastByDate.length === 0 ? (
+            <p className="py-10 text-center text-xs text-slate-400">Chưa có lịch nhận hàng dự kiến trong kỳ.</p>
+          ) : (
+            <div className="flex items-end gap-1.5 h-44 overflow-x-auto pb-2 pt-4">
+              {contracts.forecastByDate.slice(0, 28).map((f) => {
+                const pct = Math.max(5, Math.round((f.expectedKg / maxForecastKg) * 100));
+                return (
+                  <div
+                    key={f.date}
+                    className="flex flex-col items-center min-w-[28px] flex-1 group"
+                    title={`${f.date}: Dự kiến ${fmtTons(f.expectedKg)}t (${f.contractCount} HĐ)`}
+                  >
+                    <span className="text-[9px] font-bold text-slate-500 mb-1">
+                      {fmtTons(f.expectedKg)}
+                    </span>
+                    <div className="w-full flex flex-col justify-end h-28 bg-slate-100 rounded-t-md overflow-hidden">
+                      <div
+                        style={{ height: `${pct}%` }}
+                        className="w-full bg-gradient-to-t from-sky-600 to-cyan-400 rounded-t-md"
+                      />
+                    </div>
+                    <span className="mt-1 text-[10px] font-semibold text-slate-600">
+                      {f.date.slice(0, 5)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+          <h3 className="text-sm font-black text-slate-900">Xếp Hạng KCS Ký Hợp Đồng</h3>
+          <p className="text-[11px] text-slate-500 mb-3">Sản lượng ký HĐ &amp; tỷ lệ hoàn thành nhận hàng</p>
+          <div className="space-y-2.5">
+            {contracts.kcsRanking.slice(0, 8).map((k) => (
+              <div key={k.kcs} className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-bold text-slate-800">{k.kcs} ({k.contractCount} HĐ)</span>
+                  <span className="font-bold text-sky-700">
+                    {fmtTons(k.totalContractKg)}t <span className="text-emerald-700">({k.completionPercent}%)</span>
+                  </span>
+                </div>
+                <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    style={{ width: `${Math.max(3, (k.totalContractKg / maxKcsKg) * 100)}%` }}
+                    className="h-full rounded-full bg-gradient-to-r from-sky-600 to-indigo-500"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

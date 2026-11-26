@@ -1,5 +1,6 @@
 import {
   BuyerStat,
+  ContractMonthlyStats,
   CostBreakdownStat,
   DailyIntakePoint,
   FacilityDryStat,
@@ -375,6 +376,19 @@ export function buildFinancialDonutSvg(financial: FinancialSummaryStat): string 
   });
 }
 
+export function buildContractDonutSvg(contracts: ContractMonthlyStats): string {
+  return buildDonutSvg({
+    title: 'TIẾN ĐỘ HỢP ĐỒNG & THU HỒI TIỀN CỌC',
+    subtitle: `Tổng ký: ${fmtTons(contracts.totalContractKg)}t • Đã nhận: ${fmtTons(contracts.totalReceivedKg)}t (${contracts.completionPercent}%) • Thu hồi cọc: ${contracts.depositRecoveryPercent}%`,
+    centerLabel: 'Hoàn Thành',
+    centerValue: `${contracts.completionPercent}%`,
+    slices: [
+      { label: 'Đã nhận theo HĐ', value: contracts.totalReceivedKg, displayValue: `${fmtTons(contracts.totalReceivedKg)}t`, color: '#059669' },
+      { label: 'Còn lại chưa giao', value: Math.max(0, contracts.totalRemainingKg), displayValue: `${fmtTons(Math.max(0, contracts.totalRemainingKg))}t`, color: '#F59E0B' },
+    ],
+  });
+}
+
 export interface RiceChartSvgSpecs {
   daily: { svg: string; width: number; height: number };
   variety: { svg: string; width: number; height: number };
@@ -384,6 +398,7 @@ export interface RiceChartSvgSpecs {
   facility: { svg: string; width: number; height: number };
   milling: { svg: string; width: number; height: number };
   financial: { svg: string; width: number; height: number };
+  contract?: { svg: string; width: number; height: number };
 }
 
 export function buildAllChartSvgSpecs(stats: RiceMonthlyStatsResult): RiceChartSvgSpecs {
@@ -397,5 +412,8 @@ export function buildAllChartSvgSpecs(stats: RiceMonthlyStatsResult): RiceChartS
     facility: { svg: buildFacilityLossSvg(stats.facilities), width: 680, height: 310 },
     milling: { svg: buildMillingDonutSvg(stats.milling), width: 620, height: 320 },
     financial: { svg: buildFinancialDonutSvg(stats.financial), width: 620, height: 320 },
+    ...(stats.contracts
+      ? { contract: { svg: buildContractDonutSvg(stats.contracts), width: 620, height: 320 } }
+      : {}),
   };
 }

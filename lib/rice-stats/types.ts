@@ -185,11 +185,93 @@ export interface DebtAlertItem {
   alertType: 'Chưa thanh toán' | 'Số tiền âm / Hoàn tiền';
 }
 
+export interface ContractKcsStat {
+  kcs: string;
+  contractCount: number;
+  totalContractKg: number;
+  totalReceivedKg: number;
+  totalRemainingKg: number;
+  completionPercent: number;
+  totalDeposit: number;
+  totalDepositRemaining: number;
+}
+
+export interface ContractSupplierStat {
+  supplier: string;
+  contractCount: number;
+  totalContractKg: number;
+  totalReceivedKg: number;
+  totalRemainingKg: number;
+  completionPercent: number;
+  totalDeposit: number;
+  totalDepositRemaining: number;
+}
+
+export interface ContractForecastPoint {
+  date: string; // DD/MM/YYYY
+  expectedKg: number;
+  remainingKg: number;
+  contractCount: number;
+}
+
+export interface ContractDepositAlert {
+  contractNo: string;
+  signDate: string;
+  expectedDate: string;
+  supplier: string;
+  kcs: string;
+  variety: string;
+  contractKg: number;
+  remainingKg: number;
+  deposit: number;
+  depositDeducted: number;
+  depositRemaining: number;
+  status: string;
+  alertReason: string;
+}
+
+export interface ContractPriceCompareItem {
+  variety: string;
+  contractKg: number;
+  avgContractPrice: number;
+  actualKg: number;
+  avgActualPrice: number;
+  priceDiff: number; // actual - contract
+}
+
+export interface ContractMonthlyStats {
+  totalContracts: number;
+  totalContractKg: number;
+  totalReceivedKg: number;
+  totalRemainingKg: number;
+  completionPercent: number;
+  totalContractAmount: number;
+  totalDeposit: number;
+  totalDepositDeducted: number;
+  totalDepositRemaining: number;
+  depositRecoveryPercent: number;
+  byPriceType: { label: string; count: number; contractKg: number }[];
+  byRiceForm: { label: string; count: number; contractKg: number }[];
+  byStatus: { label: string; count: number; contractKg: number }[];
+  depositBanks: { bank: string; count: number; totalDeposit: number }[];
+  kcsRanking: ContractKcsStat[];
+  supplierRanking: ContractSupplierStat[];
+  forecastByDate: ContractForecastPoint[];
+  depositAlerts: ContractDepositAlert[];
+  crossCheck: {
+    inContractKg: number;
+    outsideContractKg: number;
+    inContractPercent: number;
+    priceComparison: ContractPriceCompareItem[];
+  };
+}
+
 export interface RiceMonthlyStatsResult {
   monthKey: string;
   availableMonths: string[];
   hasFreshFile: boolean;
   hasDryFile: boolean;
+  hasContractFile: boolean;
   overview: RiceStatsOverview;
   varieties: RiceVarietyStat[];
   dailyTrend: DailyIntakePoint[];
@@ -206,4 +288,5 @@ export interface RiceMonthlyStatsResult {
   totalDryLossPercent: number;
   milling: MillingProgressStat;
   financial: FinancialSummaryStat;
+  contracts?: ContractMonthlyStats;
 }

@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 
 const DEFAULT_FRESH_FILE = 'THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx';
 const DEFAULT_DRY_FILE = 'THỊNH_TỔNG NHẬP LÚA KHÔ NĂM 2026.xlsx';
+const DEFAULT_CONTRACT_FILE = 'HỢP ĐỒNG LÚA NĂM 2026.xlsx';
 
 function hasStatsAccess(req: NextRequest): boolean {
   const role = getRequestUserRole(req);
@@ -27,11 +28,13 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const freshEntry = formData.get('freshFile');
     const dryEntry = formData.get('dryFile');
+    const contractEntry = formData.get('contractFile');
     const monthKey = String(formData.get('monthKey') || '').trim();
     const useLocalSample = String(formData.get('useLocalSample') || '') === 'true';
 
     let freshBuffer: Buffer | null = null;
     let dryBuffer: Buffer | null = null;
+    let contractBuffer: Buffer | null = null;
 
     if (freshEntry instanceof File && freshEntry.size > 0) {
       freshBuffer = Buffer.from(await freshEntry.arrayBuffer());
@@ -51,9 +54,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!freshBuffer && !dryBuffer) {
+    if (contractEntry instanceof File && contractEntry.size > 0) {
+      contractBuffer = Buffer.from(await contractEntry.arrayBuffer());
+    } else if (useLocalSample) {
+      const localContract = path.join(process.cwd(), DEFAULT_CONTRACT_FILE);
+      if (fs.existsSync(localContract)) {
+        contractBuffer = fs.readFileSync(localContract);
+      }
+    }
+
+    if (!freshBuffer && !dryBuffer && !contractBuffer) {
       return NextResponse.json(
-        { error: 'Vui lòng tải lên ít nhất 1 file Excel Lúa Tươi hoặc Lúa Khô.' },
+        { error: 'Vui lòng tải lên ít nhất 1 file Excel Lúa Tươi, Lúa Khô hoặc Hợp Đồng.' },
         { status: 400 }
       );
     }
@@ -61,6 +73,7 @@ export async function POST(req: NextRequest) {
     const result = analyzeRiceMonthlyStats({
       freshBuffer,
       dryBuffer,
+      contractBuffer,
       monthKey: monthKey || undefined,
     });
 
