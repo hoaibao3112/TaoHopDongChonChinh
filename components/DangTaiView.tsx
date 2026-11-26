@@ -2239,13 +2239,40 @@ ${varietyStr}
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Giờ Đăng Tài (24h) <span className="text-blue-600 font-semibold">(00:00 - 23:59)</span>
                   </label>
-                  <input
-                    type="time"
-                    value={formGioDangTai}
-                    onChange={(e) => setFormGioDangTai(e.target.value)}
-                    required
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
-                  />
+                  {(() => {
+                    const parts = (formGioDangTai || '00:00').split(':');
+                    const curH = String(Math.min(23, Math.max(0, Number(parts[0]) || 0))).padStart(2, '0');
+                    const curM = String(Math.min(59, Math.max(0, Number(parts[1]) || 0))).padStart(2, '0');
+                    return (
+                      <div className="flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-2.5 py-2 focus-within:border-blue-500">
+                        <select
+                          aria-label="Giờ 24h"
+                          value={curH}
+                          onChange={(e) => setFormGioDangTai(`${e.target.value}:${curM}`)}
+                          className="w-full bg-transparent text-sm font-mono font-bold text-slate-900 focus:outline-none cursor-pointer text-center"
+                        >
+                          {Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0')).map((h) => (
+                            <option key={h} value={h}>
+                              {h}h
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-sm font-black text-slate-400">:</span>
+                        <select
+                          aria-label="Phút"
+                          value={curM}
+                          onChange={(e) => setFormGioDangTai(`${curH}:${e.target.value}`)}
+                          className="w-full bg-transparent text-sm font-mono font-bold text-slate-900 focus:outline-none cursor-pointer text-center"
+                        >
+                          {Array.from({ length: 60 }, (_, m) => String(m).padStart(2, '0')).map((m) => (
+                            <option key={m} value={m}>
+                              {m}p
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
