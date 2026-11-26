@@ -20,12 +20,15 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = (await req.json()) as { stats?: RiceMonthlyStatsResult };
+    const body = (await req.json()) as {
+      stats?: RiceMonthlyStatsResult;
+      chartImages?: Record<string, string>;
+    };
     if (!body?.stats || !body.stats.overview) {
       return NextResponse.json({ error: 'Thiếu dữ liệu thống kê để xuất Excel' }, { status: 400 });
     }
 
-    const buffer = await buildRiceStatsExcelBuffer(body.stats);
+    const buffer = await buildRiceStatsExcelBuffer(body.stats, body.chartImages);
     const safePeriod = (body.stats.monthKey || 'ALL').replace(/\//g, '_');
     const fileName = `Thong_Ke_Lua_${safePeriod}.xlsx`;
 

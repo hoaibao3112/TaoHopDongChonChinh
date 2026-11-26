@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { RiceMonthlyStatsResult } from '@/lib/rice-stats/types';
+import { renderAllStatsChartsClient } from '@/lib/rice-stats/client-chart-png';
 import {
   BuyerRankingChart,
   CostCharts,
@@ -94,10 +95,18 @@ export default function RiceMonthlyStatsView() {
     setIsExporting(true);
     setError(null);
     try {
+      // Render các biểu đồ PNG chuẩn tiếng Việt ngay trên trình duyệt để tránh lỗi thiếu font trên server Linux
+      let chartImages: Record<string, string> | undefined;
+      try {
+        chartImages = await renderAllStatsChartsClient(stats);
+      } catch {
+        chartImages = undefined;
+      }
+
       const res = await fetch('/api/rice-stats/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stats }),
+        body: JSON.stringify({ stats, chartImages }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));

@@ -1,15 +1,6 @@
 import ExcelJS from 'exceljs';
 import { RiceMonthlyStatsResult } from './types';
-import {
-  renderBuyerRankingPng,
-  renderCostDonutPng,
-  renderDailyStackedChartPng,
-  renderFacilityLossPng,
-  renderFinancialDonutPng,
-  renderMillingDonutPng,
-  renderRegionChartPng,
-  renderVarietyDonutPng,
-} from './excel-chart-renderer';
+import { renderAllChartsServerFallback } from './excel-chart-renderer';
 
 const FONT = 'Arial';
 
@@ -152,7 +143,10 @@ function embedChartImage(
   });
 }
 
-export async function buildRiceStatsExcelBuffer(stats: RiceMonthlyStatsResult): Promise<Buffer> {
+export async function buildRiceStatsExcelBuffer(
+  stats: RiceMonthlyStatsResult,
+  clientChartImages?: Record<string, string>
+): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'XNK Chơn Chính';
   wb.created = new Date();
@@ -160,26 +154,18 @@ export async function buildRiceStatsExcelBuffer(stats: RiceMonthlyStatsResult): 
   const periodLabel = stats.monthKey === 'ALL' ? 'CẢ NĂM 2026' : `THÁNG ${stats.monthKey}`;
   const exportTime = `Xuất lúc: ${new Date().toLocaleString('vi-VN')}`;
 
-  // Tạo song song toàn bộ biểu đồ PNG chất lượng cao bằng sharp
-  const [
-    dailyPng,
-    varietyPng,
-    buyerPng,
-    regionPng,
-    costPng,
-    facilityPng,
-    millingPng,
-    financialPng,
-  ] = await Promise.all([
-    renderDailyStackedChartPng(stats.dailyTrend, periodLabel),
-    renderVarietyDonutPng(stats.varieties),
-    renderBuyerRankingPng(stats.buyers),
-    renderRegionChartPng(stats.regions),
-    renderCostDonutPng(stats.costBreakdown),
-    renderFacilityLossPng(stats.facilities),
-    renderMillingDonutPng(stats.milling),
-    renderFinancialDonutPng(stats.financial),
-  ]);
+  // Ưu tiên ảnh PNG render chuẩn font Unicode từ trình duyệt; fallback sharp trên server
+  const charts = await renderAllChartsServerFallback(stats, clientChartImages);
+  const {
+    daily: dailyPng,
+    variety: varietyPng,
+    buyer: buyerPng,
+    region: regionPng,
+    cost: costPng,
+    facility: facilityPng,
+    milling: millingPng,
+    financial: financialPng,
+  } = charts;
 
   // ============================================================================
   // SHEET 1: TỔNG QUAN & CƠ CẤU LOẠI LÚA
