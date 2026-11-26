@@ -50,7 +50,13 @@ interface ScanResultItem {
 
 export default function DangTaiView() {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayString);
-  const isReadOnly = selectedDate !== getTodayString();
+  const [allowHistoryEdit, setAllowHistoryEdit] = useState<boolean>(false);
+  const isHistoricalDate = selectedDate !== getTodayString();
+  const isReadOnly = isHistoricalDate && !allowHistoryEdit;
+
+  useEffect(() => {
+    setAllowHistoryEdit(false);
+  }, [selectedDate]);
   const [items, setItems] = useState<XeDangTai[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -1297,12 +1303,14 @@ ${varietyStr}
               />
               <span
                 className={`rounded-lg px-2 py-0.5 text-[10px] font-bold border whitespace-nowrap ${
-                  !isReadOnly
+                  !isHistoricalDate
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+                    : allowHistoryEdit
+                    ? 'bg-blue-500/25 text-blue-200 border-blue-400/40'
                     : 'bg-amber-500/20 text-amber-300 border-amber-400/30'
                 }`}
               >
-                {!isReadOnly ? 'Hôm nay (24H)' : 'Lịch Sử'}
+                {!isHistoricalDate ? 'Hôm nay (24H)' : allowHistoryEdit ? 'Lịch Sử (Đang Sửa)' : 'Lịch Sử'}
               </span>
             </div>
 
@@ -1364,36 +1372,83 @@ ${varietyStr}
         </div>
       </div>
 
-      {/* BANNER CHẾ ĐỘ CHỈ ĐỌC KHI XEM LỊCH SỬ NGÀY CŨ */}
-      {isReadOnly && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-amber-500/10 border-2 border-amber-500/30 p-4 sm:p-5 text-amber-950 shadow-sm backdrop-blur-xs">
+      {/* BANNER CHẾ ĐỘ LỊCH SỬ KHI XEM NGÀY CŨ (CHO PHÉP MỞ KHÓA CẬP NHẬT) */}
+      {isHistoricalDate && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-3xl border-2 p-4 sm:p-5 shadow-sm backdrop-blur-xs transition-colors ${
+            isReadOnly
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-950'
+              : 'bg-emerald-500/10 border-emerald-500/35 text-emerald-950'
+          }`}
+        >
           <div className="flex items-center gap-3.5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white text-2xl shadow-sm">
-              📜
+            <span
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white text-2xl shadow-sm ${
+                isReadOnly ? 'bg-amber-500' : 'bg-emerald-600'
+              }`}
+            >
+              {isReadOnly ? '📜' : '✏️'}
             </span>
             <div>
               <div className="text-sm sm:text-base font-black flex items-center gap-2 flex-wrap">
-                <span>Đang xem dữ liệu lịch sử ngày:</span>
-                <span className="rounded-lg bg-amber-600 text-white px-2 py-0.5 font-mono text-xs font-black shadow-2xs">
+                <span>
+                  {isReadOnly ? 'Đang xem dữ liệu lịch sử ngày:' : 'Đang mở khóa cập nhật lịch sử ngày:'}
+                </span>
+                <span
+                  className={`rounded-lg text-white px-2 py-0.5 font-mono text-xs font-black shadow-2xs ${
+                    isReadOnly ? 'bg-amber-600' : 'bg-emerald-600'
+                  }`}
+                >
                   {formatDateVN(selectedDate)}
                 </span>
-                <span className="rounded-md bg-amber-200/90 text-amber-900 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
-                  Chỉ đọc (Read-only)
+                <span
+                  className={`rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                    isReadOnly
+                      ? 'bg-amber-200/90 text-amber-900'
+                      : 'bg-emerald-200/90 text-emerald-900'
+                  }`}
+                >
+                  {isReadOnly ? 'Chỉ đọc (Read-only)' : 'Cho phép cập nhật'}
                 </span>
               </div>
-              <p className="text-xs text-amber-800 font-medium mt-0.5">
-                Dữ liệu ngày cũ được khóa an toàn để tránh ghi đè, xóa hoặc thay đổi ngoài ý muốn.
+              <p
+                className={`text-xs font-medium mt-0.5 ${
+                  isReadOnly ? 'text-amber-800' : 'text-emerald-800'
+                }`}
+              >
+                {isReadOnly
+                  ? 'Dữ liệu ngày cũ mặc định ở chế độ chỉ đọc. Bấm "Mở Khóa Cập Nhật" nếu bạn muốn thêm, sửa, quét phiếu hoặc xóa xe cho ngày này.'
+                  : 'Bạn đã bật quyền chỉnh sửa cho ngày lịch sử này. Mọi thay đổi sẽ được lưu trực tiếp vào đúng ngày đang chọn.'}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setSelectedDate(getTodayString())}
-            className="flex items-center gap-2 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 text-xs font-bold shadow-md shadow-amber-600/30 transition-all cursor-pointer active:scale-95 ml-auto sm:ml-0"
-          >
-            <span>↩️</span>
-            <span>Quay về ngày hôm nay</span>
-          </button>
+
+          <div className="flex flex-wrap items-center gap-2 ml-auto sm:ml-0">
+            <button
+              type="button"
+              onClick={() => setAllowHistoryEdit((prev) => !prev)}
+              className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95 ${
+                isReadOnly
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30'
+                  : 'bg-slate-700 hover:bg-slate-800 text-white shadow-slate-700/25'
+              }`}
+            >
+              <span>{isReadOnly ? '🔓' : '🔒'}</span>
+              <span>{isReadOnly ? 'Mở Khóa Cập Nhật' : 'Khóa Lại (Chỉ Đọc)'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAllowHistoryEdit(false);
+                setSelectedDate(getTodayString());
+              }}
+              className="flex items-center gap-2 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 text-xs font-bold shadow-md shadow-amber-600/30 transition-all cursor-pointer active:scale-95"
+            >
+              <span>↩️</span>
+              <span>Quay về ngày hôm nay</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -1595,9 +1650,16 @@ ${varietyStr}
                 </label>
               </>
             ) : (
-              <div className="flex items-center gap-2 rounded-2xl bg-amber-50 border border-amber-200 px-3.5 py-2 text-xs font-bold text-amber-800">
+              <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-amber-50 border border-amber-200 px-3.5 py-2 text-xs font-bold text-amber-800">
                 <span>🔒</span>
-                <span>Chế độ xem lịch sử (Chỉ đọc) — Các thao tác thêm, quét hoặc sửa dữ liệu đã bị khóa.</span>
+                <span>Chế độ xem lịch sử (Chỉ đọc) — Các thao tác thêm, quét hoặc sửa dữ liệu đang khóa.</span>
+                <button
+                  type="button"
+                  onClick={() => setAllowHistoryEdit(true)}
+                  className="ml-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 text-[11px] font-bold shadow-xs transition cursor-pointer"
+                >
+                  🔓 Mở khóa cập nhật
+                </button>
               </div>
             )}
           </div>
