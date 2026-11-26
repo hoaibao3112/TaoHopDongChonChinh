@@ -90,13 +90,15 @@ export interface ParsedContractRow {
   status: string;
 }
 
-export function parseContractWorkbook(buffer: Buffer): ParsedContractRow[] {
-  const wb = XLSX.read(buffer, { type: 'buffer' });
+export function parseContractWorkbook(data: Uint8Array): ParsedContractRow[] {
+  const metaWb = XLSX.read(data, { type: 'array', bookSheets: true });
   const sheetName =
-    wb.SheetNames.find((n) => normHeader(n).includes('CHI TIẾT HĐ 2026')) ||
-    wb.SheetNames.find((n) => normHeader(n).includes('CHI TIẾT HĐ')) ||
-    wb.SheetNames[0];
+    metaWb.SheetNames.find((n) => normHeader(n).includes('CHI TIẾT HĐ 2026')) ||
+    metaWb.SheetNames.find((n) => normHeader(n).includes('CHI TIẾT HĐ')) ||
+    metaWb.SheetNames[0];
   if (!sheetName) return [];
+
+  const wb = XLSX.read(data, { type: 'array', sheets: [sheetName] });
 
   const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], {
     header: 1,

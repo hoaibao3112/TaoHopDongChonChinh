@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { RiceMonthlyStatsResult } from '@/lib/rice-stats/types';
+import { analyzeRiceMonthlyStats } from '@/lib/rice-stats/monthly-stats-parser';
 import { renderAllStatsChartsClient } from '@/lib/rice-stats/client-chart-png';
 import {
   BuyerRankingChart,
@@ -66,6 +67,24 @@ export default function RiceMonthlyStatsView() {
     setError(null);
     setIsLoading(true);
     try {
+      // Nếu người dùng chọn file từ máy -> phân tích trực tiếp trên trình duyệt (tránh giới hạn 4.5MB của Vercel & siêu nhanh)
+      if (!useSample && (f || d || c)) {
+        const [freshBuf, dryBuf, contractBuf] = await Promise.all([
+          f ? f.arrayBuffer().then((ab) => new Uint8Array(ab)) : Promise.resolve(null),
+          d ? d.arrayBuffer().then((ab) => new Uint8Array(ab)) : Promise.resolve(null),
+          c ? c.arrayBuffer().then((ab) => new Uint8Array(ab)) : Promise.resolve(null),
+        ]);
+        const result = analyzeRiceMonthlyStats({
+          freshBuffer: freshBuf,
+          dryBuffer: dryBuf,
+          contractBuffer: contractBuf,
+          monthKey: targetMonth || undefined,
+        });
+        setStats(result);
+        setMonthKey(result.monthKey);
+        return;
+      }
+
       const fd = new FormData();
       if (f) fd.append('freshFile', f);
       if (d) fd.append('dryFile', d);
@@ -77,8 +96,18 @@ export default function RiceMonthlyStatsView() {
         method: 'POST',
         body: fd,
       });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
+      const rawText = await res.text();
+      let json: { success?: boolean; data?: RiceMonthlyStatsResult; error?: string } = {};
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        throw new Error(
+          res.status === 413
+            ? 'Tổng dung lượng file vượt quá giới hạn máy chủ.'
+            : `Lỗi máy chủ (${res.status}): ${rawText.slice(0, 120)}`
+        );
+      }
+      if (!res.ok || !json.success || !json.data) {
         throw new Error(json.error || 'Không thể phân tích dữ liệu');
       }
       setStats(json.data);

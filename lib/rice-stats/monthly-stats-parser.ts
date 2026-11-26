@@ -212,11 +212,13 @@ interface DryNormalizedRow {
   facility: string;
 }
 
-function parseFreshWorkbook(buffer: Buffer): FreshNormalizedRow[] {
-  const wb = XLSX.read(buffer, { type: 'buffer' });
+function parseFreshWorkbook(data: Uint8Array): FreshNormalizedRow[] {
+  const metaWb = XLSX.read(data, { type: 'array', bookSheets: true });
   const sheetName =
-    wb.SheetNames.find((n) => normalizeHeader(n).includes('LUA TUOI')) || wb.SheetNames[0];
+    metaWb.SheetNames.find((n) => normalizeHeader(n).includes('LUA TUOI')) || metaWb.SheetNames[0];
   if (!sheetName) return [];
+
+  const wb = XLSX.read(data, { type: 'array', sheets: [sheetName] });
 
   const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], {
     header: 1,
@@ -329,12 +331,15 @@ function parseFreshWorkbook(buffer: Buffer): FreshNormalizedRow[] {
   return result;
 }
 
-function parseDryWorkbook(buffer: Buffer): DryNormalizedRow[] {
-  const wb = XLSX.read(buffer, { type: 'buffer' });
+function parseDryWorkbook(data: Uint8Array): DryNormalizedRow[] {
+  const metaWb = XLSX.read(data, { type: 'array', bookSheets: true });
   const sheetName =
-    wb.SheetNames.find((n) => normalizeHeader(n).includes('LUA KHÔ') || normalizeHeader(n).includes('LUA KHO')) ||
-    wb.SheetNames[0];
+    metaWb.SheetNames.find(
+      (n) => normalizeHeader(n).includes('LUA KHÔ') || normalizeHeader(n).includes('LUA KHO')
+    ) || metaWb.SheetNames[0];
   if (!sheetName) return [];
+
+  const wb = XLSX.read(data, { type: 'array', sheets: [sheetName] });
 
   const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], {
     header: 1,
@@ -427,9 +432,9 @@ function isOutsideContractCode(code: string): boolean {
 }
 
 export function analyzeRiceMonthlyStats(params: {
-  freshBuffer?: Buffer | null;
-  dryBuffer?: Buffer | null;
-  contractBuffer?: Buffer | null;
+  freshBuffer?: Uint8Array | null;
+  dryBuffer?: Uint8Array | null;
+  contractBuffer?: Uint8Array | null;
   monthKey?: string;
 }): RiceMonthlyStatsResult {
   const allFresh = params.freshBuffer ? parseFreshWorkbook(params.freshBuffer) : [];
