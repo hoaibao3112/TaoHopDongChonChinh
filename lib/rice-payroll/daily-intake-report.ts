@@ -125,7 +125,7 @@ function formatKhoRiceLabel(rawType: string): string {
   const clean = rawType.trim();
   const upper = clean.toUpperCase();
   if (!upper) return 'Lúa khô khác';
-  if (upper === 'NẾP' || upper === 'NEP') return 'Lúa khô Nếp';
+  if (upper === 'NẾP' || upper === 'NEP') return 'Lúa Nếp Khô';
   if (upper.startsWith('LÚA KHÔ')) return clean;
   const normalized = clean
     .replace(/^lúa\s+khô\s+/i, '')
