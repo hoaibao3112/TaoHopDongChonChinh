@@ -9,7 +9,7 @@ describe('Thống Kê Tổng Hợp Lúa Tươi & Lúa Khô 2026 (6 Nhóm)', () =
   const freshPath = path.join(process.cwd(), 'THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx');
   const dryPath = path.join(process.cwd(), 'THỊNH_TỔNG NHẬP LÚA KHÔ NĂM 2026.xlsx');
 
-  it('Phân tích đầy đủ 6 nhóm thống kê từ 2 file Excel thật và xuất ra 6 sheets hợp lệ', () => {
+  it('Phân tích đầy đủ 6 nhóm thống kê từ 2 file Excel thật và xuất ra 6 sheets hợp lệ', async () => {
     const freshExists = fs.existsSync(freshPath);
     const dryExists = fs.existsSync(dryPath);
     expect(freshExists).toBe(true);
@@ -65,9 +65,9 @@ describe('Thống Kê Tổng Hợp Lúa Tươi & Lúa Khô 2026 (6 Nhóm)', () =
     expect(monthlyStats.overview.combinedTotalLots).toBeGreaterThan(0);
     expect(monthlyStats.overview.combinedTotalLots).toBeLessThanOrEqual(stats.overview.combinedTotalLots);
 
-    // Kiểm tra xuất Excel 6 sheets
-    const excelBuf = buildRiceStatsExcelBuffer(monthlyStats);
-    expect(excelBuf.length).toBeGreaterThan(1000);
+    // Kiểm tra xuất Excel 6 sheets (có biểu đồ nhúng qua ExcelJS)
+    const excelBuf = await buildRiceStatsExcelBuffer(monthlyStats);
+    expect(excelBuf.length).toBeGreaterThan(20000);
     const outWb = XLSX.read(excelBuf, { type: 'buffer' });
     expect(outWb.SheetNames).toHaveLength(6);
   });

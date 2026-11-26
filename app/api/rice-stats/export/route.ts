@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu dữ liệu thống kê để xuất Excel' }, { status: 400 });
     }
 
-    const buffer = buildRiceStatsExcelBuffer(body.stats);
+    const buffer = await buildRiceStatsExcelBuffer(body.stats);
     const safePeriod = (body.stats.monthKey || 'ALL').replace(/\//g, '_');
     const fileName = `Thong_Ke_Lua_${safePeriod}.xlsx`;
 
