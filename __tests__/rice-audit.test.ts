@@ -34,8 +34,11 @@ describe('Rice Audit Tab & Engine', () => {
     expect(result.summary.totalIssues).toBeGreaterThan(0);
     expect(result.summary.byCategory.lot_code).toBeGreaterThan(0);
     expect(result.summary.byCategory.customer).toBeGreaterThan(0);
+    expect(result.availableMonths.length).toBeGreaterThan(0);
+    expect(result.availableMonths[0].key).toMatch(/^\d{4}-\d{2}$/);
+    expect(result.issues.some((i) => i.monthKey === result.availableMonths[0].key)).toBe(true);
 
-    const exported = buildAuditReportWorkbookBuffer(result);
+    const exported = buildAuditReportWorkbookBuffer(result, result.issues, result.availableMonths[0].label);
     expect(exported.byteLength).toBeGreaterThan(1000);
   });
 });

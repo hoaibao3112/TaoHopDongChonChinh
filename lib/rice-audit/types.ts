@@ -18,6 +18,7 @@ export interface RiceAuditIssue {
   suggestion: string;
   // Thông tin ngữ cảnh dòng
   dateStr: string;
+  monthKey: string; // YYYY-MM hoặc '' nếu không có ngày cân
   buyer: string;
   customer: string;
   riceType: string;
@@ -48,8 +49,16 @@ export interface RiceAuditSummary {
   analyzedAt: string;
 }
 
+export interface AvailableAuditMonth {
+  key: string;   // YYYY-MM
+  label: string; // Tháng MM/YYYY
+  freshRows: number;
+  dryRows: number;
+}
+
 export interface RiceAuditResult {
   summary: RiceAuditSummary;
+  availableMonths: AvailableAuditMonth[];
   issues: RiceAuditIssue[];
   customerMappings: CustomerPrefixMapping[];
 }

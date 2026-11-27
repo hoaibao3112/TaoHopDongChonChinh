@@ -65,6 +65,7 @@ export default function RiceAuditView() {
 
   // Bộ lọc hiển thị
   const [viewMode, setViewMode] = useState<ViewMode>('issues');
+  const [monthFilter, setMonthFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | RiceFileSource>('all');
   const [categoryFilter, setCategoryFilter] = useState<'all' | AuditCategory>('all');
   const [severityFilter, setSeverityFilter] = useState<'all' | AuditSeverity>('all');
@@ -90,6 +91,7 @@ export default function RiceAuditView() {
         priceDeviationPct: pct,
       });
       setResult(auditRes);
+      setMonthFilter('all');
       setPage(1);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Không thể đọc file Excel.');
@@ -112,6 +114,7 @@ export default function RiceAuditView() {
         throw new Error(data.error || 'Không thể nạp file mẫu từ máy chủ');
       }
       setResult(data.data);
+      setMonthFilter('all');
       setPage(1);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Lỗi khi nạp file mẫu.');
@@ -120,10 +123,49 @@ export default function RiceAuditView() {
     }
   };
 
-  const filteredIssues = useMemo(() => {
+  const selectedMonthMeta = useMemo(() => {
+    if (!result || monthFilter === 'all') return null;
+    return result.availableMonths.find((m) => m.key === monthFilter) || null;
+  }, [result, monthFilter]);
+
+  const monthScopedIssues = useMemo(() => {
     if (!result) return [];
+    if (monthFilter === 'all') return result.issues;
+    return result.issues.filter((iss) => iss.monthKey === monthFilter);
+  }, [result, monthFilter]);
+
+  const scopedStats = useMemo(() => {
+    if (!result) return null;
+    const freshRows = selectedMonthMeta ? selectedMonthMeta.freshRows : result.summary.totalFreshRows;
+    const dryRows = selectedMonthMeta ? selectedMonthMeta.dryRows : result.summary.totalDryRows;
+    const bySeverity: Record<AuditSeverity, number> = { error: 0, warning: 0, info: 0 };
+    const byCategory: Record<AuditCategory, number> = {
+      lot_code: 0,
+      customer: 0,
+      price: 0,
+      formula_payment: 0,
+    };
+    const bySource: Record<RiceFileSource, number> = { fresh: 0, dry: 0 };
+
+    for (const iss of monthScopedIssues) {
+      bySeverity[iss.severity]++;
+      byCategory[iss.category]++;
+      bySource[iss.source]++;
+    }
+
+    return {
+      freshRows,
+      dryRows,
+      totalIssues: monthScopedIssues.length,
+      bySeverity,
+      byCategory,
+      bySource,
+    };
+  }, [result, selectedMonthMeta, monthScopedIssues]);
+
+  const filteredIssues = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    return result.issues.filter((iss) => {
+    return monthScopedIssues.filter((iss) => {
       if (sourceFilter !== 'all' && iss.source !== sourceFilter) return false;
       if (categoryFilter !== 'all' && iss.category !== categoryFilter) return false;
       if (severityFilter !== 'all' && iss.severity !== severityFilter) return false;
@@ -133,7 +175,7 @@ export default function RiceAuditView() {
       }
       return true;
     });
-  }, [result, sourceFilter, categoryFilter, severityFilter, searchTerm]);
+  }, [monthScopedIssues, sourceFilter, categoryFilter, severityFilter, searchTerm]);
 
   const filteredMappings = useMemo(() => {
     if (!result) return [];
@@ -156,15 +198,16 @@ export default function RiceAuditView() {
 
   const handleExportExcel = () => {
     if (!result) return;
-    const buf = buildAuditReportWorkbookBuffer(result, filteredIssues);
+    const monthLabel = selectedMonthMeta ? selectedMonthMeta.label : 'Tất cả các tháng';
+    const buf = buildAuditReportWorkbookBuffer(result, filteredIssues, monthLabel);
     const blob = new Blob([buf.buffer as ArrayBuffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const stamp = new Date().toISOString().slice(0, 10);
-    a.download = `BaoCao_KiemTraLoi_Lua_${stamp}.xlsx`;
+    const suffix = monthFilter === 'all' ? new Date().toISOString().slice(0, 10) : `Thang_${monthFilter}`;
+    a.download = `BaoCao_KiemTraLoi_Lua_${suffix}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -284,25 +327,27 @@ export default function RiceAuditView() {
       </div>
 
       {/* Kết quả */}
-      {result && (
+      {result && scopedStats && (
         <>
-          {/* Thẻ tóm tắt */}
+          {/* Thẻ tóm tắt (tự động cập nhật theo Tháng/Năm đang chọn) */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs">
-              <p className="text-[11px] font-bold uppercase text-slate-400">Dòng đã quét</p>
+              <p className="text-[11px] font-bold uppercase text-slate-400">
+                {selectedMonthMeta ? `Dòng ${selectedMonthMeta.label}` : 'Dòng đã quét'}
+              </p>
               <p className="mt-1 text-xl font-black text-slate-900">
-                {(result.summary.totalFreshRows + result.summary.totalDryRows).toLocaleString('vi-VN')}
+                {(scopedStats.freshRows + scopedStats.dryRows).toLocaleString('vi-VN')}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">
-                Tươi: {result.summary.totalFreshRows.toLocaleString('vi-VN')} · Khô:{' '}
-                {result.summary.totalDryRows.toLocaleString('vi-VN')}
+                Tươi: {scopedStats.freshRows.toLocaleString('vi-VN')} · Khô:{' '}
+                {scopedStats.dryRows.toLocaleString('vi-VN')}
               </p>
             </div>
 
             <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 shadow-2xs">
               <p className="text-[11px] font-bold uppercase text-rose-600">Nghiêm trọng</p>
               <p className="mt-1 text-xl font-black text-rose-700">
-                {result.summary.bySeverity.error.toLocaleString('vi-VN')}
+                {scopedStats.bySeverity.error.toLocaleString('vi-VN')}
               </p>
               <p className="mt-0.5 text-[11px] text-rose-600/80">Trùng mã, lệch ngày, thiếu giá...</p>
             </div>
@@ -310,7 +355,7 @@ export default function RiceAuditView() {
             <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 shadow-2xs">
               <p className="text-[11px] font-bold uppercase text-amber-700">Cảnh báo</p>
               <p className="mt-1 text-xl font-black text-amber-800">
-                {result.summary.bySeverity.warning.toLocaleString('vi-VN')}
+                {scopedStats.bySeverity.warning.toLocaleString('vi-VN')}
               </p>
               <p className="mt-0.5 text-[11px] text-amber-700/80">Lệch giá, nhầm tiền tố, mất CT...</p>
             </div>
@@ -318,7 +363,7 @@ export default function RiceAuditView() {
             <div className="rounded-2xl border border-indigo-200 bg-white p-4 shadow-2xs">
               <p className="text-[11px] font-bold uppercase text-indigo-600">🏷️ Lỗi Mã Lô</p>
               <p className="mt-1 text-xl font-black text-slate-900">
-                {result.summary.byCategory.lot_code.toLocaleString('vi-VN')}
+                {scopedStats.byCategory.lot_code.toLocaleString('vi-VN')}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">Trùng, lệch ngày, sai khách</p>
             </div>
@@ -326,7 +371,7 @@ export default function RiceAuditView() {
             <div className="rounded-2xl border border-sky-200 bg-white p-4 shadow-2xs">
               <p className="text-[11px] font-bold uppercase text-sky-600">👤 Khách Hàng</p>
               <p className="mt-1 text-xl font-black text-slate-900">
-                {result.summary.byCategory.customer.toLocaleString('vi-VN')}
+                {scopedStats.byCategory.customer.toLocaleString('vi-VN')}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">Dấu cách, lỗi dấu, chính tả</p>
             </div>
@@ -334,10 +379,10 @@ export default function RiceAuditView() {
             <div className="rounded-2xl border border-amber-200 bg-white p-4 shadow-2xs">
               <p className="text-[11px] font-bold uppercase text-amber-700">💰 Giá &amp; CT</p>
               <p className="mt-1 text-xl font-black text-slate-900">
-                {(result.summary.byCategory.price + result.summary.byCategory.formula_payment).toLocaleString('vi-VN')}
+                {(scopedStats.byCategory.price + scopedStats.byCategory.formula_payment).toLocaleString('vi-VN')}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">
-                Giá: {result.summary.byCategory.price} · CT/TT: {result.summary.byCategory.formula_payment}
+                Giá: {scopedStats.byCategory.price} · CT/TT: {scopedStats.byCategory.formula_payment}
               </p>
             </div>
           </div>
@@ -387,6 +432,23 @@ export default function RiceAuditView() {
                 {/* Bộ lọc chi tiết */}
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <select
+                    value={monthFilter}
+                    onChange={(e) => {
+                      setMonthFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-1.5 font-bold text-rose-800"
+                    title="Lọc kiểm tra lỗi theo từng Tháng / Năm"
+                  >
+                    <option value="all">📅 Tất cả các tháng ({result.summary.totalIssues} lỗi)</option>
+                    {result.availableMonths.map((m) => (
+                      <option key={m.key} value={m.key}>
+                        📅 {m.label} ({(m.freshRows + m.dryRows).toLocaleString('vi-VN')} dòng)
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
                     value={sourceFilter}
                     onChange={(e) => {
                       setSourceFilter(e.target.value as 'all' | RiceFileSource);
@@ -394,9 +456,9 @@ export default function RiceAuditView() {
                     }}
                     className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-700"
                   >
-                    <option value="all">Tất cả file ({result.summary.totalIssues})</option>
-                    <option value="fresh">Lúa Tươi ({result.summary.bySource.fresh})</option>
-                    <option value="dry">Lúa Khô ({result.summary.bySource.dry})</option>
+                    <option value="all">Tất cả file ({scopedStats.totalIssues})</option>
+                    <option value="fresh">Lúa Tươi ({scopedStats.bySource.fresh})</option>
+                    <option value="dry">Lúa Khô ({scopedStats.bySource.dry})</option>
                   </select>
 
                   <select
@@ -408,11 +470,11 @@ export default function RiceAuditView() {
                     className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-700"
                   >
                     <option value="all">Tất cả nhóm lỗi</option>
-                    <option value="lot_code">🏷️ Mã Lô ({result.summary.byCategory.lot_code})</option>
-                    <option value="customer">👤 Khách Hàng ({result.summary.byCategory.customer})</option>
-                    <option value="price">💰 Giá Tiền ({result.summary.byCategory.price})</option>
+                    <option value="lot_code">🏷️ Mã Lô ({scopedStats.byCategory.lot_code})</option>
+                    <option value="customer">👤 Khách Hàng ({scopedStats.byCategory.customer})</option>
+                    <option value="price">💰 Giá Tiền ({scopedStats.byCategory.price})</option>
                     <option value="formula_payment">
-                      🧮 Công Thức &amp; TT ({result.summary.byCategory.formula_payment})
+                      🧮 Công Thức &amp; TT ({scopedStats.byCategory.formula_payment})
                     </option>
                   </select>
 
@@ -425,9 +487,9 @@ export default function RiceAuditView() {
                     className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-700"
                   >
                     <option value="all">Tất cả mức độ</option>
-                    <option value="error">🔴 Nghiêm trọng ({result.summary.bySeverity.error})</option>
-                    <option value="warning">🟠 Cảnh báo ({result.summary.bySeverity.warning})</option>
-                    <option value="info">⚪ Lưu ý ({result.summary.bySeverity.info})</option>
+                    <option value="error">🔴 Nghiêm trọng ({scopedStats.bySeverity.error})</option>
+                    <option value="warning">🟠 Cảnh báo ({scopedStats.bySeverity.warning})</option>
+                    <option value="info">⚪ Lưu ý ({scopedStats.bySeverity.info})</option>
                   </select>
                 </div>
 

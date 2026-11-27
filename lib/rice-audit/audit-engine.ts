@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import {
   AuditCategory,
   AuditSeverity,
+  AvailableAuditMonth,
   CustomerPrefixMapping,
   RiceAuditIssue,
   RiceAuditResult,
@@ -18,6 +19,7 @@ interface ParsedRow {
   rowNumber: number;
   dateSerial: number | null;
   dateStr: string;
+  monthKey: string;
   dmy: string | null;
   buyer: string;
   customerRaw: string;
@@ -68,6 +70,13 @@ function formatDMY(d: Date | null): string | null {
   const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
   const yy = String(d.getUTCFullYear()).slice(-2);
   return `${dd}${mm}${yy}`;
+}
+
+function formatMonthKey(d: Date | null): string {
+  if (!d) return '';
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${yyyy}-${mm}`;
 }
 
 function toNumberOrNull(v: unknown): number | null {
@@ -250,6 +259,7 @@ function parseRowsFromWorkbook(
       rowNumber: r + 1,
       dateSerial,
       dateStr: dObj ? formatDateVN(dObj) : String(dateVal ?? '').trim(),
+      monthKey: formatMonthKey(dObj),
       dmy: formatDMY(dObj),
       buyer: String(row[buyerCol] ?? '').trim(),
       customerRaw: custRaw,
@@ -310,6 +320,7 @@ function auditSingleSheet(
       detail,
       suggestion,
       dateStr: row.dateStr,
+      monthKey: row.monthKey,
       buyer: row.buyer,
       customer: row.customerRaw.trim(),
       riceType: row.riceType,
@@ -699,10 +710,24 @@ export function analyzeRiceAudit(options: AnalyzeAuditOptions): RiceAuditResult 
   const allMappings: CustomerPrefixMapping[] = [];
   let totalFreshRows = 0;
   let totalDryRows = 0;
+  const monthStatsMap = new Map<string, { freshRows: number; dryRows: number }>();
+
+  const trackMonthRows = (rows: ParsedRow[], source: RiceFileSource) => {
+    for (const r of rows) {
+      if (!r.monthKey) continue;
+      if (!monthStatsMap.has(r.monthKey)) {
+        monthStatsMap.set(r.monthKey, { freshRows: 0, dryRows: 0 });
+      }
+      const stat = monthStatsMap.get(r.monthKey)!;
+      if (source === 'fresh') stat.freshRows++;
+      else stat.dryRows++;
+    }
+  };
 
   if (options.freshBuffer) {
     const { sheetName, rows } = parseRowsFromWorkbook(options.freshBuffer, 'fresh');
     totalFreshRows = rows.length;
+    trackMonthRows(rows, 'fresh');
     const res = auditSingleSheet('fresh', sheetName, rows, priceDeviationPct);
     allIssues.push(...res.issues);
     allMappings.push(...res.mappings);
@@ -711,10 +736,23 @@ export function analyzeRiceAudit(options: AnalyzeAuditOptions): RiceAuditResult 
   if (options.dryBuffer) {
     const { sheetName, rows } = parseRowsFromWorkbook(options.dryBuffer, 'dry');
     totalDryRows = rows.length;
+    trackMonthRows(rows, 'dry');
     const res = auditSingleSheet('dry', sheetName, rows, priceDeviationPct);
     allIssues.push(...res.issues);
     allMappings.push(...res.mappings);
   }
+
+  const availableMonths: AvailableAuditMonth[] = [...monthStatsMap.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, counts]) => {
+      const [yyyy, mm] = key.split('-');
+      return {
+        key,
+        label: `Tháng ${mm}/${yyyy}`,
+        freshRows: counts.freshRows,
+        dryRows: counts.dryRows,
+      };
+    });
 
   // Sắp xếp: Lỗi nghiêm trọng (error) -> Cảnh báo (warning) -> Lưu ý (info), sau đó theo dòng
   const sevRank: Record<AuditSeverity, number> = { error: 0, warning: 1, info: 2 };
@@ -784,6 +822,7 @@ export function analyzeRiceAudit(options: AnalyzeAuditOptions): RiceAuditResult 
       priceDeviationPct,
       analyzedAt: new Date().toISOString(),
     },
+    availableMonths,
     issues: allIssues,
     customerMappings,
   };

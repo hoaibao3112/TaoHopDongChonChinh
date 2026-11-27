@@ -46,8 +46,33 @@ export default function AdminPasswordsView() {
   }, []);
 
   useEffect(() => {
-    loadPasswords();
-  }, [loadPasswords]);
+    let cancelled = false;
+    fetch('/api/admin/passwords', { cache: 'no-store' })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (cancelled) return;
+        if (!ok || !data.success) {
+          throw new Error(data.error || 'Không thể tải danh sách mật khẩu');
+        }
+        setItems(data.items);
+        const d: Record<string, string> = {};
+        for (const it of data.items) {
+          d[it.key] = it.password;
+        }
+        setDrafts(d);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSaveAll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +111,7 @@ export default function AdminPasswordsView() {
       if (!res.ok || !data.success || !data.redirectUrl) {
         throw new Error(data.error || 'Không thể chuyển sang tab này');
       }
-      window.location.href = data.redirectUrl;
+      window.location.assign(data.redirectUrl);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
       setSwitchingKey(null);

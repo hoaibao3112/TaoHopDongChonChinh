@@ -14,13 +14,18 @@ const SEVERITY_LABEL: Record<RiceAuditIssue['severity'], string> = {
   info: 'Lưu ý',
 };
 
-export function buildAuditReportWorkbookBuffer(result: RiceAuditResult, filteredIssues?: RiceAuditIssue[]): Uint8Array {
+export function buildAuditReportWorkbookBuffer(
+  result: RiceAuditResult,
+  filteredIssues?: RiceAuditIssue[],
+  monthLabel?: string
+): Uint8Array {
   const wb = XLSX.utils.book_new();
   const issues = filteredIssues ?? result.issues;
 
   // Sheet 1: Tổng quan
   const summaryRows = [
     ['BÁO CÁO KIỂM TRA LỖI NHẬP LIỆU LÚA TƯƠI & LÚA KHÔ'],
+    ['Phạm vi kiểm tra', monthLabel || 'Tất cả các tháng'],
     ['Thời điểm kiểm tra', new Date(result.summary.analyzedAt).toLocaleString('vi-VN')],
     ['Ngưỡng cảnh báo lệch giá', `±${result.summary.priceDeviationPct}% so với trung vị cùng loại lúa (±14 ngày)`],
     [],
