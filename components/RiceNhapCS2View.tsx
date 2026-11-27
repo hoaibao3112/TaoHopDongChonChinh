@@ -104,6 +104,8 @@ export default function RiceNhapCS2View() {
   const [priceCoTro, setPriceCoTro] = useState<number>(20_000);
   const [priceKhongTro, setPriceKhongTro] = useState<number>(16_000);
   const [customBatchPrices, setCustomBatchPrices] = useState<Record<string, number>>({});
+  const [customNhapTons, setCustomNhapTons] = useState<Record<string, number>>({});
+  const [customXuatTons, setCustomXuatTons] = useState<Record<string, number>>({});
 
   // ── State: Quản lý lương & tạm ứng 20 công nhân ─────────────────────────
   const [workerAdvances, setWorkerAdvances] = useState<Record<string, number>>(() => {
@@ -231,14 +233,16 @@ export default function RiceNhapCS2View() {
       .slice()
       .sort((a, b) => parseDate(a.dryDate).getTime() - parseDate(b.dryDate).getTime())
       .map((b, idx) => {
+        const batchId = b.id ?? `nhap-${idx}`;
         // Trong file mẫu thực tế mẻ TL6T-LOẠI 2 ngày 28/10 (117.540 kg) được ghi nhận 117 tấn
-        const tons = b.riceType?.includes('TL6T') ? 117 : roundRiceTons(b.dryWeightKg);
+        const defaultTons = b.riceType?.includes('TL6T') ? 117 : roundRiceTons(b.dryWeightKg);
+        const tons = customNhapTons[batchId] !== undefined ? customNhapTons[batchId] : defaultTons;
         const pricePerTon = getPriceForRiceType(b.riceType, ricePrices);
         const thanhTienNhap = tons * pricePerTon;
         const thanhTienChumLo = tons * chumLoPrice;
         const tongThanhTien = thanhTienNhap + thanhTienChumLo;
         return {
-          id: b.id ?? `nhap-${idx}`,
+          id: batchId,
           doiNhap: 'DƯƠNG',
           customerName: b.customerName,
           riceType: b.riceType,
@@ -254,7 +258,7 @@ export default function RiceNhapCS2View() {
           tongThanhTien,
         };
       });
-  }, [monthNhapRawBatches, ricePrices, chumLoPrice]);
+  }, [monthNhapRawBatches, ricePrices, chumLoPrice, customNhapTons]);
 
   const summary = useMemo((): NhapSummary => {
     const totalThanhTienNhap = nhapBatches.reduce((s, b) => s + b.thanhTienNhap, 0);
@@ -308,7 +312,8 @@ export default function RiceNhapCS2View() {
           xuatTroOverrides[b.id] !== undefined
             ? xuatTroOverrides[b.id]
             : getDefaultClassification(b);
-        const tons = getDefaultTons(b);
+        const defaultTons = getDefaultTons(b);
+        const tons = customXuatTons[b.id] !== undefined ? customXuatTons[b.id] : defaultTons;
         const defaultPrice = isCoTro ? priceCoTro : priceKhongTro;
         const unitPrice =
           customBatchPrices[b.id] !== undefined
@@ -327,7 +332,7 @@ export default function RiceNhapCS2View() {
           displayKg: kg,
         };
       });
-  }, [monthXuatRawBatches, xuatTroOverrides, priceCoTro, priceKhongTro, customBatchPrices]);
+  }, [monthXuatRawBatches, xuatTroOverrides, priceCoTro, priceKhongTro, customBatchPrices, customXuatTons]);
 
   const xuatSummary = useMemo(() => {
     let tonsCoTro = 0;
@@ -661,6 +666,25 @@ export default function RiceNhapCS2View() {
   const handleResetTroOverrides = () => {
     setXuatTroOverrides({});
     setCustomBatchPrices({});
+    setCustomXuatTons({});
+  };
+
+  // Cập nhật số tấn riêng lẻ cho 1 mẻ nhập sấy CS2
+  const handleUpdateNhapTons = (batchId: string, val: number) => {
+    const safeVal = Number.isFinite(val) && val >= 0 ? val : 0;
+    setCustomNhapTons((prev) => ({
+      ...prev,
+      [batchId]: safeVal,
+    }));
+  };
+
+  // Cập nhật số tấn riêng lẻ cho 1 mẻ xuất lúa CS2
+  const handleUpdateXuatTons = (batchId: string, val: number) => {
+    const safeVal = Number.isFinite(val) && val >= 0 ? val : 0;
+    setCustomXuatTons((prev) => ({
+      ...prev,
+      [batchId]: safeVal,
+    }));
   };
 
   // Cập nhật đơn giá riêng lẻ cho 1 mẻ xuất lúa
@@ -1366,7 +1390,23 @@ export default function RiceNhapCS2View() {
                       <td className="px-2.5 py-2.5 text-center text-slate-600">{batch.freshBoVehicle || '—'}</td>
                       <td className="px-2.5 py-2.5 text-center font-mono text-slate-700">{batch.dryDate}</td>
                       <td className="px-2.5 py-2.5 text-right font-mono text-slate-700">{batch.dryWeightKg.toLocaleString('vi-VN')}</td>
-                      <td className="px-2.5 py-2.5 text-right font-black text-amber-800 bg-amber-50/50">{batch.roundedTons}</td>
+                      <td className="px-2.5 py-2.5 text-right font-black text-amber-800 bg-amber-50/50">
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={batch.roundedTons}
+                          onChange={(e) =>
+                            handleUpdateNhapTons(batch.id, parseFloat(e.target.value) || 0)
+                          }
+                          aria-label={`Số tấn mẻ ${batch.customerName || idx + 1}`}
+                          className={`w-18 rounded-md border px-1.5 py-0.5 text-xs text-right font-black focus:outline-none focus:border-amber-500 ${
+                            customNhapTons[batch.id] !== undefined
+                              ? 'border-amber-400 bg-amber-100/70 text-amber-950'
+                              : 'border-slate-200 bg-white text-amber-800'
+                          }`}
+                        />
+                      </td>
                       <td className="px-2.5 py-2.5 text-right font-medium text-slate-700">{formatMoney(batch.pricePerTon)}đ</td>
                       <td className="px-2.5 py-2.5 text-right font-bold text-emerald-700">{formatMoney(batch.thanhTienNhap)}đ</td>
                       <td className="px-2.5 py-2.5 text-right font-bold text-orange-700">{formatMoney(batch.thanhTienChumLo)}đ</td>
@@ -1587,7 +1627,23 @@ export default function RiceNhapCS2View() {
                         {batch.dryVehicle || batch.freshBoVehicle || '—'}
                       </td>
                       <td className="px-2.5 py-2.5 text-right font-mono text-slate-700">{batch.displayKg.toLocaleString('vi-VN')}</td>
-                      <td className="px-2.5 py-2.5 text-right font-black text-amber-800 bg-amber-50/50">{batch.calculatedTons}</td>
+                      <td className="px-2.5 py-2.5 text-right font-black text-amber-800 bg-amber-50/50">
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={batch.calculatedTons}
+                          onChange={(e) =>
+                            handleUpdateXuatTons(batch.id, parseFloat(e.target.value) || 0)
+                          }
+                          aria-label={`Số tấn xuất mẻ ${batch.customerName || idx + 1}`}
+                          className={`w-18 rounded-md border px-1.5 py-0.5 text-xs text-right font-black focus:outline-none focus:border-amber-500 ${
+                            customXuatTons[batch.id] !== undefined
+                              ? 'border-amber-400 bg-amber-100/70 text-amber-950'
+                              : 'border-slate-200 bg-white text-amber-800'
+                          }`}
+                        />
+                      </td>
                       <td className="px-2.5 py-2.5 text-center">
                         <button
                           type="button"
