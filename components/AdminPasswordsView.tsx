@@ -19,6 +19,7 @@ export default function AdminPasswordsView() {
   const [visibleMap, setVisibleMap] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [switchingKey, setSwitchingKey] = useState<ConfigurableRoleKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -72,8 +73,28 @@ export default function AdminPasswordsView() {
     }
   };
 
+  const handleSwitchTab = async (targetRole: ConfigurableRoleKey) => {
+    setError(null);
+    setSwitchingKey(targetRole);
+    try {
+      const res = await fetch('/api/admin/switch-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetRole }),
+      });
+      const data = (await res.json()) as { success?: boolean; error?: string; redirectUrl?: string };
+      if (!res.ok || !data.success || !data.redirectUrl) {
+        throw new Error(data.error || 'Không thể chuyển sang tab này');
+      }
+      window.location.href = data.redirectUrl;
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+      setSwitchingKey(null);
+    }
+  };
+
   const handleResetAll = async () => {
-    if (!window.confirm('Khôi phục toàn bộ mật khẩu về mặc định ban đầu (chonchinh, hoaibao, teamlua, baocao, dangtai, chingoc)?')) {
+    if (!window.confirm('Khôi phục toàn bộ mật khẩu về mặc định ban đầu (chonchinh, hoaibao, teamlua, baocao, dangtai, chingoc, KIEMTRA)?')) {
       return;
     }
     setError(null);
@@ -211,6 +232,17 @@ export default function AdminPasswordsView() {
                       )}
                     </button>
                   </div>
+                </div>
+
+                <div className="pt-1 flex items-center justify-end">
+                  <button
+                    type="button"
+                    disabled={isSaving || switchingKey !== null}
+                    onClick={() => handleSwitchTab(it.key)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    <span>{switchingKey === it.key ? '⏳ Đang chuyển...' : '🚀 Chuyển thẳng qua tab này'}</span>
+                  </button>
                 </div>
               </div>
             );
