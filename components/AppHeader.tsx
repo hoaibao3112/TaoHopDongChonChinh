@@ -19,7 +19,8 @@ export default function AppHeader() {
         val === 'husk' ||
         val === 'baocao' ||
         val === 'dangtai' ||
-        val === 'chingoc'
+        val === 'chingoc' ||
+        val === 'kiemtra'
       ) {
         return val;
       }
@@ -39,6 +40,7 @@ export default function AppHeader() {
   const isBaoCaoNhapNgay = pathname.startsWith('/bao-cao-nhap-ngay');
   const isDangTai = pathname.startsWith('/dang-tai');
   const isThongKeLua = pathname.startsWith('/thong-ke-lua');
+  const isKiemTraLua = pathname.startsWith('/kiem-tra-lua');
   const isAdminMatKhau = pathname.startsWith('/admin-mat-khau');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -67,6 +69,8 @@ export default function AppHeader() {
   const canAccessDangTai = role === 'dangtai' || role === 'admin';
   const canAccessThongKeLua =
     role === 'admin' || role === 'payroll' || role === 'baocao' || role === 'contracts' || role === null;
+  const canAccessKiemTraLua =
+    role === 'kiemtra' || role === 'admin' || role === 'payroll' || role === 'baocao' || role === 'contracts' || role === null;
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur-md transition-all shadow-xs">
@@ -155,6 +159,13 @@ export default function AppHeader() {
               <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-800 shadow-2xs">
                 <span>👑</span>
                 <span>Quản Trị Viên</span>
+              </div>
+            )}
+
+            {role === 'kiemtra' && (
+              <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold text-rose-800 shadow-2xs">
+                <span>🔍</span>
+                <span>Kiểm Tra Lúa</span>
               </div>
             )}
 
@@ -379,6 +390,23 @@ export default function AppHeader() {
               <span className="text-sm sm:text-base">📊</span>
               <span>Thống Kê Lúa Tháng</span>
               <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
+                Mới
+              </span>
+            </Link>
+          )}
+
+          {canAccessKiemTraLua && (
+            <Link
+              href="/kiem-tra-lua"
+              className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
+                isKiemTraLua
+                  ? 'bg-white text-rose-700 shadow-sm ring-2 ring-rose-500/30 font-black scale-[1.02]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
+              }`}
+            >
+              <span className="text-sm sm:text-base">🔍</span>
+              <span>Kiểm Tra Lỗi Lúa</span>
+              <span className="rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
                 Mới
               </span>
             </Link>

@@ -8,7 +8,8 @@ export type ConfigurableRoleKey =
   | 'husk'
   | 'baocao'
   | 'dangtai'
-  | 'chingoc';
+  | 'chingoc'
+  | 'kiemtra';
 
 export interface RolePasswordMeta {
   key: ConfigurableRoleKey;
@@ -68,6 +69,14 @@ export const ROLE_PASSWORD_METADATA: RolePasswordMeta[] = [
     description: 'Báo cáo Lúa tươi & Lúa khô nhập theo ngày, phân loại HĐ & PT chưa về',
     defaultPassword: 'chingoc',
   },
+  {
+    key: 'kiemtra',
+    label: 'Kiểm Tra Lỗi Nhập Liệu Lúa',
+    route: '/kiem-tra-lua',
+    icon: '🔍',
+    description: 'Kiểm tra sai sót Mã lô, Tên khách hàng, Giá lúa & Công thức từ 2 file Lúa Tươi/Khô',
+    defaultPassword: 'KIEMTRA',
+  },
 ];
 
 export const DEFAULT_ROLE_PASSWORDS: Record<ConfigurableRoleKey, string> = {
@@ -77,6 +86,7 @@ export const DEFAULT_ROLE_PASSWORDS: Record<ConfigurableRoleKey, string> = {
   baocao: 'baocao',
   dangtai: 'dangtai',
   chingoc: 'chingoc',
+  kiemtra: 'KIEMTRA',
 };
 
 function getPasswordFilePath(): string {

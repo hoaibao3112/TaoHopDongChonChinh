@@ -11,7 +11,7 @@ const JWT_ISSUER = 'chonchinh-internal';
 const JWT_AUDIENCE = 'chonchinh-web';
 const JWT_SUBJECT = 'session';
 
-export type UserRole = 'payroll' | 'contracts' | 'admin' | 'husk' | 'baocao' | 'dangtai' | 'chingoc';
+export type UserRole = 'payroll' | 'contracts' | 'admin' | 'husk' | 'baocao' | 'dangtai' | 'chingoc' | 'kiemtra';
 
 const VALID_ROLES: readonly UserRole[] = [
   'payroll',
@@ -21,6 +21,7 @@ const VALID_ROLES: readonly UserRole[] = [
   'baocao',
   'dangtai',
   'chingoc',
+  'kiemtra',
 ] as const;
 
 export interface AuthCheckResult {
@@ -198,6 +199,9 @@ export function checkPassword(password: string): AuthCheckResult {
   if (safeEqual(clean, 'chingoc')) {
     return { isAuthenticated: true, role: 'chingoc', redirectUrl: '/bao-cao-nhap-ngay' };
   }
+  if (safeEqual(clean, 'KIEMTRA')) {
+    return { isAuthenticated: true, role: 'kiemtra', redirectUrl: '/kiem-tra-lua' };
+  }
 
   const adminPw = process.env.APP_PASSWORD;
   if (adminPw && safeEqual(clean, adminPw)) {
@@ -237,6 +241,9 @@ export async function checkPasswordAsync(password: string): Promise<AuthCheckRes
   }
   if (safeEqual(clean, map.chingoc)) {
     return { isAuthenticated: true, role: 'chingoc', redirectUrl: '/bao-cao-nhap-ngay' };
+  }
+  if (safeEqual(clean, map.kiemtra)) {
+    return { isAuthenticated: true, role: 'kiemtra', redirectUrl: '/kiem-tra-lua' };
   }
 
   const adminPw = process.env.APP_PASSWORD;

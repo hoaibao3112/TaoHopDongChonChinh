@@ -103,6 +103,13 @@ export function proxy(request: NextRequest): NextResponse {
     }
   }
 
+  // 7. Phân quyền cho Kiểm Tra Lỗi Lúa ('kiemtra') với mật khẩu KIEMTRA: Chỉ vào /kiem-tra-lua
+  if (role === 'kiemtra') {
+    if (!pathname.startsWith('/kiem-tra-lua') && !pathname.startsWith('/api/')) {
+      return NextResponse.redirect(new URL('/kiem-tra-lua', request.url));
+    }
+  }
+
   // 4. Phân quyền Quản trị viên ('admin'): Toàn quyền truy cập tất cả phân hệ
   return NextResponse.next();
 }
