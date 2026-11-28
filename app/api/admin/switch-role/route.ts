@@ -30,6 +30,7 @@ const switchRoleSchema = z.object({
     'dangtai',
     'chingoc',
     'kiemtra',
+    'dieuphoi',
   ]),
 });
 

@@ -99,6 +99,16 @@ export async function ensureTables(): Promise<void> {
         password_value VARCHAR(255) NOT NULL,
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS vehicle_board_state (
+        board_key VARCHAR(32) PRIMARY KEY,
+        state JSONB NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS vehicle_daily_plans (
+        plan_date VARCHAR(20) PRIMARY KEY,
+        plan JSONB NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
     tablesEnsured = true;
   } catch (err) {
@@ -495,6 +505,80 @@ export async function saveRolePasswordsToDb(passwords: Record<string, string>): 
     return true;
   } catch (err) {
     console.warn('[DB saveRolePasswords Warning]:', err);
+    return false;
+  }
+}
+
+export async function getVehicleBoardFromDb(boardKey = 'default'): Promise<unknown | null> {
+  const db = getDbPool();
+  if (!db) return null;
+  try {
+    await ensureTables();
+    const res = await db.query(
+      'SELECT state FROM vehicle_board_state WHERE board_key = $1 LIMIT 1',
+      [boardKey]
+    );
+    if (!res.rows || res.rows.length === 0) return null;
+    return res.rows[0].state ?? null;
+  } catch (err) {
+    console.warn('[DB getVehicleBoard Warning]:', err);
+    return null;
+  }
+}
+
+export async function saveVehicleBoardToDb(state: unknown, boardKey = 'default'): Promise<boolean> {
+  const db = getDbPool();
+  if (!db) return false;
+  try {
+    await ensureTables();
+    await db.query(
+      `INSERT INTO vehicle_board_state (board_key, state, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (board_key) DO UPDATE SET
+         state = EXCLUDED.state,
+         updated_at = NOW()`,
+      [boardKey, JSON.stringify(state)]
+    );
+    return true;
+  } catch (err) {
+    console.warn('[DB saveVehicleBoard Warning]:', err);
+    return false;
+  }
+}
+
+export async function getDailyPlanFromDb(planDate: string): Promise<unknown | null> {
+  const db = getDbPool();
+  if (!db) return null;
+  try {
+    await ensureTables();
+    const res = await db.query(
+      'SELECT plan FROM vehicle_daily_plans WHERE plan_date = $1 LIMIT 1',
+      [planDate]
+    );
+    if (!res.rows || res.rows.length === 0) return null;
+    return res.rows[0].plan ?? null;
+  } catch (err) {
+    console.warn('[DB getDailyPlan Warning]:', err);
+    return null;
+  }
+}
+
+export async function saveDailyPlanToDb(planDate: string, plan: unknown): Promise<boolean> {
+  const db = getDbPool();
+  if (!db) return false;
+  try {
+    await ensureTables();
+    await db.query(
+      `INSERT INTO vehicle_daily_plans (plan_date, plan, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (plan_date) DO UPDATE SET
+         plan = EXCLUDED.plan,
+         updated_at = NOW()`,
+      [planDate, JSON.stringify(plan)]
+    );
+    return true;
+  } catch (err) {
+    console.warn('[DB saveDailyPlan Warning]:', err);
     return false;
   }
 }

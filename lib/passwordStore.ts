@@ -9,7 +9,8 @@ export type ConfigurableRoleKey =
   | 'baocao'
   | 'dangtai'
   | 'chingoc'
-  | 'kiemtra';
+  | 'kiemtra'
+  | 'dieuphoi';
 
 export interface RolePasswordMeta {
   key: ConfigurableRoleKey;
@@ -77,6 +78,14 @@ export const ROLE_PASSWORD_METADATA: RolePasswordMeta[] = [
     description: 'Kiểm tra sai sót Mã lô, Tên khách hàng, Giá lúa & Công thức từ 2 file Lúa Tươi/Khô',
     defaultPassword: 'KIEMTRA',
   },
+  {
+    key: 'dieuphoi',
+    label: 'Xếp Phương Tiện (Kéo Thả)',
+    route: '/dieu-phoi-pt',
+    icon: '🚢',
+    description: 'Điều phối 25 chiếc Nguyên Nguyên & phương tiện ngoài qua 6 trạng thái (1 nơi duy nhất)',
+    defaultPassword: 'DIEUPHOI',
+  },
 ];
 
 export const DEFAULT_ROLE_PASSWORDS: Record<ConfigurableRoleKey, string> = {
@@ -87,6 +96,7 @@ export const DEFAULT_ROLE_PASSWORDS: Record<ConfigurableRoleKey, string> = {
   dangtai: 'dangtai',
   chingoc: 'chingoc',
   kiemtra: 'KIEMTRA',
+  dieuphoi: 'DIEUPHOI',
 };
 
 function getPasswordFilePath(): string {

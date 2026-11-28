@@ -110,6 +110,13 @@ export function proxy(request: NextRequest): NextResponse {
     }
   }
 
+  // 8. Phân quyền cho Điều Phối Phương Tiện ('dieuphoi') với mật khẩu DIEUPHOI: Chỉ vào /dieu-phoi-pt
+  if (role === 'dieuphoi') {
+    if (!pathname.startsWith('/dieu-phoi-pt') && !pathname.startsWith('/api/')) {
+      return NextResponse.redirect(new URL('/dieu-phoi-pt', request.url));
+    }
+  }
+
   // 4. Phân quyền Quản trị viên ('admin'): Toàn quyền truy cập tất cả phân hệ
   return NextResponse.next();
 }

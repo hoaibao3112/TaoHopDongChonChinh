@@ -20,7 +20,8 @@ export default function AppHeader() {
         val === 'baocao' ||
         val === 'dangtai' ||
         val === 'chingoc' ||
-        val === 'kiemtra'
+        val === 'kiemtra' ||
+        val === 'dieuphoi'
       ) {
         return val;
       }
@@ -41,6 +42,7 @@ export default function AppHeader() {
   const isDangTai = pathname.startsWith('/dang-tai');
   const isThongKeLua = pathname.startsWith('/thong-ke-lua');
   const isKiemTraLua = pathname.startsWith('/kiem-tra-lua');
+  const isDieuPhoiPT = pathname.startsWith('/dieu-phoi-pt');
   const isAdminMatKhau = pathname.startsWith('/admin-mat-khau');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -71,6 +73,8 @@ export default function AppHeader() {
     role === 'admin' || role === 'payroll' || role === 'baocao' || role === 'contracts' || role === null;
   const canAccessKiemTraLua =
     role === 'kiemtra' || role === 'admin' || role === 'payroll' || role === 'baocao' || role === 'contracts' || role === null;
+  const canAccessDieuPhoiPT =
+    role === 'dieuphoi' || role === 'admin' || role === 'payroll' || role === 'contracts' || role === null;
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur-md transition-all shadow-xs">
@@ -166,6 +170,13 @@ export default function AppHeader() {
               <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold text-rose-800 shadow-2xs">
                 <span>🔍</span>
                 <span>Kiểm Tra Lúa</span>
+              </div>
+            )}
+
+            {role === 'dieuphoi' && (
+              <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-yellow-300 bg-yellow-50 px-3 py-1 text-xs font-bold text-yellow-900 shadow-2xs">
+                <span>🚢</span>
+                <span>Xếp Phương Tiện</span>
               </div>
             )}
 
@@ -407,6 +418,23 @@ export default function AppHeader() {
               <span className="text-sm sm:text-base">🔍</span>
               <span>Kiểm Tra Lỗi Lúa</span>
               <span className="rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
+                Mới
+              </span>
+            </Link>
+          )}
+
+          {canAccessDieuPhoiPT && (
+            <Link
+              href="/dieu-phoi-pt"
+              className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
+                isDieuPhoiPT
+                  ? 'bg-white text-amber-800 shadow-sm ring-2 ring-yellow-400 font-black scale-[1.02]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
+              }`}
+            >
+              <span className="text-sm sm:text-base">🚢</span>
+              <span>Xếp Phương Tiện</span>
+              <span className="rounded-full bg-yellow-100 text-amber-900 border border-yellow-300 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
                 Mới
               </span>
             </Link>
