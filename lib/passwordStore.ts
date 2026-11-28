@@ -116,7 +116,13 @@ function sanitizeMap(raw: Record<string, unknown> | null | undefined): Record<Co
   for (const key of Object.keys(DEFAULT_ROLE_PASSWORDS) as ConfigurableRoleKey[]) {
     const val = raw[key];
     if (typeof val === 'string' && val.trim().length > 0) {
-      result[key] = val.trim();
+      const trimmed = val.trim();
+      // Tự động nâng cấp mật khẩu cũ 'dangtai' -> 'phuongtien' sau khi gộp 2 tab
+      if (key === 'dangtai' && trimmed === 'dangtai') {
+        result[key] = DEFAULT_ROLE_PASSWORDS.dangtai;
+      } else {
+        result[key] = trimmed;
+      }
     }
   }
   return result;
