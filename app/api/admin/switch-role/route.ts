@@ -51,16 +51,18 @@ async function verifyAdminAccess(req: NextRequest): Promise<{ ok: boolean; role?
   if (!token) return { ok: false };
 
   const payload = verifySessionJwt(token);
-  if (!payload) return { ok: false };
-
-  if (payload.role !== 'contracts' && payload.role !== 'admin') {
+  if (!payload || payload.role !== 'admin') {
     return { ok: false };
   }
 
-  if (payload.role === 'contracts' && payload.pv) {
+  if (payload.pv) {
     const currentMap = await getRolePasswords();
-    const expectedPv = computePasswordVersion(currentMap.contracts);
-    if (payload.pv !== expectedPv) {
+    const adminEnv = process.env.APP_PASSWORD;
+    const isEnvAdmin = adminEnv && payload.pv === computePasswordVersion(adminEnv);
+    const isDevAdmin =
+      process.env.NODE_ENV !== 'production' && payload.pv === computePasswordVersion('matkhau123');
+    const isPayrollAdmin = payload.pv === computePasswordVersion(currentMap.payroll);
+    if (!isEnvAdmin && !isDevAdmin && !isPayrollAdmin) {
       return { ok: false };
     }
   }
@@ -79,7 +81,7 @@ export async function POST(req: NextRequest) {
   const auth = await verifyAdminAccess(req);
   if (!auth.ok || !auth.role) {
     return NextResponse.json(
-      { error: 'Chỉ tài khoản chonchinh hoặc admin mới được chuyển thẳng sang tab khác' },
+      { error: 'Chỉ tài khoản hoaibao hoặc admin mới được chuyển thẳng sang tab khác' },
       { status: 403, headers: NO_STORE_HEADERS }
     );
   }
@@ -106,17 +108,18 @@ export async function POST(req: NextRequest) {
     const passwords = await getRolePasswords();
     const targetPw = passwords[targetRole] || meta.defaultPassword;
     const pwVersion = computePasswordVersion(targetPw);
+    const cookieRole: UserRole = targetRole === 'payroll' ? 'admin' : targetRole;
 
     const res = NextResponse.json(
       {
         success: true,
-        role: targetRole,
+        role: cookieRole,
         redirectUrl: meta.route,
       },
       { headers: NO_STORE_HEADERS }
     );
 
-    setAuthCookie(res, targetRole, req, pwVersion);
+    setAuthCookie(res, cookieRole, req, pwVersion);
     return res;
   } catch (err: unknown) {
     console.error('[API Admin Switch Role Error]:', err);

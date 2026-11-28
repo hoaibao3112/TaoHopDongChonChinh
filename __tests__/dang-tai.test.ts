@@ -26,9 +26,9 @@ describe('1. Chuẩn hóa biển số xe (Plate Normalization)', () => {
   });
 });
 
-describe('2. Phân quyền và Mật khẩu "phuongtien"', () => {
-  it('nhập mật khẩu "phuongtien" trả về role "dangtai" và chuyển hướng đến /dang-tai', () => {
-    const auth = checkPassword('phuongtien');
+describe('2. Phân quyền và Mật khẩu "chonchinh"', () => {
+  it('nhập mật khẩu "chonchinh" trả về role "dangtai" và chuyển hướng đến /dang-tai', () => {
+    const auth = checkPassword('chonchinh');
     expect(auth.isAuthenticated).toBe(true);
     expect(auth.role).toBe('dangtai');
     expect(auth.redirectUrl).toBe('/dang-tai');

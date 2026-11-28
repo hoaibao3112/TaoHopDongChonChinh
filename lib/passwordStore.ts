@@ -22,20 +22,28 @@ export interface RolePasswordMeta {
 
 export const ROLE_PASSWORD_METADATA: RolePasswordMeta[] = [
   {
-    key: 'contracts',
-    label: 'Tạo Hợp Đồng & Admin Mật Khẩu',
+    key: 'payroll',
+    label: 'Toàn Quyền Hệ Thống (Tất Cả Tab & Admin)',
     route: '/',
-    icon: '📄',
-    description: 'Truy cập Tạo Hợp Đồng Mua Bán và trang Admin Quản Lý Mật Khẩu (/admin-mat-khau)',
+    icon: '👑',
+    description: 'Vào toàn bộ tất cả các tab hệ thống và trang Admin Quản Lý Mật Khẩu',
+    defaultPassword: 'hoaibao',
+  },
+  {
+    key: 'dangtai',
+    label: 'Phương Tiện (Đăng Tài Xe & Xếp PT)',
+    route: '/dang-tai',
+    icon: '🚢',
+    description: 'Chỉ vào 2 tab: Đăng Tài Xe (/dang-tai) và Xếp Phương Tiện (/dieu-phoi-pt)',
     defaultPassword: 'chonchinh',
   },
   {
-    key: 'payroll',
-    label: 'Tính Lương Nông Sản (Hoài Bảo)',
-    route: '/tinh-luong',
-    icon: '💰',
-    description: 'Xuất Lúa CS1, Nhập Sấy CS1, Đội Dương CS2, Nhập/Xuất NSX TM, Chụm Lò CS1',
-    defaultPassword: 'hoaibao',
+    key: 'contracts',
+    label: 'Tạo Hợp Đồng Mua Bán',
+    route: '/',
+    icon: '📄',
+    description: 'Truy cập Tạo Hợp Đồng Mua Bán và Kiểm tra / Thống kê lúa',
+    defaultPassword: 'hopdong',
   },
   {
     key: 'husk',
@@ -52,14 +60,6 @@ export const ROLE_PASSWORD_METADATA: RolePasswordMeta[] = [
     icon: '🌾',
     description: 'Tổng hợp lúa khô nằm tài & lúa tươi chờ sấy quy đổi KCS',
     defaultPassword: 'baocao',
-  },
-  {
-    key: 'dangtai',
-    label: 'Phương Tiện (Đăng Tài Xe & Xếp PT)',
-    route: '/dang-tai',
-    icon: '🚢',
-    description: 'Truy cập cả 2 tab: Đăng Tài Xe (/dang-tai) và Xếp Phương Tiện (/dieu-phoi-pt)',
-    defaultPassword: 'phuongtien',
   },
   {
     key: 'chingoc',
@@ -80,11 +80,11 @@ export const ROLE_PASSWORD_METADATA: RolePasswordMeta[] = [
 ];
 
 export const DEFAULT_ROLE_PASSWORDS: Record<ConfigurableRoleKey, string> = {
-  contracts: 'chonchinh',
   payroll: 'hoaibao',
+  dangtai: 'chonchinh',
+  contracts: 'hopdong',
   husk: 'teamlua',
   baocao: 'baocao',
-  dangtai: 'phuongtien',
   chingoc: 'chingoc',
   kiemtra: 'KIEMTRA',
 };
@@ -117,9 +117,11 @@ function sanitizeMap(raw: Record<string, unknown> | null | undefined): Record<Co
     const val = raw[key];
     if (typeof val === 'string' && val.trim().length > 0) {
       const trimmed = val.trim();
-      // Tự động nâng cấp mật khẩu cũ 'dangtai' -> 'phuongtien' sau khi gộp 2 tab
-      if (key === 'dangtai' && trimmed === 'dangtai') {
+      // Tự động nâng cấp mật khẩu cũ sau khi chuyển hoaibao (full) & chonchinh (2 tab PT)
+      if (key === 'dangtai' && (trimmed === 'dangtai' || trimmed === 'phuongtien')) {
         result[key] = DEFAULT_ROLE_PASSWORDS.dangtai;
+      } else if (key === 'contracts' && trimmed === 'chonchinh') {
+        result[key] = DEFAULT_ROLE_PASSWORDS.contracts;
       } else {
         result[key] = trimmed;
       }

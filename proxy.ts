@@ -54,10 +54,11 @@ export function proxy(request: NextRequest): NextResponse {
     }
   }
 
-  // 2. Phân quyền cho Chơn Chính ('contracts'): Vào Tạo Hợp Đồng & Quản Lý Mật Khẩu (/admin-mat-khau)
+  // 2. Phân quyền cho Hợp Đồng ('contracts'): Chỉ vào Hợp đồng & Thống kê/Kiểm tra, chặn Admin mật khẩu & các phân hệ khác
   if (role === 'contracts') {
-    // Cho phép /admin-mat-khau và /api/admin/passwords; chặn các phân hệ tính lương/báo cáo khác
     if (
+      pathname.startsWith('/admin-mat-khau') ||
+      pathname.startsWith('/api/admin') ||
       pathname.startsWith('/tinh-luong') ||
       pathname.startsWith('/nhap-say') ||
       pathname.startsWith('/nhap-say-cs1') ||
@@ -65,7 +66,8 @@ export function proxy(request: NextRequest): NextResponse {
       pathname.startsWith('/xuat-trau') ||
       pathname.startsWith('/bao-cao-chua-xay') ||
       pathname.startsWith('/bao-cao-nhap-ngay') ||
-      pathname.startsWith('/dang-tai')
+      pathname.startsWith('/dang-tai') ||
+      pathname.startsWith('/dieu-phoi-pt')
     ) {
       return NextResponse.redirect(new URL('/', request.url));
     }

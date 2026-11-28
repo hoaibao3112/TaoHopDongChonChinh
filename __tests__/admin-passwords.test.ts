@@ -47,11 +47,11 @@ describe('Admin Role Passwords System', () => {
   });
 
   it('has correct default passwords', () => {
-    expect(DEFAULT_ROLE_PASSWORDS.contracts).toBe('chonchinh');
+    expect(DEFAULT_ROLE_PASSWORDS.contracts).toBe('hopdong');
     expect(DEFAULT_ROLE_PASSWORDS.payroll).toBe('hoaibao');
     expect(DEFAULT_ROLE_PASSWORDS.husk).toBe('teamlua');
     expect(DEFAULT_ROLE_PASSWORDS.baocao).toBe('baocao');
-    expect(DEFAULT_ROLE_PASSWORDS.dangtai).toBe('phuongtien');
+    expect(DEFAULT_ROLE_PASSWORDS.dangtai).toBe('chonchinh');
     expect(DEFAULT_ROLE_PASSWORDS.chingoc).toBe('chingoc');
     expect(DEFAULT_ROLE_PASSWORDS.kiemtra).toBe('KIEMTRA');
   });
@@ -74,9 +74,9 @@ describe('Admin Role Passwords System', () => {
   });
 
   it('verifies dynamic password updates through checkPasswordAsync', async () => {
-    // Save updated password for contracts and payroll
+    // Save updated password for dangtai (chonchinh) and payroll (hoaibao)
     await saveRolePasswords({
-      contracts: 'chonchinh_vip2026',
+      dangtai: 'chonchinh_vip2026',
       payroll: 'hoaibao_newpass',
     });
 
@@ -84,28 +84,28 @@ describe('Admin Role Passwords System', () => {
     const oldRes = await checkPasswordAsync('chonchinh');
     expect(oldRes.isAuthenticated).toBe(false);
 
-    // New password should succeed
+    // New password should succeed for dangtai
     const newRes = await checkPasswordAsync('chonchinh_vip2026');
     expect(newRes.isAuthenticated).toBe(true);
-    expect(newRes.role).toBe('contracts');
-    expect(newRes.redirectUrl).toBe('/');
+    expect(newRes.role).toBe('dangtai');
+    expect(newRes.redirectUrl).toBe('/dang-tai');
 
     // Old payroll pass 'hoaibao' should fail
     const oldPayroll = await checkPasswordAsync('hoaibao');
     expect(oldPayroll.isAuthenticated).toBe(false);
 
-    // New payroll pass should succeed
+    // New payroll pass should succeed as full admin
     const newPayroll = await checkPasswordAsync('hoaibao_newpass');
     expect(newPayroll.isAuthenticated).toBe(true);
-    expect(newPayroll.role).toBe('payroll');
+    expect(newPayroll.role).toBe('admin');
 
     // Reset back to defaults
     const resetMap = await saveRolePasswords(DEFAULT_ROLE_PASSWORDS);
-    expect(resetMap.contracts).toBe('chonchinh');
+    expect(resetMap.dangtai).toBe('chonchinh');
     expect(resetMap.payroll).toBe('hoaibao');
 
     const restoreRes = await checkPasswordAsync('chonchinh');
     expect(restoreRes.isAuthenticated).toBe(true);
-    expect(restoreRes.role).toBe('contracts');
+    expect(restoreRes.role).toBe('dangtai');
   });
 });

@@ -182,18 +182,18 @@ export function checkPassword(password: string): AuthCheckResult {
   const clean = password.trim();
 
   if (safeEqual(clean, 'hoaibao')) {
-    return { isAuthenticated: true, role: 'payroll', redirectUrl: '/tinh-luong' };
+    return { isAuthenticated: true, role: 'admin', redirectUrl: '/' };
   }
   if (safeEqual(clean, 'baocao')) {
     return { isAuthenticated: true, role: 'baocao', redirectUrl: '/bao-cao-chua-xay' };
   }
-  if (safeEqual(clean, 'chonchinh')) {
+  if (safeEqual(clean, 'hopdong')) {
     return { isAuthenticated: true, role: 'contracts', redirectUrl: '/' };
   }
   if (safeEqual(clean, 'teamlua')) {
     return { isAuthenticated: true, role: 'husk', redirectUrl: '/xuat-trau' };
   }
-  if (safeEqual(clean, 'phuongtien')) {
+  if (safeEqual(clean, 'chonchinh')) {
     return { isAuthenticated: true, role: 'dangtai', redirectUrl: '/dang-tai' };
   }
   if (safeEqual(clean, 'chingoc')) {
@@ -225,7 +225,7 @@ export async function checkPasswordAsync(password: string): Promise<AuthCheckRes
   const map = await getRolePasswords();
 
   if (safeEqual(clean, map.payroll)) {
-    return { isAuthenticated: true, role: 'payroll', redirectUrl: '/tinh-luong' };
+    return { isAuthenticated: true, role: 'admin', redirectUrl: '/' };
   }
   if (safeEqual(clean, map.baocao)) {
     return { isAuthenticated: true, role: 'baocao', redirectUrl: '/bao-cao-chua-xay' };

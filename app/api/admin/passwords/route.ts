@@ -27,17 +27,18 @@ async function verifyAdminPasswordAccess(req: NextRequest): Promise<{ ok: boolea
   if (!token) return { ok: false };
 
   const payload = verifySessionJwt(token);
-  if (!payload) return { ok: false };
-
-  if (payload.role !== 'contracts' && payload.role !== 'admin') {
+  if (!payload || payload.role !== 'admin') {
     return { ok: false };
   }
 
-  // Nếu đăng nhập bằng mật khẩu contracts (chonchinh), kiểm tra xem mật khẩu đó đã bị đổi chưa
-  if (payload.role === 'contracts' && payload.pv) {
+  if (payload.pv) {
     const currentMap = await getRolePasswords();
-    const expectedPv = computePasswordVersion(currentMap.contracts);
-    if (payload.pv !== expectedPv) {
+    const adminEnv = process.env.APP_PASSWORD;
+    const isEnvAdmin = adminEnv && payload.pv === computePasswordVersion(adminEnv);
+    const isDevAdmin =
+      process.env.NODE_ENV !== 'production' && payload.pv === computePasswordVersion('matkhau123');
+    const isPayrollAdmin = payload.pv === computePasswordVersion(currentMap.payroll);
+    if (!isEnvAdmin && !isDevAdmin && !isPayrollAdmin) {
       return { ok: false };
     }
   }
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
   const auth = await verifyAdminPasswordAccess(req);
   if (!auth.ok) {
     return NextResponse.json(
-      { error: 'Không có quyền truy cập trang quản lý mật khẩu (yêu cầu mật khẩu chonchinh hoặc admin)' },
+      { error: 'Không có quyền truy cập trang quản lý mật khẩu (yêu cầu mật khẩu hoaibao hoặc admin)' },
       { status: 403, headers: NO_STORE_HEADERS }
     );
   }
@@ -95,7 +96,7 @@ export async function PUT(req: NextRequest) {
   const auth = await verifyAdminPasswordAccess(req);
   if (!auth.ok || !auth.role) {
     return NextResponse.json(
-      { error: 'Không có quyền thay đổi mật khẩu (yêu cầu mật khẩu chonchinh hoặc admin)' },
+      { error: 'Không có quyền thay đổi mật khẩu (yêu cầu mật khẩu hoaibao hoặc admin)' },
       { status: 403, headers: NO_STORE_HEADERS }
     );
   }
@@ -113,8 +114,8 @@ export async function PUT(req: NextRequest) {
         },
         { headers: NO_STORE_HEADERS }
       );
-      if (auth.role === 'contracts') {
-        setAuthCookie(res, 'contracts', req, computePasswordVersion(resetMap.contracts));
+      if (auth.role === 'admin') {
+        setAuthCookie(res, 'admin', req, computePasswordVersion(resetMap.payroll));
       }
       return res;
     }
@@ -131,9 +132,9 @@ export async function PUT(req: NextRequest) {
       { headers: NO_STORE_HEADERS }
     );
 
-    // Nếu admin vừa đổi mật khẩu của chính mình (contracts), cấp lại JWT mới để không tự văng khỏi phiên hiện tại
-    if (auth.role === 'contracts') {
-      setAuthCookie(res, 'contracts', req, computePasswordVersion(updated.contracts));
+    // Nếu admin vừa đổi mật khẩu hoaibao, cấp lại JWT mới để không tự văng khỏi phiên hiện tại
+    if (auth.role === 'admin') {
+      setAuthCookie(res, 'admin', req, computePasswordVersion(updated.payroll));
     }
 
     return res;

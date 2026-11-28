@@ -31,8 +31,8 @@ export default function AdminPasswordGate() {
         throw new Error(data.error || 'Mật khẩu không đúng');
       }
 
-      if (data.role !== 'contracts' && data.role !== 'admin') {
-        throw new Error('Mật khẩu này không có quyền truy cập Trang Admin Quản Lý Mật Khẩu (nhập mật khẩu chonchinh)');
+      if (data.role !== 'admin') {
+        throw new Error('Mật khẩu này không có quyền truy cập Trang Admin Quản Lý Mật Khẩu (yêu cầu mật khẩu hoaibao)');
       }
 
       router.refresh();
@@ -78,14 +78,14 @@ export default function AdminPasswordGate() {
 
           <div>
             <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-rose-200">
-              Mật khẩu Admin (chonchinh)
+              Mật khẩu Admin (hoaibao)
             </label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Nhập mật khẩu chonchinh..."
+                placeholder="Nhập mật khẩu hoaibao..."
                 required
                 autoFocus
                 className="w-full rounded-xl border border-slate-700 bg-slate-900/90 pl-4 pr-11 py-3 text-sm text-white shadow-2xs transition-all focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/30 placeholder:text-slate-500"

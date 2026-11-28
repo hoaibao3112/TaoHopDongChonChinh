@@ -119,7 +119,7 @@ export default function AppHeader() {
             {role === 'dangtai' && (
               <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-900 shadow-2xs">
                 <span>🚢</span>
-                <span>Phương Tiện (phuongtien)</span>
+                <span>Phương Tiện (chonchinh)</span>
               </div>
             )}
 
@@ -172,7 +172,7 @@ export default function AppHeader() {
               </div>
             )}
 
-            {(role === 'contracts' || role === 'admin') && (
+            {role === 'admin' && (
               <Link
                 href="/admin-mat-khau"
                 className={`hidden sm:inline-flex items-center gap-1.5 rounded-xl border px-3 py-1 text-xs font-bold transition-all shadow-2xs ${
@@ -432,7 +432,7 @@ export default function AppHeader() {
             </Link>
           )}
 
-          {canAccessContracts && (
+          {role === 'admin' && (
             <Link
               href="/admin-mat-khau"
               className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${

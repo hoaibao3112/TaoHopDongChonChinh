@@ -20,11 +20,16 @@ export default async function AdminMatKhauPage() {
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const payload = token ? verifySessionJwt(token) : null;
 
-  let hasAccess = !!payload && (payload.role === 'contracts' || payload.role === 'admin');
+  let hasAccess = !!payload && payload.role === 'admin';
 
-  if (hasAccess && payload?.role === 'contracts' && payload.pv) {
+  if (hasAccess && payload?.pv) {
     const currentMap = await getRolePasswords();
-    if (payload.pv !== computePasswordVersion(currentMap.contracts)) {
+    const adminEnv = process.env.APP_PASSWORD;
+    const isEnvAdmin = adminEnv && payload.pv === computePasswordVersion(adminEnv);
+    const isDevAdmin =
+      process.env.NODE_ENV !== 'production' && payload.pv === computePasswordVersion('matkhau123');
+    const isPayrollAdmin = payload.pv === computePasswordVersion(currentMap.payroll);
+    if (!isEnvAdmin && !isDevAdmin && !isPayrollAdmin) {
       hasAccess = false;
     }
   }
