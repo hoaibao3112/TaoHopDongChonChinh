@@ -19,21 +19,26 @@ describe('Rice Audit Tab & Engine', () => {
   it('analyzes real fresh and dry rice Excel files and exports report', () => {
     const freshPath = path.join(process.cwd(), 'THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx');
     const dryPath = path.join(process.cwd(), 'THỊNH_TỔNG NHẬP LÚA KHÔ NĂM 2026.xlsx');
+    const contractPath = path.join(process.cwd(), 'HỢP ĐỒNG LÚA NĂM 2026.xlsx');
 
     const freshBuffer = fs.readFileSync(freshPath);
     const dryBuffer = fs.readFileSync(dryPath);
+    const contractBuffer = fs.readFileSync(contractPath);
 
     const result = analyzeRiceAudit({
       freshBuffer,
       dryBuffer,
+      contractBuffer,
       priceDeviationPct: 6,
     });
 
     expect(result.summary.totalFreshRows).toBe(3043);
     expect(result.summary.totalDryRows).toBe(423);
+    expect(result.summary.totalContractRows).toBeGreaterThan(2000);
     expect(result.summary.totalIssues).toBeGreaterThan(0);
     expect(result.summary.byCategory.lot_code).toBeGreaterThan(0);
     expect(result.summary.byCategory.customer).toBeGreaterThan(0);
+    expect(result.summary.byCategory.contract).toBeGreaterThan(0);
     expect(result.availableMonths.length).toBeGreaterThan(0);
     expect(result.availableMonths[0].key).toMatch(/^\d{4}-\d{2}$/);
     expect(result.issues.some((i) => i.monthKey === result.availableMonths[0].key)).toBe(true);

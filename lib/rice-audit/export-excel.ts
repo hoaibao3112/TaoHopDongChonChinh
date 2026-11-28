@@ -6,6 +6,7 @@ const CATEGORY_LABEL: Record<RiceAuditIssue['category'], string> = {
   customer: 'Khách Hàng',
   price: 'Giá Tiền',
   formula_payment: 'Công Thức & Thanh Toán',
+  contract: 'Đối Chiếu Hợp Đồng',
 };
 
 const SEVERITY_LABEL: Record<RiceAuditIssue['severity'], string> = {
@@ -32,6 +33,7 @@ export function buildAuditReportWorkbookBuffer(
     ['CHỈ SỐ', 'SỐ LƯỢNG'],
     ['Tổng dòng dữ liệu Lúa Tươi', result.summary.totalFreshRows],
     ['Tổng dòng dữ liệu Lúa Khô', result.summary.totalDryRows],
+    ['Tổng dòng Hợp Đồng (nếu có)', result.summary.totalContractRows],
     ['Tổng số lỗi / cảnh báo phát hiện', issues.length],
     ['Mức Nghiêm trọng', issues.filter((i) => i.severity === 'error').length],
     ['Mức Cảnh báo', issues.filter((i) => i.severity === 'warning').length],
@@ -42,6 +44,7 @@ export function buildAuditReportWorkbookBuffer(
     ['Lỗi Khách Hàng / NCC', issues.filter((i) => i.category === 'customer').length],
     ['Lỗi Giá Tiền', issues.filter((i) => i.category === 'price').length],
     ['Lỗi Công Thức & Thanh Toán', issues.filter((i) => i.category === 'formula_payment').length],
+    ['Lỗi Đối Chiếu Hợp Đồng', issues.filter((i) => i.category === 'contract').length],
   ];
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
   wsSummary['!cols'] = [{ wch: 42 }, { wch: 40 }];

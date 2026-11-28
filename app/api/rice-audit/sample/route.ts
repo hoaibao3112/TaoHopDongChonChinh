@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 
 const DEFAULT_FRESH_FILE = 'THỊNH_TỔNG SỐ LIỆU NHẬP LÚA TƯƠI 2026.xlsx';
 const DEFAULT_DRY_FILE = 'THỊNH_TỔNG NHẬP LÚA KHÔ NĂM 2026.xlsx';
+const DEFAULT_CONTRACT_FILE = 'HỢP ĐỒNG LÚA NĂM 2026.xlsx';
 
 function hasAuditAccess(req: NextRequest): boolean {
   const role = getRequestUserRole(req);
@@ -38,9 +39,11 @@ export async function POST(req: NextRequest) {
 
     const localFresh = path.join(process.cwd(), DEFAULT_FRESH_FILE);
     const localDry = path.join(process.cwd(), DEFAULT_DRY_FILE);
+    const localContract = path.join(process.cwd(), DEFAULT_CONTRACT_FILE);
 
     const freshBuffer = fs.existsSync(localFresh) ? fs.readFileSync(localFresh) : null;
     const dryBuffer = fs.existsSync(localDry) ? fs.readFileSync(localDry) : null;
+    const contractBuffer = fs.existsSync(localContract) ? fs.readFileSync(localContract) : null;
 
     if (!freshBuffer && !dryBuffer) {
       return NextResponse.json(
@@ -52,6 +55,7 @@ export async function POST(req: NextRequest) {
     const result = analyzeRiceAudit({
       freshBuffer,
       dryBuffer,
+      contractBuffer,
       priceDeviationPct,
     });
 

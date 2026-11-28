@@ -12,11 +12,30 @@ import {
 export interface AnalyzeAuditOptions {
   freshBuffer?: Uint8Array | Buffer | null;
   dryBuffer?: Uint8Array | Buffer | null;
+  contractBuffer?: Uint8Array | Buffer | null;
   priceDeviationPct?: number; // Mặc định 6%
+}
+
+interface ContractRecord {
+  rowNumber: number;
+  supplierToneNorm: string;
+  supplierRaw: string;
+  contractNoNorm: string;
+  riceType: string;
+  priceType: string; // CỐ ĐỊNH | CHIA ĐÔI ...
+  price: number;
+}
+
+interface ContractIndex {
+  totalRows: number;
+  byCustAndHd: Map<string, ContractRecord[]>;
+  suppliers: Set<string>;
 }
 
 interface ParsedRow {
   rowNumber: number;
+  contractNoRaw: string;
+  contractNoNorm: string;
   dateSerial: number | null;
   dateStr: string;
   monthKey: string;
@@ -173,6 +192,83 @@ function findCol(headers: string[], includesAny: string[], fallback: number): nu
   return idx >= 0 ? idx : fallback;
 }
 
+function normalizeContractNo(raw: unknown): string {
+  const s = String(raw ?? '').trim().toUpperCase();
+  if (!s || s === '-' || s === '0' || s === '00' || s === 'NGOÀI') return '';
+  return s.replace(/^0+(?=\d)/, '');
+}
+
+function parseContractWorkbook(buffer: Uint8Array | Buffer): ContractIndex {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const preferred = ['CHI TIẾT HĐ 2026', 'CHI TIẾT HĐ'];
+  const candidates = [
+    ...preferred.filter((n) => wb.SheetNames.includes(n)),
+    ...wb.SheetNames.filter((n) => !preferred.includes(n)),
+  ];
+
+  let ws: XLSX.WorkSheet | null = null;
+  let headerIdx = -1;
+  let headers: string[] = [];
+
+  for (const name of candidates) {
+    const sheet = wb.Sheets[name];
+    if (!sheet) continue;
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' });
+    for (let r = 0; r < Math.min(10, rows.length); r++) {
+      const h = (rows[r] || []).map(normHeader);
+      if (h.some((c) => c.includes('SỐ HĐ')) && h.some((c) => c.includes('NHÀ CUNG CẤP'))) {
+        ws = sheet;
+        headerIdx = r;
+        headers = h;
+        break;
+      }
+    }
+    if (ws) break;
+  }
+
+  if (!ws || headerIdx < 0) {
+    throw new Error('Không tìm thấy sheet CHI TIẾT HĐ hợp lệ trong file Hợp Đồng.');
+  }
+
+  const rawRows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' });
+  const hdCol = findCol(headers, ['SỐ HĐ'], 2);
+  const priceTypeCol = findCol(headers, ['LOẠI HỢP ĐỒNG (GIÁ)', 'LOẠI HỢP ĐỒNG'], 3);
+  const custCol = findCol(headers, ['NHÀ CUNG CẤP'], 4);
+  const typeCol = findCol(headers, ['LOẠI LÚA'], 6);
+  const priceCol = findCol(headers, ['ĐƠN GIÁ'], 9);
+
+  const byCustAndHd = new Map<string, ContractRecord[]>();
+  const suppliers = new Set<string>();
+  let totalRows = 0;
+
+  for (let r = headerIdx + 1; r < rawRows.length; r++) {
+    const row = rawRows[r] || [];
+    const supplierRaw = String(row[custCol] ?? '').trim();
+    const contractNoNorm = normalizeContractNo(row[hdCol]);
+    if (!supplierRaw && !contractNoNorm) continue;
+    totalRows++;
+
+    const supplierToneNorm = normalizeToneAndCase(supplierRaw);
+    if (supplierToneNorm) suppliers.add(supplierToneNorm);
+
+    if (supplierToneNorm && contractNoNorm) {
+      const key = `${supplierToneNorm}|${contractNoNorm}`;
+      if (!byCustAndHd.has(key)) byCustAndHd.set(key, []);
+      byCustAndHd.get(key)!.push({
+        rowNumber: r + 1,
+        supplierToneNorm,
+        supplierRaw,
+        contractNoNorm,
+        riceType: String(row[typeCol] ?? '').trim().toUpperCase(),
+        priceType: String(row[priceTypeCol] ?? '').trim().toUpperCase(),
+        price: toNumberOrNull(row[priceCol]) ?? 0,
+      });
+    }
+  }
+
+  return { totalRows, byCustAndHd, suppliers };
+}
+
 function parseRowsFromWorkbook(
   buffer: Uint8Array | Buffer,
   source: RiceFileSource
@@ -191,6 +287,7 @@ function parseRowsFromWorkbook(
   const { sheetName, ws, headerIdx, headers } = found;
   const rawRows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' });
 
+  const hdCol = findCol(headers, ['SỐ HĐ', 'HĐ'], 0);
   const dateCol = findCol(headers, ['NGÀY CÂN'], 1);
   const buyerCol = findCol(headers, ['NHÂN VIÊN THU MUA'], 2);
   const custCol = findCol(headers, ['KHÁCH HÀNG', 'NHÀ CUNG CẤP'], 3);
@@ -255,8 +352,11 @@ function parseRowsFromWorkbook(
     const totalVal = toNumberOrNull(row[totalCol]);
     const payVal = toNumberOrNull(row[paymentCol]);
 
+    const contractNoRaw = String(row[hdCol] ?? '').trim();
     parsed.push({
       rowNumber: r + 1,
+      contractNoRaw,
+      contractNoNorm: normalizeContractNo(contractNoRaw),
       dateSerial,
       dateStr: dObj ? formatDateVN(dObj) : String(dateVal ?? '').trim(),
       monthKey: formatMonthKey(dObj),
@@ -290,7 +390,8 @@ function auditSingleSheet(
   source: RiceFileSource,
   sheetName: string,
   rows: ParsedRow[],
-  priceDeviationPct: number
+  priceDeviationPct: number,
+  contractIndex?: ContractIndex | null
 ): { issues: RiceAuditIssue[]; mappings: CustomerPrefixMapping[] } {
   const sourceLabel = source === 'fresh' ? 'Lúa Tươi' : 'Lúa Khô';
   const issues: RiceAuditIssue[] = [];
@@ -321,6 +422,7 @@ function auditSingleSheet(
       suggestion,
       dateStr: row.dateStr,
       monthKey: row.monthKey,
+      contractNo: row.contractNoRaw,
       buyer: row.buyer,
       customer: row.customerRaw.trim(),
       riceType: row.riceType,
@@ -699,6 +801,61 @@ function auditSingleSheet(
         'Kiểm tra lại tiền Tạm ứng, Trừ cọc hoặc cột Thành Tiền.'
       );
     }
+
+    // 5. ĐỐI CHIẾU CHÉO VỚI FILE HỢP ĐỒNG (nếu có)
+    if (contractIndex && row.customerToneNorm && row.contractNoNorm) {
+      const key = `${row.customerToneNorm}|${row.contractNoNorm}`;
+      const matchedContracts = contractIndex.byCustAndHd.get(key);
+      if (!matchedContracts || matchedContracts.length === 0) {
+        pushIssue(
+          row,
+          'contract',
+          'warning',
+          'CONTRACT_NOT_FOUND',
+          'Không khớp Hợp Đồng',
+          `Dòng ghi Khách "${row.customerRaw.trim()}" + Số HĐ "${row.contractNoRaw}" nhưng không tìm thấy trong sheet CHI TIẾT HĐ 2026.`,
+          'Kiểm tra xem có gõ nhầm Số HĐ, gõ sai tên Khách Hàng hoặc thiếu nhập Hợp Đồng chưa.'
+        );
+      } else {
+        const sameTypeMatch = row.riceType
+          ? matchedContracts.find((c) => c.riceType === row.riceType)
+          : matchedContracts[0];
+
+        if (row.riceType && !sameTypeMatch && matchedContracts.some((c) => c.riceType)) {
+          const expectedTypes = [...new Set(matchedContracts.map((c) => c.riceType).filter(Boolean))].join(', ');
+          pushIssue(
+            row,
+            'contract',
+            'warning',
+            'CONTRACT_TYPE_MISMATCH',
+            'Sai Loại Lúa so với Hợp Đồng',
+            `Số HĐ "${row.contractNoRaw}" của "${row.customerRaw.trim()}" ký loại lúa "${expectedTypes}", nhưng dòng nhập ghi "${row.riceType}".`,
+            `Đối chiếu lại giống lúa thực tế với Hợp Đồng (${expectedTypes}).`
+          );
+        }
+
+        const targetContract = sameTypeMatch || matchedContracts[0];
+        if (
+          targetContract &&
+          targetContract.priceType.includes('CỐ ĐỊNH') &&
+          targetContract.price > 0 &&
+          row.price !== null &&
+          row.price > 0 &&
+          Math.abs(targetContract.price - row.price) > 50
+        ) {
+          pushIssue(
+            row,
+            'contract',
+            'error',
+            'CONTRACT_FIXED_PRICE_MISMATCH',
+            'Lệch giá Hợp Đồng Cố Định',
+            `Hợp đồng "${row.contractNoRaw}" ký giá CỐ ĐỊNH ${targetContract.price.toLocaleString('vi-VN')} đ/kg, nhưng file nhập đang ghi ${row.price.toLocaleString('vi-VN')} đ/kg.`,
+            `Kiểm tra lại đơn giá hoặc xem có ghi nhầm Số HĐ / Loại giá không.`,
+            targetContract.price
+          );
+        }
+      }
+    }
   }
 
   return { issues, mappings };
@@ -710,7 +867,11 @@ export function analyzeRiceAudit(options: AnalyzeAuditOptions): RiceAuditResult 
   const allMappings: CustomerPrefixMapping[] = [];
   let totalFreshRows = 0;
   let totalDryRows = 0;
+  let totalContractRows = 0;
   const monthStatsMap = new Map<string, { freshRows: number; dryRows: number }>();
+
+  const contractIndex = options.contractBuffer ? parseContractWorkbook(options.contractBuffer) : null;
+  if (contractIndex) totalContractRows = contractIndex.totalRows;
 
   const trackMonthRows = (rows: ParsedRow[], source: RiceFileSource) => {
     for (const r of rows) {
@@ -728,7 +889,7 @@ export function analyzeRiceAudit(options: AnalyzeAuditOptions): RiceAuditResult 
     const { sheetName, rows } = parseRowsFromWorkbook(options.freshBuffer, 'fresh');
     totalFreshRows = rows.length;
     trackMonthRows(rows, 'fresh');
-    const res = auditSingleSheet('fresh', sheetName, rows, priceDeviationPct);
+    const res = auditSingleSheet('fresh', sheetName, rows, priceDeviationPct, contractIndex);
     allIssues.push(...res.issues);
     allMappings.push(...res.mappings);
   }
@@ -737,7 +898,7 @@ export function analyzeRiceAudit(options: AnalyzeAuditOptions): RiceAuditResult 
     const { sheetName, rows } = parseRowsFromWorkbook(options.dryBuffer, 'dry');
     totalDryRows = rows.length;
     trackMonthRows(rows, 'dry');
-    const res = auditSingleSheet('dry', sheetName, rows, priceDeviationPct);
+    const res = auditSingleSheet('dry', sheetName, rows, priceDeviationPct, contractIndex);
     allIssues.push(...res.issues);
     allMappings.push(...res.mappings);
   }
@@ -770,6 +931,7 @@ export function analyzeRiceAudit(options: AnalyzeAuditOptions): RiceAuditResult 
     customer: 0,
     price: 0,
     formula_payment: 0,
+    contract: 0,
   };
   const bySource: Record<RiceFileSource, number> = { fresh: 0, dry: 0 };
 
@@ -815,6 +977,7 @@ export function analyzeRiceAudit(options: AnalyzeAuditOptions): RiceAuditResult 
     summary: {
       totalFreshRows,
       totalDryRows,
+      totalContractRows,
       totalIssues: allIssues.length,
       bySeverity,
       byCategory,

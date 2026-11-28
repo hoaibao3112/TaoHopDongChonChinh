@@ -33,6 +33,11 @@ const CATEGORY_META: Record<AuditCategory, { label: string; icon: string; badgeC
     icon: '🧮',
     badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
   },
+  contract: {
+    label: 'Đối Chiếu HĐ',
+    icon: '📜',
+    badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
+  },
 };
 
 const SEVERITY_META: Record<AuditSeverity, { label: string; badgeClass: string; rowAccent: string }> = {
@@ -58,6 +63,7 @@ const PAGE_SIZE = 80;
 export default function RiceAuditView() {
   const [freshFile, setFreshFile] = useState<File | null>(null);
   const [dryFile, setDryFile] = useState<File | null>(null);
+  const [contractFile, setContractFile] = useState<File | null>(null);
   const [priceDeviationPct, setPriceDeviationPct] = useState<number>(6);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +79,12 @@ export default function RiceAuditView() {
   const [onlyDirtyMappings, setOnlyDirtyMappings] = useState(true);
   const [page, setPage] = useState(1);
 
-  const runClientAudit = async (fFile: File | null, dFile: File | null, pct: number) => {
+  const runClientAudit = async (
+    fFile: File | null,
+    dFile: File | null,
+    cFile: File | null,
+    pct: number
+  ) => {
     if (!fFile && !dFile) {
       setError('Vui lòng chọn ít nhất 1 file Excel Lúa Tươi hoặc Lúa Khô.');
       return;
@@ -81,13 +92,15 @@ export default function RiceAuditView() {
     setError(null);
     setIsLoading(true);
     try {
-      const [freshBuf, dryBuf] = await Promise.all([
+      const [freshBuf, dryBuf, contractBuf] = await Promise.all([
         fFile ? fFile.arrayBuffer().then((ab) => new Uint8Array(ab)) : Promise.resolve(null),
         dFile ? dFile.arrayBuffer().then((ab) => new Uint8Array(ab)) : Promise.resolve(null),
+        cFile ? cFile.arrayBuffer().then((ab) => new Uint8Array(ab)) : Promise.resolve(null),
       ]);
       const auditRes = analyzeRiceAudit({
         freshBuffer: freshBuf,
         dryBuffer: dryBuf,
+        contractBuffer: contractBuf,
         priceDeviationPct: pct,
       });
       setResult(auditRes);
@@ -144,6 +157,7 @@ export default function RiceAuditView() {
       customer: 0,
       price: 0,
       formula_payment: 0,
+      contract: 0,
     };
     const bySource: Record<RiceFileSource, number> = { fresh: 0, dry: 0 };
 
@@ -247,7 +261,7 @@ export default function RiceAuditView() {
 
         {/* Khu vực chọn file & cấu hình */}
         <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <label className="lg:col-span-4 flex flex-col justify-between rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-4 hover:border-emerald-400 hover:bg-emerald-50/30 transition-colors cursor-pointer">
+          <label className="lg:col-span-3 flex flex-col justify-between rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-4 hover:border-emerald-400 hover:bg-emerald-50/30 transition-colors cursor-pointer">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
                 1. File Nhập Lúa Tươi (.xlsx)
@@ -264,7 +278,7 @@ export default function RiceAuditView() {
             />
           </label>
 
-          <label className="lg:col-span-4 flex flex-col justify-between rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-4 hover:border-amber-400 hover:bg-amber-50/30 transition-colors cursor-pointer">
+          <label className="lg:col-span-3 flex flex-col justify-between rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-4 hover:border-amber-400 hover:bg-amber-50/30 transition-colors cursor-pointer">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-amber-700">
                 2. File Nhập Lúa Khô (.xlsx)
@@ -281,10 +295,27 @@ export default function RiceAuditView() {
             />
           </label>
 
-          <div className="lg:col-span-4 flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <label className="lg:col-span-3 flex flex-col justify-between rounded-2xl border border-dashed border-indigo-300 bg-indigo-50/30 p-4 hover:border-indigo-500 hover:bg-indigo-50/60 transition-colors cursor-pointer">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">
+                3. File Hợp Đồng Lúa (Tùy chọn)
+              </span>
+              <p className="mt-1 text-xs text-slate-500 truncate">
+                {contractFile ? `✅ ${contractFile.name}` : 'Chọn HỢP ĐỒNG LÚA NĂM 2026...'}
+              </p>
+            </div>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={(e) => setContractFile(e.target.files?.[0] || null)}
+              className="mt-2.5 block w-full text-xs text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-slate-700 file:shadow-2xs hover:file:bg-slate-100"
+            />
+          </label>
+
+          <div className="lg:col-span-3 flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
             <div className="flex items-center justify-between gap-2">
               <label className="text-xs font-bold text-slate-700" htmlFor="deviation-pct">
-                Ngưỡng lệch giá cảnh báo (±%):
+                Ngưỡng lệch giá (±%):
               </label>
               <input
                 id="deviation-pct"
@@ -293,7 +324,7 @@ export default function RiceAuditView() {
                 max={50}
                 value={priceDeviationPct}
                 onChange={(e) => setPriceDeviationPct(Math.max(1, Math.min(50, Number(e.target.value) || 6)))}
-                className="w-20 rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-center text-xs font-bold text-slate-900"
+                className="w-16 rounded-xl border border-slate-300 bg-white px-2 py-1 text-center text-xs font-bold text-slate-900"
               />
             </div>
 
@@ -301,19 +332,19 @@ export default function RiceAuditView() {
               <button
                 type="button"
                 disabled={isLoading || (!freshFile && !dryFile)}
-                onClick={() => runClientAudit(freshFile, dryFile, priceDeviationPct)}
-                className="flex-1 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition-all hover:bg-rose-700 disabled:opacity-50 cursor-pointer"
+                onClick={() => runClientAudit(freshFile, dryFile, contractFile, priceDeviationPct)}
+                className="flex-1 rounded-xl bg-rose-600 px-3 py-2 text-xs font-bold text-white shadow-xs transition-all hover:bg-rose-700 disabled:opacity-50 cursor-pointer"
               >
-                {isLoading ? 'Đang quét...' : '🔍 Kiểm Tra Ngay'}
+                {isLoading ? 'Đang quét...' : '🔍 Kiểm Tra'}
               </button>
               <button
                 type="button"
                 disabled={isLoading}
                 onClick={runServerSampleAudit}
-                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-2xs transition-all hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
-                title="Đọc trực tiếp 2 file Excel đang lưu trên máy chủ (nếu có)"
+                className="rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-xs font-bold text-slate-700 shadow-2xs transition-all hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
+                title="Đọc trực tiếp 3 file Excel đang lưu trên máy chủ (nếu có)"
               >
-                Nạp 2 file mẫu
+                Nạp mẫu
               </button>
             </div>
           </div>
@@ -377,12 +408,12 @@ export default function RiceAuditView() {
             </div>
 
             <div className="rounded-2xl border border-amber-200 bg-white p-4 shadow-2xs">
-              <p className="text-[11px] font-bold uppercase text-amber-700">💰 Giá &amp; CT</p>
+              <p className="text-[11px] font-bold uppercase text-amber-700">💰 Giá · CT · HĐ</p>
               <p className="mt-1 text-xl font-black text-slate-900">
-                {(scopedStats.byCategory.price + scopedStats.byCategory.formula_payment).toLocaleString('vi-VN')}
+                {(scopedStats.byCategory.price + scopedStats.byCategory.formula_payment + scopedStats.byCategory.contract).toLocaleString('vi-VN')}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">
-                Giá: {scopedStats.byCategory.price} · CT/TT: {scopedStats.byCategory.formula_payment}
+                Giá: {scopedStats.byCategory.price} · CT: {scopedStats.byCategory.formula_payment} · HĐ: {scopedStats.byCategory.contract}
               </p>
             </div>
           </div>
@@ -473,6 +504,7 @@ export default function RiceAuditView() {
                     <option value="lot_code">🏷️ Mã Lô ({scopedStats.byCategory.lot_code})</option>
                     <option value="customer">👤 Khách Hàng ({scopedStats.byCategory.customer})</option>
                     <option value="price">💰 Giá Tiền ({scopedStats.byCategory.price})</option>
+                    <option value="contract">📜 Đối Chiếu HĐ ({scopedStats.byCategory.contract})</option>
                     <option value="formula_payment">
                       🧮 Công Thức &amp; TT ({scopedStats.byCategory.formula_payment})
                     </option>
@@ -558,6 +590,7 @@ export default function RiceAuditView() {
                                 </div>
                                 <div className="mt-0.5 text-[11px] text-slate-500">
                                   {iss.riceType || '—'}
+                                  {iss.contractNo ? ` · HĐ: ${iss.contractNo}` : ''}
                                   {iss.buyer ? ` · NV: ${iss.buyer}` : ''}
                                   {iss.quantityKg ? ` · ${iss.quantityKg.toLocaleString('vi-VN')} kg` : ''}
                                 </div>

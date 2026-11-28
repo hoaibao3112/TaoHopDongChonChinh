@@ -1,6 +1,6 @@
 export type RiceFileSource = 'fresh' | 'dry';
 
-export type AuditCategory = 'lot_code' | 'customer' | 'price' | 'formula_payment';
+export type AuditCategory = 'lot_code' | 'customer' | 'price' | 'formula_payment' | 'contract';
 
 export type AuditSeverity = 'error' | 'warning' | 'info';
 
@@ -19,6 +19,7 @@ export interface RiceAuditIssue {
   // Thông tin ngữ cảnh dòng
   dateStr: string;
   monthKey: string; // YYYY-MM hoặc '' nếu không có ngày cân
+  contractNo?: string;
   buyer: string;
   customer: string;
   riceType: string;
@@ -41,6 +42,7 @@ export interface CustomerPrefixMapping {
 export interface RiceAuditSummary {
   totalFreshRows: number;
   totalDryRows: number;
+  totalContractRows: number;
   totalIssues: number;
   bySeverity: Record<AuditSeverity, number>;
   byCategory: Record<AuditCategory, number>;
