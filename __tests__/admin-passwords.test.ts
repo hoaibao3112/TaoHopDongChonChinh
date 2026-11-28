@@ -84,11 +84,11 @@ describe('Admin Role Passwords System', () => {
     const oldRes = await checkPasswordAsync('chonchinh');
     expect(oldRes.isAuthenticated).toBe(false);
 
-    // New password should succeed for dangtai
+    // New password should succeed as full admin (unified master key)
     const newRes = await checkPasswordAsync('chonchinh_vip2026');
     expect(newRes.isAuthenticated).toBe(true);
-    expect(newRes.role).toBe('dangtai');
-    expect(newRes.redirectUrl).toBe('/dang-tai');
+    expect(newRes.role).toBe('admin');
+    expect(newRes.redirectUrl).toBe('/');
 
     // Old payroll pass 'hoaibao' should fail
     const oldPayroll = await checkPasswordAsync('hoaibao');
@@ -106,6 +106,6 @@ describe('Admin Role Passwords System', () => {
 
     const restoreRes = await checkPasswordAsync('chonchinh');
     expect(restoreRes.isAuthenticated).toBe(true);
-    expect(restoreRes.role).toBe('dangtai');
+    expect(restoreRes.role).toBe('admin');
   });
 });

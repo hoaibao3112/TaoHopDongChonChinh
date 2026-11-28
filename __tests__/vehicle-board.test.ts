@@ -11,10 +11,10 @@ import { buildDailyPlanExcelBuffer } from '../lib/vehicle-board/export-plan-exce
 import { parseDailyPlanFromExcelPaste } from '../lib/vehicle-board/parse-plan-tsv';
 
 describe('Vehicle Dispatch Board (Xếp Phương Tiện & Kế Hoạch Nhận Hàng)', () => {
-  it('authenticates chonchinh password into dangtai role and hoaibao into full admin role', () => {
+  it('authenticates chonchinh password into full admin role', () => {
     const res = checkPassword('chonchinh');
     expect(res.isAuthenticated).toBe(true);
-    expect(res.role).toBe('dangtai');
+    expect(res.role).toBe('admin');
 
     const adminRes = checkPassword('hoaibao');
     expect(adminRes.isAuthenticated).toBe(true);

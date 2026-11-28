@@ -28,7 +28,8 @@ export default function AppHeader() {
     return null;
   });
 
-  const isContract = pathname === '/' || pathname.startsWith('/contracts');
+  const isHome = pathname === '/';
+  const isTaoHopDong = pathname.startsWith('/tao-hop-dong') || pathname.startsWith('/contracts');
   const isPayroll = pathname.startsWith('/tinh-luong');
   const isNhapSay = pathname === '/nhap-say';
   const isNhapSayCS1 = pathname.startsWith('/nhap-say-cs1');
@@ -62,7 +63,7 @@ export default function AppHeader() {
   };
 
   // Quyền truy cập các tab
-  const canAccessContracts = role === 'contracts' || role === 'admin' || role === null;
+  const canAccessContracts = role === 'contracts' || role === 'dangtai' || role === 'admin' || role === null;
   const canAccessPayroll = role === 'payroll' || role === 'admin' || role === null;
   const canAccessHusk = role === 'husk' || role === 'payroll' || role === 'admin' || role === null;
   const canAccessBaoCao = role === 'baocao' || role === 'admin';
@@ -217,11 +218,24 @@ export default function AppHeader() {
       {/* ── TẦNG 2: THANH MENU TABS TO RÕ & CĂN GIỮA MÀN HÌNH ── */}
       <div className="w-full border-t border-slate-200/70 bg-gradient-to-b from-slate-50 to-slate-100/60 px-3 sm:px-6 lg:px-8 py-2">
         <nav className="flex items-center justify-start md:justify-center gap-1.5 sm:gap-2.5 overflow-x-auto no-scrollbar scrollbar-none py-0.5">
+          {/* Tab Trang Chủ - hiển thị cho tất cả người dùng đã đăng nhập */}
+          <Link
+            href="/"
+            className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
+              isHome
+                ? 'bg-white text-slate-800 shadow-sm ring-2 ring-slate-400/30 font-black scale-[1.02]'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
+            }`}
+          >
+            <span className="text-sm sm:text-base">🏠</span>
+            <span>Trang Chủ</span>
+          </Link>
+
           {canAccessContracts && (
             <Link
-              href="/"
+              href="/tao-hop-dong"
               className={`flex shrink-0 items-center gap-2 rounded-xl sm:rounded-2xl px-3.5 sm:px-4.5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-all ${
-                isContract
+                isTaoHopDong
                   ? 'bg-white text-blue-700 shadow-sm ring-2 ring-blue-500/30 font-black scale-[1.02]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-2xs'
               }`}

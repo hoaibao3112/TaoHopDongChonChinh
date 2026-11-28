@@ -194,7 +194,7 @@ export function checkPassword(password: string): AuthCheckResult {
     return { isAuthenticated: true, role: 'husk', redirectUrl: '/xuat-trau' };
   }
   if (safeEqual(clean, 'chonchinh')) {
-    return { isAuthenticated: true, role: 'dangtai', redirectUrl: '/dang-tai' };
+    return { isAuthenticated: true, role: 'admin', redirectUrl: '/' };
   }
   if (safeEqual(clean, 'chingoc')) {
     return { isAuthenticated: true, role: 'chingoc', redirectUrl: '/bao-cao-nhap-ngay' };
@@ -237,7 +237,7 @@ export async function checkPasswordAsync(password: string): Promise<AuthCheckRes
     return { isAuthenticated: true, role: 'husk', redirectUrl: '/xuat-trau' };
   }
   if (safeEqual(clean, map.dangtai)) {
-    return { isAuthenticated: true, role: 'dangtai', redirectUrl: '/dang-tai' };
+    return { isAuthenticated: true, role: 'admin', redirectUrl: '/' };
   }
   if (safeEqual(clean, map.chingoc)) {
     return { isAuthenticated: true, role: 'chingoc', redirectUrl: '/bao-cao-nhap-ngay' };

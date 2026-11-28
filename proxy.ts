@@ -69,7 +69,7 @@ export function proxy(request: NextRequest): NextResponse {
       pathname.startsWith('/dang-tai') ||
       pathname.startsWith('/dieu-phoi-pt')
     ) {
-      return NextResponse.redirect(new URL('/', request.url));
+      return NextResponse.redirect(new URL('/tao-hop-dong', request.url));
     }
   }
 
@@ -98,15 +98,10 @@ export function proxy(request: NextRequest): NextResponse {
     }
   }
 
-  // 6. Phân quyền cho Phương Tiện ('dangtai') với mật khẩu phuongtien: Chỉ vào /dang-tai và /dieu-phoi-pt
+  // 6. Phân quyền cho Phương Tiện & Hợp Đồng ('dangtai') với mật khẩu chonchinh: Toàn quyền truy cập (đây là mật khẩu chính)
   if (role === 'dangtai') {
-    if (
-      !pathname.startsWith('/dang-tai') &&
-      !pathname.startsWith('/dieu-phoi-pt') &&
-      !pathname.startsWith('/api/')
-    ) {
-      return NextResponse.redirect(new URL('/dang-tai', request.url));
-    }
+    // dangtai = mật khẩu chính chonchinh, có quyền truy cập tất cả
+    return NextResponse.next();
   }
 
   // 7. Phân quyền cho Kiểm Tra Lỗi Lúa ('kiemtra') với mật khẩu KIEMTRA: Chỉ vào /kiem-tra-lua

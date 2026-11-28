@@ -1,0 +1,97 @@
+import React from 'react';
+import { redirect } from 'next/navigation';
+import { isServerComponentAuthenticated } from '@/lib/auth';
+import { COMPANY_A } from '@/lib/company-config';
+import ContractForm from '@/components/ContractForm';
+import AppHeader from '@/components/AppHeader';
+
+export default async function TaoHopDongPage() {
+  const isAuth = await isServerComponentAuthenticated();
+  if (!isAuth) {
+    redirect('/login');
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50/70 text-slate-900 pb-20 antialiased">
+      {/* Top Header */}
+      <AppHeader />
+
+      {/* Main Container */}
+      <main className="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
+        {/* Banner Bên A (Bên Bán) Cố Định - Kiểu dáng Doanh Nghiệp Sang Trọng */}
+        <section className="mb-8 overflow-hidden rounded-3xl border border-blue-200/80 bg-gradient-to-br from-white via-blue-50/40 to-indigo-50/30 p-6 sm:p-7 shadow-sm shadow-blue-500/5 relative">
+          <div className="absolute top-0 right-0 -mt-8 -mr-8 h-40 w-40 rounded-full bg-blue-100/40 blur-2xl pointer-events-none" />
+
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 relative z-10">
+            <div className="flex-1 space-y-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-blue-100/80 px-3 py-1 text-xs font-bold text-blue-800 tracking-wide">
+                <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+                🏢 BÊN A (BÊN BÁN) – THÔNG TIN CỐ ĐỊNH TRÊN HỢP ĐỒNG
+              </div>
+
+              <h2 className="text-xl font-black text-slate-900 tracking-tight sm:text-2xl">
+                {COMPANY_A.name}
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2.5 pt-2 text-sm text-slate-600">
+                <div className="flex items-start gap-2">
+                  <span className="text-slate-400 font-semibold min-w-[70px]">Trụ sở:</span>
+                  <span className="font-medium text-slate-800">{COMPANY_A.address}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-slate-400 font-semibold min-w-[70px]">Mã số thuế:</span>
+                  <span className="font-semibold text-slate-900 font-mono tracking-wide">{COMPANY_A.mst}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-slate-400 font-semibold min-w-[70px]">Điện thoại:</span>
+                  <span className="font-medium text-slate-800">{COMPANY_A.phone}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-slate-400 font-semibold min-w-[70px]">Đại diện:</span>
+                  <span className="font-medium text-slate-800">
+                    <strong className="text-blue-900 font-bold">{COMPANY_A.representative}</strong> – {COMPANY_A.title}{' '}
+                    <span className="text-xs text-slate-500 italic font-normal">{COMPANY_A.authorizationNote}</span>
+                  </span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-slate-400 font-semibold min-w-[70px]">Người ký HĐ:</span>
+                  <span className="font-medium text-slate-800">
+                    <strong className="text-blue-900 font-bold">{COMPANY_A.signerName}</strong>
+                    <span className="ml-2 inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
+                      Ký hợp đồng
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-start gap-2 md:col-span-2">
+                  <span className="text-slate-400 font-semibold min-w-[70px]">Tài khoản:</span>
+                  <span className="font-medium text-slate-800">
+                    3 tài khoản thanh toán (<strong className="text-blue-900 font-semibold">MB Bank</strong>,{' '}
+                    <strong className="text-blue-900 font-semibold">Bắc Á Bank</strong>,{' '}
+                    <strong className="text-blue-900 font-semibold">VietinBank</strong>) –{' '}
+                    <span className="text-xs text-blue-700 font-medium italic">tùy chọn linh hoạt trong biểu mẫu</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Logo / Thông tin hỗ trợ */}
+            <div className="flex flex-col items-end gap-3 shrink-0">
+              <div className="rounded-2xl bg-white/80 border border-blue-100 px-4 py-3 text-xs text-slate-600 shadow-sm space-y-1.5">
+                <p className="font-bold text-blue-900 text-sm mb-2">TÀI KHOẢN BÊN A HỖ TRỢ:</p>
+                {COMPANY_A.bankAccounts.map((acc) => (
+                  <div key={acc.id} className="flex items-center gap-2">
+                    <span className="font-bold text-slate-700 min-w-[75px]">{acc.shortName}:</span>
+                    <span className="font-mono text-slate-800">{acc.accountNumber}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Contract Form */}
+        <ContractForm />
+      </main>
+    </div>
+  );
+}

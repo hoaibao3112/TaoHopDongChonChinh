@@ -26,18 +26,18 @@ describe('1. Chuẩn hóa biển số xe (Plate Normalization)', () => {
   });
 });
 
-describe('2. Phân quyền và Mật khẩu "chonchinh"', () => {
-  it('nhập mật khẩu "chonchinh" trả về role "dangtai" và chuyển hướng đến /dang-tai', () => {
+describe('2. Phân quyền và Mật khẩu thống nhất "chonchinh"', () => {
+  it('nhập mật khẩu "chonchinh" trả về role "admin" và chuyển hướng đến /', () => {
     const auth = checkPassword('chonchinh');
     expect(auth.isAuthenticated).toBe(true);
-    expect(auth.role).toBe('dangtai');
-    expect(auth.redirectUrl).toBe('/dang-tai');
+    expect(auth.role).toBe('admin');
+    expect(auth.redirectUrl).toBe('/');
   });
 
-  it('tạo và xác thực HMAC token hợp lệ cho vai trò "dangtai"', () => {
-    const token = signSessionToken('dangtai');
+  it('tạo và xác thực HMAC token hợp lệ cho vai trò "admin"', () => {
+    const token = signSessionToken('admin');
     const verifiedRole = verifySessionToken(token);
-    expect(verifiedRole).toBe('dangtai');
+    expect(verifiedRole).toBe('admin');
   });
 });
 

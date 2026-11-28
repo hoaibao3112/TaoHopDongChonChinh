@@ -31,10 +31,10 @@ export const ROLE_PASSWORD_METADATA: RolePasswordMeta[] = [
   },
   {
     key: 'dangtai',
-    label: 'Phương Tiện (Đăng Tài Xe & Xếp PT)',
-    route: '/dang-tai',
-    icon: '🚢',
-    description: 'Chỉ vào 2 tab: Đăng Tài Xe (/dang-tai) và Xếp Phương Tiện (/dieu-phoi-pt)',
+    label: 'Mật Khẩu Chính (Toàn Quyền Hệ Thống)',
+    route: '/',
+    icon: '🔑',
+    description: 'Vào toàn bộ tất cả chức năng: Dashboard, Hợp Đồng, Phương Tiện, Tính Lương, Báo Cáo, Thống Kê, Báo Lỗi File Lúa',
     defaultPassword: 'chonchinh',
   },
   {
