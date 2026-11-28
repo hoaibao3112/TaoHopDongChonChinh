@@ -137,8 +137,19 @@ export default function DailyIntakePlanView({
   }, [plan.rows]);
 
   const updateRow = (rowId: string, patch: Partial<DailyPlanRow>) => {
+    const oldRow = plan.rows.find((r) => r.id === rowId);
     const nextRows = plan.rows.map((r) => (r.id === rowId ? { ...r, ...patch } : r));
     persistPlan({ ...plan, rows: nextRows });
+
+    if (
+      oldRow &&
+      patch.riceType !== undefined &&
+      oldRow.vehicleIds.length > 0 &&
+      inferTargetColumn(patch.riceType) !== inferTargetColumn(oldRow.riceType)
+    ) {
+      const nextCol = inferTargetColumn(patch.riceType);
+      onSyncVehiclesToColumns(oldRow.vehicleIds.map((vid) => ({ vehicleId: vid, columnId: nextCol })));
+    }
   };
 
   const addRow = () => {
@@ -159,6 +170,13 @@ export default function DailyIntakePlanView({
   };
 
   const removeRow = (rowId: string) => {
+    const targetRow = plan.rows.find((r) => r.id === rowId);
+    if (targetRow && targetRow.vehicleIds.length > 0) {
+      onSyncVehiclesToColumns(
+        targetRow.vehicleIds.map((vid) => ({ vehicleId: vid, columnId: 'pt_trong' }))
+      );
+    }
+
     if (plan.rows.length <= 1) {
       updateRow(rowId, {
         kcs: '',
@@ -170,6 +188,7 @@ export default function DailyIntakePlanView({
         location: '',
         note: '',
         vehicleIds: [],
+        receiveNote: '',
       });
       return;
     }
@@ -185,6 +204,7 @@ export default function DailyIntakePlanView({
       updateRow(rowId, {
         vehicleIds: targetRow.vehicleIds.filter((id) => id !== vehicleId),
       });
+      onSyncVehiclesToColumns([{ vehicleId, columnId: 'pt_trong' }]);
       return;
     }
 
@@ -202,6 +222,8 @@ export default function DailyIntakePlanView({
     updateRow(rowId, {
       vehicleIds: [...targetRow.vehicleIds, vehicleId],
     });
+    const targetCol = inferTargetColumn(targetRow.riceType);
+    onSyncVehiclesToColumns([{ vehicleId, columnId: targetCol }]);
   };
 
   const handleSyncToBoard = () => {
