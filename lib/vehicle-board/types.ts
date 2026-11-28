@@ -43,6 +43,7 @@ export interface DailyPlanRow {
   location: string;
   note: string;
   vehicleIds: string[]; // Danh sách ID phương tiện được gán (mỗi phương tiện chỉ gán 1 nơi trong ngày)
+  receiveNote?: string; // Ghi chú nhận hàng (điền tay)
 }
 
 export interface DailyIntakePlan {

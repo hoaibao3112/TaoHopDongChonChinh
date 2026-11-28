@@ -7,6 +7,7 @@ import {
   getEffectiveCapacityRange,
 } from '@/lib/vehicle-board/defaults';
 import { buildDailyPlanExcelBuffer } from '@/lib/vehicle-board/export-plan-excel';
+import { parseDailyPlanFromExcelPaste } from '@/lib/vehicle-board/parse-plan-tsv';
 import {
   DailyIntakePlan,
   DailyPlanRow,
@@ -47,6 +48,11 @@ export default function DailyIntakePlanView({
   // Modal chọn phương tiện cho 1 dòng
   const [pickingRowId, setPickingRowId] = useState<string | null>(null);
   const [pickerSearch, setPickerSearch] = useState('');
+
+  // Modal dán dữ liệu từ Excel
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [pasteMode, setPasteMode] = useState<'replace' | 'append'>('replace');
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rowSeqRef = useRef(2);
@@ -230,6 +236,27 @@ export default function DailyIntakePlanView({
     URL.revokeObjectURL(url);
   };
 
+  const handleApplyPaste = (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsed = parseDailyPlanFromExcelPaste(pasteText, planDate);
+    if (parsed.length === 0) {
+      setError('Không đọc được dòng dữ liệu hợp lệ nào. Hãy copy nguyên bảng từ Excel rồi dán vào.');
+      return;
+    }
+
+    const baseRows =
+      pasteMode === 'append'
+        ? plan.rows.filter(
+            (r) => r.kcs || r.supplier || r.riceType || r.quantityKg > 0 || r.note || r.vehicleIds.length > 0
+          )
+        : [];
+    const nextRows = [...baseRows, ...parsed];
+    persistPlan({ ...plan, rows: nextRows }, true);
+    setShowPasteModal(false);
+    setPasteText('');
+    setSyncMessage(`Đã nạp ${parsed.length} dòng từ Excel vào kế hoạch ngày ${planDate}!`);
+  };
+
   const totals = useMemo(() => {
     let totalKg = 0;
     let totalMoney = 0;
@@ -313,6 +340,19 @@ export default function DailyIntakePlanView({
 
             <button
               type="button"
+              onClick={() => {
+                setPasteText('');
+                setShowPasteModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition cursor-pointer"
+              title="Copy bảng từ Excel rồi dán nhanh vào đây"
+            >
+              <span>📋</span>
+              <span>Dán từ Excel</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handleSyncToBoard}
               className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-amber-700 transition cursor-pointer"
               title="Tự động chuyển các phương tiện đã gán sang cột Nhận Lúa Khô / Tươi trên Bảng 6 Cột"
@@ -367,6 +407,9 @@ export default function DailyIntakePlanView({
                   <th className="px-2 py-3 text-left w-36">Ghi Chú</th>
                   <th className="px-2.5 py-3 text-center min-w-[230px] bg-yellow-300 text-slate-950 border-l border-slate-300">
                     Phương Tiện Nhận Hàng
+                  </th>
+                  <th className="px-2.5 py-3 text-center min-w-[180px] bg-yellow-200 text-slate-950 border-l border-slate-300">
+                    Ghi Chú Nhận Hàng
                   </th>
                   <th className="px-2 py-3 w-10" />
                 </tr>
@@ -535,6 +578,15 @@ export default function DailyIntakePlanView({
                           + Chọn PT nhận hàng
                         </button>
                       </td>
+                      <td className="px-1.5 py-2 border-l border-slate-200 bg-yellow-50/30">
+                        <textarea
+                          rows={2}
+                          value={row.receiveNote || ''}
+                          onChange={(e) => updateRow(row.id, { receiveNote: e.target.value })}
+                          placeholder="Ghi chú nhận hàng..."
+                          className="w-full rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs text-slate-900 focus:border-amber-500 focus:outline-none resize-y"
+                        />
+                      </td>
                       <td className="px-1.5 py-2 text-center">
                         <button
                           type="button"
@@ -564,7 +616,7 @@ export default function DailyIntakePlanView({
                   <td colSpan={2} className="px-3 py-3 text-left text-slate-600 font-semibold">
                     Đã điều {totals.totalAssignedVehicles} lượt phương tiện
                   </td>
-                  <td colSpan={2} className="px-2 py-2 text-right">
+                  <td colSpan={3} className="px-2 py-2 text-right">
                     <button
                       type="button"
                       onClick={addRow}
@@ -676,6 +728,82 @@ export default function DailyIntakePlanView({
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Dán Dữ Liệu Từ Excel */}
+      {showPasteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-2xs">
+          <div className="w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  📋 Dán Nhanh Kế Hoạch Từ Excel
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Copy các dòng từ file Excel (gồm các cột STT, KCS, Nhà Cung Cấp, Số HĐ, Loại Lúa, Số Lượng, Giá, Thành Tiền, Địa Điểm, Ghi Chú) rồi bấm Ctrl+V vào ô dưới đây. Hệ thống tự động bỏ dòng tiêu đề/tổng cộng và giữ nguyên cột PT Nhận Hàng + Ghi Chú Nhận Hàng để bạn chọn.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPasteModal(false)}
+                className="rounded-xl border border-slate-200 px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+
+            <form onSubmit={handleApplyPaste} className="mt-4 space-y-3">
+              <textarea
+                rows={8}
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                placeholder="Dán dữ liệu copy từ Excel vào đây (Ctrl+V)..."
+                autoFocus
+                className="w-full rounded-2xl border border-slate-300 bg-slate-50 p-3 font-mono text-xs text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none"
+              />
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-4 text-xs font-semibold text-slate-700">
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="pasteMode"
+                      checked={pasteMode === 'replace'}
+                      onChange={() => setPasteMode('replace')}
+                    />
+                    <span>Thay thế bảng hiện tại</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="pasteMode"
+                      checked={pasteMode === 'append'}
+                      onChange={() => setPasteMode('append')}
+                    />
+                    <span>Thêm nối tiếp vào cuối bảng</span>
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPasteModal(false)}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!pasteText.trim()}
+                    className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
+                  >
+                    Nạp vào bảng
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

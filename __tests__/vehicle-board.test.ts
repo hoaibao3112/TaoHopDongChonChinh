@@ -8,6 +8,7 @@ import {
 } from '../lib/vehicle-board/defaults';
 import { buildVehicleBoardExcelBuffer } from '../lib/vehicle-board/export-excel';
 import { buildDailyPlanExcelBuffer } from '../lib/vehicle-board/export-plan-excel';
+import { parseDailyPlanFromExcelPaste } from '../lib/vehicle-board/parse-plan-tsv';
 
 describe('Vehicle Dispatch Board (Xếp Phương Tiện & Kế Hoạch Nhận Hàng)', () => {
   it('authenticates DIEUPHOI password into dieuphoi role', () => {
@@ -79,6 +80,7 @@ describe('Vehicle Dispatch Board (Xếp Phương Tiện & Kế Hoạch Nhận H�
             location: 'KÊNH NGUYỄN VĂN TIẾP',
             note: '',
             vehicleIds: ['nn-18'],
+            receiveNote: 'Chờ lấy mẫu KCS',
           },
         ],
         updatedAt: new Date().toISOString(),
@@ -86,5 +88,25 @@ describe('Vehicle Dispatch Board (Xếp Phương Tiện & Kế Hoạch Nhận H�
       state.vehicles
     );
     expect(planBuf.byteLength).toBeGreaterThan(2000);
+  });
+
+  it('parses multiline Excel TSV paste data accurately', () => {
+    const sampleTsv = [
+      'STT\tKCS\tNHÀ CUNG CẤP\tSỐ HĐ\tLOẠI LÚA\t SỐ LƯỢNG (KG)\t GIÁ HẾT PHÍ \t THÀNH TIỀN\tĐỊA ĐIỂM\tGHI CHÚ',
+      '1\tTHỨC\tĐÔN MỸ PHƯỚC TÂY\t" 03+04\n Vụ Hè Thu"\tNẾP KHÔ\t  220.000   \t  7.770   \t  1.709.400.000   \tKÊNH 12, MỸ PHƯỚC TÂY, ĐỒNG THÁP\t',
+      '3\tNHÂN \tNGA MỸ PHƯỚC TÂY\t" 01\n Vụ Hè Thu"\tOM18 KHÔ\t  125.000   \t  8.720   \t  1.090.000.000   \t"KÊNH NGUYỄN VĂN TIẾP, TÂN HỘI MỸ PHƯỚC TÂY,\n ĐỒNG THÁP"\t',
+      '9\tMINH\t\t\t\t\t\t\t\tTRỰC CÔNG TY',
+      'TỔNG CỘNG:\t\t\t\t\t  345.000   \t\t  2.799.400.000   \t\t',
+    ].join('\n');
+
+    const rows = parseDailyPlanFromExcelPaste(sampleTsv, '2026-11-28');
+    expect(rows).toHaveLength(3);
+    expect(rows[0].kcs).toBe('THỨC');
+    expect(rows[0].contractNo).toBe('03+04 Vụ Hè Thu');
+    expect(rows[0].quantityKg).toBe(220000);
+    expect(rows[0].pricePerKg).toBe(7770);
+    expect(rows[1].location).toBe('KÊNH NGUYỄN VĂN TIẾP, TÂN HỘI MỸ PHƯỚC TÂY, ĐỒNG THÁP');
+    expect(rows[2].kcs).toBe('MINH');
+    expect(rows[2].note).toBe('TRỰC CÔNG TY');
   });
 });

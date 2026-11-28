@@ -22,14 +22,14 @@ export async function buildDailyPlanExcelBuffer(
   const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
 
   // Dòng 1: Tiêu đề xanh lá giống ảnh mẫu
-  ws.mergeCells(1, 1, 1, 11);
+  ws.mergeCells(1, 1, 1, 12);
   const titleCell = ws.getCell(1, 1);
   titleCell.value = formatVietnamesePlanTitle(plan.date);
   titleCell.font = { name: 'Times New Roman', size: 14, bold: true, color: { argb: 'FF008000' } };
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getRow(1).height = 30;
 
-  // Dòng 2: Header 11 cột
+  // Dòng 2: Header 12 cột
   const headers = [
     'STT',
     'KCS',
@@ -42,13 +42,14 @@ export async function buildDailyPlanExcelBuffer(
     'ĐỊA ĐIỂM',
     'GHI CHÚ',
     'PHƯƠNG TIỆN NHẬN HÀNG',
+    'GHI CHÚ NHẬN HÀNG',
   ];
   const headerRow = ws.getRow(2);
   headerRow.height = 32;
   headers.forEach((h, idx) => {
     const cell = headerRow.getCell(idx + 1);
     cell.value = h;
-    const isLast = idx === 10;
+    const isYellow = idx === 10 || idx === 11;
     const isPrice = idx === 6;
     cell.font = {
       name: 'Times New Roman',
@@ -56,7 +57,7 @@ export async function buildDailyPlanExcelBuffer(
       bold: true,
       color: { argb: isPrice ? 'FFC00000' : 'FF000000' },
     };
-    if (isLast) {
+    if (isYellow) {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
     }
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
@@ -100,6 +101,7 @@ export async function buildDailyPlanExcelBuffer(
       row.location,
       row.note,
       ptLines,
+      row.receiveNote || '',
     ];
 
     vals.forEach((val, cIdx) => {
@@ -144,7 +146,7 @@ export async function buildDailyPlanExcelBuffer(
   totalRow.getCell(8).value = totalMoney;
   totalRow.getCell(8).numFmt = '#,##0';
 
-  for (let c = 1; c <= 11; c++) {
+  for (let c = 1; c <= 12; c++) {
     const cell = totalRow.getCell(c);
     cell.font = {
       name: 'Times New Roman',
@@ -164,7 +166,7 @@ export async function buildDailyPlanExcelBuffer(
     };
   }
 
-  const widths = [6, 11, 22, 14, 18, 15, 13, 17, 36, 22, 28];
+  const widths = [6, 11, 22, 14, 18, 15, 13, 17, 36, 20, 28, 26];
   widths.forEach((w, idx) => {
     ws.getColumn(idx + 1).width = w;
   });

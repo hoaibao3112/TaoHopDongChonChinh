@@ -262,6 +262,7 @@ export function createEmptyDailyPlan(date: string): DailyIntakePlan {
       location: '',
       note: '',
       vehicleIds: [],
+      receiveNote: '',
     },
   ];
   return {
