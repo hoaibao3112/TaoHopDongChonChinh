@@ -3,39 +3,50 @@ import { VEHICLE_COLUMNS } from './defaults';
 import { VehicleBoardState, VehicleColumnId } from './types';
 
 const NAVY_BG = 'FF1B365D';
-const SUBHEADER_BG = 'FFD9E2F3';
 const BORDER_COLOR = 'FF8EA9DB';
 
-const LEGEND_ROWS: { colId: VehicleColumnId; label: string; desc: string }[] = [
+const COLUMN_HEADER_STYLE: Record<
+  VehicleColumnId,
+  { label: string; fillHex: string }
+> = {
+  pt_trong: { label: 'PT TRỐNG', fillHex: 'FFFFFF00' }, // Vàng tươi
+  pt_cho: { label: 'PT CHỜ', fillHex: 'FFB497D6' }, // Tím nhạt
+  pt_nhan_lua_kho: { label: 'PT NHẬN LÚA KHÔ', fillHex: 'FFFF9900' }, // Cam tươi
+  pt_nhan_lua_tuoi: { label: 'PT NHẬN LÚA TƯƠI', fillHex: 'FF00FF00' }, // Xanh lá sáng
+  pt_tang_bo: { label: 'PT TĂNG BO', fillHex: 'FF2E6B80' }, // Xanh cổ vịt đậm
+  pt_nhan_gao: { label: 'PT NHẬN GẠO/TẤM/CÁM', fillHex: 'FFFFFFFF' }, // Trắng
+};
+
+const LEGEND_ROWS: { colId: VehicleColumnId; label: string; redDesc: string }[] = [
   {
     colId: 'pt_trong',
     label: 'PT TRỐNG',
-    desc: 'PHƯƠNG TIỆN KHÔNG CÓ LỊCH NHẬN HÀNG VÀ CŨNG KHÔNG CÓ LỊCH GỌI NHẬN HÀNG',
+    redDesc: 'KHÔNG CÓ LỊCH NHẬN HÀNG, NGHỈ PHÉP, BẢO TRÌ...',
   },
   {
     colId: 'pt_cho',
     label: 'PT CHỜ',
-    desc: 'PHƯƠNG TIỆN CÓ LỊCH GỌI NHẬN HÀNG HOẶC ĐANG ĐI NHẬN HÀNG',
+    redDesc: 'CÓ LỊCH GỌI NHẬN HÀNG, ĐANG ĐI NHẬN HÀNG HOẶC CHỜ NHẬN',
   },
   {
     colId: 'pt_nhan_lua_kho',
     label: 'PT NHẬN LÚA KHÔ',
-    desc: 'PHƯƠNG TIỆN ĐANG NHẬN LÚA KHÔ',
+    redDesc: 'ĐANG NHẬN LÚA KHÔ',
   },
   {
     colId: 'pt_nhan_lua_tuoi',
     label: 'PT NHẬN LÚA TƯƠI',
-    desc: 'PHƯƠNG TIỆN ĐANG NHẬN LÚA TƯƠI',
+    redDesc: 'ĐANG NHẬN LÚA TƯƠI',
   },
   {
     colId: 'pt_tang_bo',
     label: 'PT TĂNG BO',
-    desc: 'PHƯƠNG TIỆN ĐANG TĂNG BO',
+    redDesc: 'ĐANG TĂNG BO',
   },
   {
     colId: 'pt_nhan_gao',
-    label: 'PT NHẬN GẠO',
-    desc: 'PHƯƠNG TIỆN ĐANG NHẬN GẠO',
+    label: 'PT NHẬN GẠO/TẤM/CÁM',
+    redDesc: 'ĐANG NHẬN GẠO, TẤM, CÁM',
   },
 ];
 
@@ -66,28 +77,29 @@ export async function buildVehicleBoardExcelBuffer(state: VehicleBoardState): Pr
     right: { style: 'thin', color: { argb: BORDER_COLOR } },
   };
 
-  // Dòng 1: DANH SÁCH PHƯƠNG TIỆN NGÀY DD/MM/YYYY (Nền xanh navy đậm, chữ trắng)
+  // Dòng 1: DANH SÁCH TÌNH TRẠNG PHƯƠNG TIỆN NGÀY DD/MM/YYYY (Nền xanh navy đậm, chữ ĐỎ to rõ)
   ws.mergeCells(1, 1, 1, VEHICLE_COLUMNS.length);
   const titleCell = ws.getCell(1, 1);
-  titleCell.value = `DANH SÁCH PHƯƠNG TIỆN NGÀY ${formatDateVN(state.date, state.updatedAt)}`;
-  titleCell.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
+  titleCell.value = `DANH SÁCH TÌNH TRẠNG PHƯƠNG TIỆN NGÀY ${formatDateVN(state.date, state.updatedAt)}`;
+  titleCell.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FFFF0000' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY_BG } };
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getRow(1).height = 30;
+  ws.getRow(1).height = 38;
 
-  // Dòng 2: Header 6 cột nền xanh nhạt, chữ đen đậm
+  // Dòng 2: Header 6 cột với 6 màu chuẩn theo ảnh mẫu & cỡ chữ to hơn nội dung (13pt vs 10pt)
   const headerRow = ws.getRow(2);
-  headerRow.height = 26;
+  headerRow.height = 36;
   VEHICLE_COLUMNS.forEach((col, idx) => {
+    const style = COLUMN_HEADER_STYLE[col.id];
     const cell = headerRow.getCell(idx + 1);
-    cell.value = col.label;
-    cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF000000' } };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: SUBHEADER_BG } };
+    cell.value = style.label;
+    cell.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FF000000' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: style.fillHex } };
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     cell.border = thinBorder;
   });
 
-  // Dữ liệu các cột
+  // Dữ liệu các cột (cỡ chữ nội dung 10pt nhỏ hơn tiêu đề)
   const colLists = VEHICLE_COLUMNS.map((col) =>
     state.vehicles
       .filter((v) => v.columnId === col.id)
@@ -145,11 +157,11 @@ export async function buildVehicleBoardExcelBuffer(state: VehicleBoardState): Pr
   // Dòng TỔNG: X PT (nền xanh navy đậm, chữ trắng)
   const totalRowIdx = 3 + maxRows;
   const totalRow = ws.getRow(totalRowIdx);
-  totalRow.height = 24;
+  totalRow.height = 25;
   colLists.forEach((list, idx) => {
     const cell = totalRow.getCell(idx + 1);
     cell.value = `TỔNG: ${list.length} PT`;
-    cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY_BG } };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
     cell.border = thinBorder;
@@ -163,10 +175,10 @@ export async function buildVehicleBoardExcelBuffer(state: VehicleBoardState): Pr
   ws.mergeCells(legendTitleIdx, 1, legendTitleIdx, VEHICLE_COLUMNS.length);
   const legendHeader = ws.getCell(legendTitleIdx, 1);
   legendHeader.value = 'CHÚ THÍCH';
-  legendHeader.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+  legendHeader.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
   legendHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY_BG } };
   legendHeader.alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getRow(legendTitleIdx).height = 24;
+  ws.getRow(legendTitleIdx).height = 26;
 
   LEGEND_ROWS.forEach((lr, idx) => {
     const rIdx = legendTitleIdx + 1 + idx;
@@ -181,8 +193,18 @@ export async function buildVehicleBoardExcelBuffer(state: VehicleBoardState): Pr
 
     ws.mergeCells(rIdx, 2, rIdx, VEHICLE_COLUMNS.length);
     const descCell = row.getCell(2);
-    descCell.value = lr.desc;
-    descCell.font = { name: 'Arial', size: 10, bold: false, color: { argb: 'FF000000' } };
+    descCell.value = {
+      richText: [
+        {
+          text: 'PHƯƠNG TIỆN ',
+          font: { name: 'Arial', size: 10, bold: false, color: { argb: 'FF000000' } },
+        },
+        {
+          text: lr.redDesc,
+          font: { name: 'Arial', size: 10, bold: false, color: { argb: 'FFFF0000' } },
+        },
+      ],
+    };
     descCell.alignment = { horizontal: 'left', vertical: 'middle' };
     for (let c = 2; c <= VEHICLE_COLUMNS.length; c++) {
       row.getCell(c).border = thinBorder;
@@ -195,7 +217,7 @@ export async function buildVehicleBoardExcelBuffer(state: VehicleBoardState): Pr
   });
 
   // Độ rộng 6 cột
-  const colWidths = [28, 25, 27, 27, 25, 25];
+  const colWidths = [28, 25, 29, 29, 25, 28];
   colWidths.forEach((w, idx) => {
     ws.getColumn(idx + 1).width = w;
   });
