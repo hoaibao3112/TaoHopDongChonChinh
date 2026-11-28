@@ -20,6 +20,15 @@ import DailyIntakePlanView from './DailyIntakePlanView';
 type GroupFilter = 'all' | VehicleGroup;
 type BoardSubTab = 'board' | 'daily_plan';
 
+const COLUMN_HEADER_CLASSES: Record<VehicleColumnId, string> = {
+  pt_trong: 'bg-yellow-300 text-slate-950 border-yellow-500',
+  pt_cho: 'bg-purple-300 text-slate-950 border-purple-400',
+  pt_nhan_lua_kho: 'bg-orange-400 text-slate-950 border-orange-500',
+  pt_nhan_lua_tuoi: 'bg-green-400 text-slate-950 border-green-500',
+  pt_tang_bo: 'bg-teal-700 text-white border-teal-800',
+  pt_nhan_gao: 'bg-white text-slate-950 border-slate-400',
+};
+
 function getTodayVN(): string {
   const now = new Date();
   const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
@@ -56,6 +65,11 @@ export default function VehicleBoardView() {
   // Drag & Drop state
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<VehicleColumnId | null>(null);
+
+  // Mobile UX state
+  const [mobileActiveCol, setMobileActiveCol] = useState<VehicleColumnId>('pt_trong');
+  const [mobileShowAllCols, setMobileShowAllCols] = useState(false);
+  const [movingItem, setMovingItem] = useState<VehicleItem | null>(null);
 
   // Modal / Form thêm phương tiện ngoài
   const [newExtName, setNewExtName] = useState('');
@@ -368,6 +382,126 @@ export default function VehicleBoardView() {
     return map;
   }, [board.vehicles, searchTerm, groupFilter]);
 
+  const renderVehicleCard = (item: VehicleItem, idx: number, colId: VehicleColumnId) => (
+    <div
+      key={item.id}
+      draggable
+      onDragStart={(e) => {
+        setDraggedId(item.id);
+        e.dataTransfer.setData('text/plain', item.id);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragEnd={() => {
+        setDraggedId(null);
+        setDragOverCol(null);
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOverCol(null);
+        const id = e.dataTransfer.getData('text/plain') || draggedId;
+        if (id && id !== item.id) moveVehicle(id, colId, item.id);
+        setDraggedId(null);
+      }}
+      className={`group rounded-xl border p-2 transition-all cursor-grab active:cursor-grabbing ${
+        draggedId === item.id
+          ? 'opacity-40 border-amber-500 bg-amber-100'
+          : item.group === 'nguyen_nguyen'
+          ? 'border-amber-300 border-l-4 border-l-red-600 bg-amber-50/85 hover:border-amber-500 hover:bg-amber-50 shadow-2xs'
+          : 'border-sky-300 border-l-4 border-l-sky-600 bg-sky-50/85 hover:border-sky-500 hover:bg-sky-50 shadow-2xs'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-1">
+        <div className="min-w-0">
+          <div
+            className={`text-xs font-black leading-snug break-words ${
+              item.group === 'nguyen_nguyen' ? 'text-red-700' : 'text-sky-900'
+            }`}
+          >
+            <span className="text-slate-500 font-bold mr-1">{idx + 1}.</span>
+            {item.name}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+            <span
+              className={`inline-block rounded px-1.5 py-0.5 font-bold ${
+                item.capacityTons >= 195
+                  ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
+                  : item.capacityTons >= 120
+                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                  : 'bg-slate-200/80 text-slate-800 border border-slate-300'
+              }`}
+            >
+              {item.capacityTons}T · Chở {getEffectiveCapacityRange(item.capacityTons).minTons}–
+              {getEffectiveCapacityRange(item.capacityTons).maxTons}T
+            </span>
+            {item.regNumber && (
+              <span className="font-mono font-semibold text-slate-600">{item.regNumber}</span>
+            )}
+          </div>
+          {item.note && (
+            <div className="mt-1 rounded bg-rose-100/80 px-1.5 py-0.5 text-[10px] italic font-bold text-rose-800 leading-tight">
+              ({item.note})
+            </div>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-0.5 opacity-80 group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={() => openEditModal(item)}
+            className="rounded-md p-1 text-[11px] text-slate-500 hover:bg-slate-200 hover:text-slate-900 cursor-pointer"
+            title="Sửa ghi chú / tên"
+          >
+            ✏️
+          </button>
+          {item.group === 'external' && (
+            <button
+              type="button"
+              onClick={() => handleDeleteExternal(item)}
+              className="rounded-md p-1 text-[11px] text-rose-500 hover:bg-rose-100 hover:text-rose-800 cursor-pointer"
+              title="Xóa phương tiện ngoài"
+            >
+              🗑️
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-1.5">
+        <span
+          className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+            item.group === 'nguyen_nguyen' ? 'bg-red-600 text-white' : 'bg-sky-600 text-white'
+          }`}
+        >
+          {item.group === 'nguyen_nguyen' ? 'Nguyên Nguyên' : 'PT Ngoài'}
+        </span>
+        <button
+          type="button"
+          onClick={() => setMovingItem(item)}
+          className="md:hidden rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-black text-slate-800 shadow-2xs active:bg-slate-100 cursor-pointer"
+        >
+          ⇄ Chuyển cột
+        </button>
+        <select
+          value={item.columnId}
+          onChange={(e) => moveVehicle(item.id, e.target.value as VehicleColumnId)}
+          aria-label={`Chuyển cột cho ${item.name}`}
+          className="hidden md:block rounded border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-semibold text-slate-600 focus:border-amber-400 focus:outline-none cursor-pointer"
+        >
+          {VEHICLE_COLUMNS.map((c) => (
+            <option key={c.id} value={c.id}>
+              → {c.shortLabel}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-slate-500">
@@ -409,36 +543,36 @@ export default function VehicleBoardView() {
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xs">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xs w-full lg:w-auto">
           <button
             type="button"
             onClick={() => handleSelectDate(shiftDate(selectedDate, -1))}
-            className="rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+            className="rounded-xl px-2.5 py-2 sm:py-1.5 text-xs font-bold text-slate-700 bg-slate-50 sm:bg-transparent hover:bg-slate-100 cursor-pointer text-center"
             title="Xem ngày hôm trước"
           >
             ◀ Hôm trước
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSelectDate(shiftDate(selectedDate, 1))}
+            className="rounded-xl px-2.5 py-2 sm:py-1.5 text-xs font-bold text-slate-700 bg-slate-50 sm:bg-transparent hover:bg-slate-100 cursor-pointer text-center sm:order-4"
+            title="Mở ngày tiếp theo (lấy trạng thái ngày trước để chỉnh tiếp)"
+          >
+            Ngày sau ▶
           </button>
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => handleSelectDate(e.target.value)}
             aria-label="Chọn ngày điều phối"
-            className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-black text-slate-900 focus:border-amber-500 focus:outline-none"
+            className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 sm:py-1 text-xs font-black text-slate-900 focus:border-amber-500 focus:outline-none sm:order-2"
           />
           <button
             type="button"
             onClick={() => handleSelectDate(getTodayVN())}
-            className="rounded-xl bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 cursor-pointer"
+            className="rounded-xl bg-amber-50 px-2.5 py-2 sm:py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 cursor-pointer text-center sm:order-3"
           >
             Hôm nay
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSelectDate(shiftDate(selectedDate, 1))}
-            className="rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
-            title="Mở ngày tiếp theo (lấy trạng thái ngày trước để chỉnh tiếp)"
-          >
-            Ngày sau ▶
           </button>
         </div>
       </div>
@@ -580,11 +714,50 @@ export default function VehicleBoardView() {
         )}
       </div>
 
-      {/* BẢNG 6 CỘT KÉO-THẢ (ĐÚNG TIÊU ĐỀ VÀNG NHƯ ẢNH MẪU) */}
+      {/* THANH CHỌN CỘT NHANH TRÊN ĐIỆN THOẠI (2x3) */}
+      <div className="md:hidden space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          {VEHICLE_COLUMNS.map((col) => {
+            const list = vehiclesByColumn[col.id];
+            const nnCount = list.filter((v) => v.group === 'nguyen_nguyen').length;
+            const extCount = list.filter((v) => v.group === 'external').length;
+            const isActive = !mobileShowAllCols && mobileActiveCol === col.id;
+            return (
+              <button
+                key={col.id}
+                type="button"
+                onClick={() => {
+                  setMobileShowAllCols(false);
+                  setMobileActiveCol(col.id);
+                }}
+                className={`rounded-2xl border-2 px-3 py-2.5 text-left transition-all cursor-pointer ${
+                  COLUMN_HEADER_CLASSES[col.id]
+                } ${isActive ? 'ring-2 ring-slate-900 scale-[1.01] shadow-sm' : 'opacity-80'}`}
+              >
+                <div className="text-[11px] font-black uppercase leading-tight">{col.shortLabel}</div>
+                <div className="mt-0.5 text-xs font-black">
+                  {list.length} PT ({nnCount} NN · {extCount} Ngoài)
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setMobileShowAllCols((prev) => !prev)}
+          className="w-full rounded-xl border border-slate-300 bg-white py-2 text-xs font-bold text-slate-700 shadow-2xs cursor-pointer"
+        >
+          {mobileShowAllCols ? '📱 Thu gọn về 1 cột' : '📋 Xem tất cả 6 cột cùng lúc'}
+        </button>
+      </div>
+
+      {/* BẢNG 6 CỘT KÉO-THẢ (ĐÚNG MÀU CHUẨN NHƯ EXCEL) */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 items-start">
         {VEHICLE_COLUMNS.map((col) => {
           const list = vehiclesByColumn[col.id];
           const isOver = dragOverCol === col.id;
+          const hiddenOnMobile = !mobileShowAllCols && mobileActiveCol !== col.id;
           return (
             <div
               key={col.id}
@@ -602,150 +775,126 @@ export default function VehicleBoardView() {
                 if (id) moveVehicle(id, col.id);
                 setDraggedId(null);
               }}
-              className={`rounded-2xl border transition-all overflow-hidden bg-white shadow-xs ${
+              className={`${
+                hiddenOnMobile ? 'hidden md:block' : 'block'
+              } rounded-2xl border transition-all overflow-hidden bg-white shadow-xs ${
                 isOver ? 'border-amber-500 ring-2 ring-amber-300 bg-amber-50/30' : 'border-slate-300'
               }`}
             >
-              {/* Header vàng đúng như ảnh mẫu */}
-              <div className="bg-yellow-300 border-b border-slate-400 px-2.5 py-2.5 text-center">
-                <div className="text-xs font-black uppercase tracking-tight text-slate-950">
-                  {col.label}
-                </div>
-                <div className="mt-0.5 text-[11px] font-bold text-slate-800">
-                  ({list.length} phương tiện)
-                </div>
-              </div>
-
-              {/* Danh sách phương tiện trong cột */}
-              <div className="min-h-[260px] p-2 space-y-1.5">
-                {list.length === 0 ? (
-                  <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-slate-200 text-[11px] font-medium text-slate-400">
-                    Kéo phương tiện vào đây
-                  </div>
-                ) : (
-                  list.map((item, idx) => (
-                    <div
-                      key={item.id}
-                      draggable
-                      onDragStart={(e) => {
-                        setDraggedId(item.id);
-                        e.dataTransfer.setData('text/plain', item.id);
-                        e.dataTransfer.effectAllowed = 'move';
-                      }}
-                      onDragEnd={() => {
-                        setDraggedId(null);
-                        setDragOverCol(null);
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setDragOverCol(null);
-                        const id = e.dataTransfer.getData('text/plain') || draggedId;
-                        if (id && id !== item.id) moveVehicle(id, col.id, item.id);
-                        setDraggedId(null);
-                      }}
-                      className={`group rounded-xl border p-2 transition-all cursor-grab active:cursor-grabbing ${
-                        draggedId === item.id
-                          ? 'opacity-40 border-amber-500 bg-amber-100'
-                          : item.group === 'nguyen_nguyen'
-                          ? 'border-amber-300 border-l-4 border-l-red-600 bg-amber-50/85 hover:border-amber-500 hover:bg-amber-50 shadow-2xs'
-                          : 'border-sky-300 border-l-4 border-l-sky-600 bg-sky-50/85 hover:border-sky-500 hover:bg-sky-50 shadow-2xs'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-1">
-                        <div className="min-w-0">
-                          <div
-                            className={`text-xs font-black leading-snug break-words ${
-                              item.group === 'nguyen_nguyen' ? 'text-red-700' : 'text-sky-900'
-                            }`}
-                          >
-                            <span className="text-slate-500 font-bold mr-1">{idx + 1}.</span>
-                            {item.name}
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
-                            <span
-                              className={`inline-block rounded px-1.5 py-0.5 font-bold ${
-                                item.capacityTons >= 195
-                                  ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
-                                  : item.capacityTons >= 120
-                                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
-                                  : 'bg-slate-200/80 text-slate-800 border border-slate-300'
-                              }`}
-                            >
-                              {item.capacityTons}T · Chở {getEffectiveCapacityRange(item.capacityTons).minTons}–
-                              {getEffectiveCapacityRange(item.capacityTons).maxTons}T
-                            </span>
-                            {item.regNumber && (
-                              <span className="font-mono font-semibold text-slate-600">
-                                {item.regNumber}
-                              </span>
-                            )}
-                          </div>
-                          {item.note && (
-                            <div className="mt-1 rounded bg-rose-100/80 px-1.5 py-0.5 text-[10px] italic font-bold text-rose-800 leading-tight">
-                              ({item.note})
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-0.5 opacity-80 group-hover:opacity-100">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(item)}
-                            className="rounded-md p-1 text-[11px] text-slate-500 hover:bg-slate-200 hover:text-slate-900 cursor-pointer"
-                            title="Sửa ghi chú / tên"
-                          >
-                            ✏️
-                          </button>
-                          {item.group === 'external' && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteExternal(item)}
-                              className="rounded-md p-1 text-[11px] text-rose-500 hover:bg-rose-100 hover:text-rose-800 cursor-pointer"
-                              title="Xóa phương tiện ngoài"
-                            >
-                              🗑️
-                            </button>
-                          )}
-                        </div>
+              {/* Header đúng 6 màu chuẩn như Excel */}
+              {(() => {
+                const nnList = list.filter((v) => v.group === 'nguyen_nguyen');
+                const extList = list.filter((v) => v.group === 'external');
+                return (
+                  <>
+                    <div className={`border-b px-2.5 py-2.5 text-center ${COLUMN_HEADER_CLASSES[col.id]}`}>
+                      <div className="text-xs font-black uppercase tracking-tight">
+                        {col.label}
                       </div>
-
-                      {/* Chuyển nhanh cột trên mobile / không cần kéo */}
-                      <div className="mt-1.5 flex items-center justify-between gap-1">
-                        <span
-                          className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${
-                            item.group === 'nguyen_nguyen'
-                              ? 'bg-red-600 text-white'
-                              : 'bg-sky-600 text-white'
-                          }`}
-                        >
-                          {item.group === 'nguyen_nguyen' ? 'Nguyên Nguyên' : 'PT Ngoài'}
-                        </span>
-                        <select
-                          value={item.columnId}
-                          onChange={(e) => moveVehicle(item.id, e.target.value as VehicleColumnId)}
-                          aria-label={`Chuyển cột cho ${item.name}`}
-                          className="rounded border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-semibold text-slate-600 focus:border-amber-400 focus:outline-none cursor-pointer"
-                        >
-                          {VEHICLE_COLUMNS.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              → {c.shortLabel}
-                            </option>
-                          ))}
-                        </select>
+                      <div className="mt-0.5 text-[11px] font-black">
+                        {nnList.length} NN · {extList.length} Ngoài ({list.length} PT)
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+
+                    {/* Danh sách phương tiện trong cột — Tách riêng 2 nhóm: Nguyên Nguyên & PT Ngoài */}
+                    <div className="min-h-[260px] p-2 space-y-2.5">
+                      {list.length === 0 ? (
+                        <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-slate-200 text-[11px] font-medium text-slate-400">
+                          Kéo phương tiện vào đây
+                        </div>
+                      ) : (
+                        <>
+                          {nnList.length > 0 && (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-black uppercase text-red-800">
+                                <span>🚢 PT (Nguyên Nguyên)</span>
+                                <span className="rounded-full bg-red-600 px-1.5 py-0.2 text-white">
+                                  {nnList.length}
+                                </span>
+                              </div>
+                              {nnList.map((item, idx) => renderVehicleCard(item, idx, col.id))}
+                            </div>
+                          )}
+
+                          {extList.length > 0 && (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black uppercase text-sky-900">
+                                <span>⚓ PT (Ngoài)</span>
+                                <span className="rounded-full bg-sky-600 px-1.5 py-0.2 text-white">
+                                  {extList.length}
+                                </span>
+                              </div>
+                              {extList.map((item, idx) => renderVehicleCard(item, idx, col.id))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           );
         })}
       </div>
+
+      {/* Modal chuyển nhanh cột trên điện thoại (1 chạm) */}
+      {movingItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 p-3 backdrop-blur-2xs"
+          onClick={() => setMovingItem(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-5 shadow-xl space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-[11px] font-bold uppercase text-slate-400">Chuyển trạng thái phương tiện</p>
+                <h3 className={`text-base font-black ${movingItem.group === 'nguyen_nguyen' ? 'text-red-700' : 'text-sky-900'}`}>
+                  {movingItem.name}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {movingItem.capacityTons}T · Chở {getEffectiveCapacityRange(movingItem.capacityTons).minTons}–
+                  {getEffectiveCapacityRange(movingItem.capacityTons).maxTons}T
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMovingItem(null)}
+                className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              {VEHICLE_COLUMNS.map((col) => {
+                const isCurrent = movingItem.columnId === col.id;
+                return (
+                  <button
+                    key={col.id}
+                    type="button"
+                    onClick={() => {
+                      moveVehicle(movingItem.id, col.id);
+                      setMobileActiveCol(col.id);
+                      setMovingItem(null);
+                    }}
+                    className={`rounded-2xl border-2 px-3 py-3 text-left transition-all cursor-pointer ${
+                      COLUMN_HEADER_CLASSES[col.id]
+                    } ${isCurrent ? 'ring-2 ring-slate-900' : 'opacity-90 active:scale-95'}`}
+                  >
+                    <div className="text-xs font-black uppercase leading-tight">
+                      {isCurrent ? '✓ ' : ''}
+                      {col.label}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal sửa ghi chú / tên phương tiện */}
       {editingItem && (

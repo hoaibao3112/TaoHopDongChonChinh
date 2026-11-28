@@ -425,7 +425,228 @@ export default function DailyIntakePlanView({
             Đang tải kế hoạch ngày {planDate}...
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* GIAO DIỆN ĐIỆN THOẠI: DẠNG THẺ DỌC DỄ BẤM, KHÔNG CẦN VUỐT NGANG */}
+          <div className="md:hidden divide-y divide-slate-200">
+            {plan.rows.map((row, idx) => {
+              const amount = (row.quantityKg || 0) * (row.pricePerKg || 0);
+              const needTons = (row.quantityKg || 0) / 1000;
+              const assignedVehicles = row.vehicleIds
+                .map((vid) => vehicleMap.get(vid))
+                .filter((v): v is VehicleItem => Boolean(v));
+              const sumCap = assignedVehicles.reduce((s, v) => s + v.capacityTons, 0);
+              const eff = getEffectiveCapacityRange(sumCap);
+
+              let loadStatus: { text: string; cls: string } | null = null;
+              if (needTons > 0 && assignedVehicles.length > 0) {
+                if (eff.maxTons < needTons) {
+                  const lack = Math.ceil(needTons - eff.maxTons);
+                  loadStatus = {
+                    text: `⚠️ Thiếu ~${lack}T (Chở 80-85%: ${eff.minTons}-${eff.maxTons}T / Cần ${needTons}T)`,
+                    cls: 'text-rose-700 bg-rose-50 border-rose-200',
+                  };
+                } else if (eff.minTons >= needTons) {
+                  loadStatus = {
+                    text: `✅ Đủ tải (Chở 80-85%: ${eff.minTons}-${eff.maxTons}T / Cần ${needTons}T)`,
+                    cls: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+                  };
+                } else {
+                  loadStatus = {
+                    text: `🟡 Vừa sát tải (Chở 80-85%: ${eff.minTons}-${eff.maxTons}T / Cần ${needTons}T)`,
+                    cls: 'text-amber-800 bg-amber-50 border-amber-200',
+                  };
+                }
+              }
+
+              return (
+                <div key={`m-${row.id}`} className="p-3.5 space-y-2.5 bg-white">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-lg bg-slate-900 px-2.5 py-0.5 text-xs font-black text-white">
+                      #{idx + 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.id)}
+                      className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 cursor-pointer"
+                    >
+                      🗑️ Xóa
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-slate-400">KCS</span>
+                      <input
+                        type="text"
+                        value={row.kcs}
+                        onChange={(e) => updateRow(row.id, { kcs: e.target.value })}
+                        placeholder="KCS..."
+                        className="mt-0.5 w-full rounded-xl border border-slate-200 px-2.5 py-2 text-xs font-bold uppercase"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-slate-400">Số HĐ</span>
+                      <input
+                        type="text"
+                        value={row.contractNo}
+                        onChange={(e) => updateRow(row.id, { contractNo: e.target.value })}
+                        placeholder="03 Vụ..."
+                        className="mt-0.5 w-full rounded-xl border border-slate-200 px-2.5 py-2 text-xs"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-[10px] font-bold uppercase text-slate-400">Nhà Cung Cấp</span>
+                      <input
+                        type="text"
+                        value={row.supplier}
+                        onChange={(e) => updateRow(row.id, { supplier: e.target.value })}
+                        placeholder="Nhà cung cấp..."
+                        className="mt-0.5 w-full rounded-xl border border-slate-200 px-2.5 py-2 text-xs font-bold uppercase"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-slate-400">Loại Lúa</span>
+                      <input
+                        type="text"
+                        value={row.riceType}
+                        onChange={(e) => updateRow(row.id, { riceType: e.target.value })}
+                        placeholder="OM18 TƯƠI..."
+                        className="mt-0.5 w-full rounded-xl border border-slate-200 px-2.5 py-2 text-xs font-bold uppercase"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-slate-400">Số Lượng (KG)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1000}
+                        value={row.quantityKg || ''}
+                        onChange={(e) =>
+                          updateRow(row.id, { quantityKg: parseFloat(e.target.value) || 0 })
+                        }
+                        placeholder="0"
+                        className="mt-0.5 w-full rounded-xl border border-slate-200 px-2.5 py-2 text-right font-mono text-xs font-bold text-rose-700"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-slate-400">Giá Hết Phí</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={10}
+                        value={row.pricePerKg || ''}
+                        onChange={(e) =>
+                          updateRow(row.id, { pricePerKg: parseFloat(e.target.value) || 0 })
+                        }
+                        placeholder="0"
+                        className="mt-0.5 w-full rounded-xl border border-slate-200 px-2.5 py-2 text-right font-mono text-xs font-bold text-rose-700"
+                      />
+                    </div>
+                    <div className="flex flex-col justify-end rounded-xl bg-slate-50 px-2.5 py-2 text-right">
+                      <span className="text-[10px] font-bold uppercase text-slate-400">Thành Tiền</span>
+                      <span className="font-mono text-xs font-black text-slate-900">
+                        {amount > 0 ? `${amount.toLocaleString('vi-VN')} đ` : '—'}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-[10px] font-bold uppercase text-slate-400">Địa Điểm</span>
+                      <input
+                        type="text"
+                        value={row.location}
+                        onChange={(e) => updateRow(row.id, { location: e.target.value })}
+                        placeholder="Kênh / Xã / Tỉnh..."
+                        className="mt-0.5 w-full rounded-xl border border-slate-200 px-2.5 py-2 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Khối Phương Tiện Nhận Hàng nổi bật trên điện thoại */}
+                  <div className="rounded-2xl border border-amber-300 bg-yellow-50/70 p-3 space-y-2">
+                    <div className="text-[11px] font-black uppercase text-amber-950">
+                      🚢 Phương Tiện Nhận Hàng
+                    </div>
+                    {assignedVehicles.length > 0 && (
+                      <div className="space-y-1.5">
+                        {assignedVehicles.map((v, vIdx) => {
+                          const r = getEffectiveCapacityRange(v.capacityTons);
+                          return (
+                            <div
+                              key={v.id}
+                              className={`flex items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-xs ${
+                                v.group === 'nguyen_nguyen'
+                                  ? 'border-amber-300 border-l-4 border-l-red-600 bg-amber-50'
+                                  : 'border-sky-300 border-l-4 border-l-sky-600 bg-sky-50'
+                              }`}
+                            >
+                              <span
+                                className={`font-black truncate ${
+                                  v.group === 'nguyen_nguyen' ? 'text-red-700' : 'text-sky-900'
+                                }`}
+                              >
+                                {vIdx + 1}. {v.name} ({r.minTons}–{r.maxTons}T)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleVehicleInRow(row.id, v.id)}
+                                className="rounded-lg bg-white px-2 py-1 text-xs font-bold text-rose-600 border border-rose-200 cursor-pointer"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {loadStatus && (
+                      <div className={`rounded-xl border px-2.5 py-1.5 text-[11px] font-bold ${loadStatus.cls}`}>
+                        {loadStatus.text}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPickingRowId(row.id);
+                        setPickerSearch('');
+                      }}
+                      className="w-full rounded-xl bg-amber-600 py-2.5 text-xs font-black text-white shadow-2xs active:bg-amber-700 cursor-pointer"
+                    >
+                      + Chọn Phương Tiện Nhận Hàng
+                    </button>
+
+                    <input
+                      type="text"
+                      value={row.receiveNote || ''}
+                      onChange={(e) => updateRow(row.id, { receiveNote: e.target.value })}
+                      placeholder="Ghi chú nhận hàng (điền tay)..."
+                      className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs text-slate-900"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Tổng cộng & Thêm dòng trên điện thoại */}
+            <div className="bg-slate-100 p-4 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-black">
+                <span>TỔNG ({plan.rows.length} dòng):</span>
+                <span className="font-mono text-rose-700">
+                  {totals.totalKg.toLocaleString('vi-VN')} kg · {totals.totalMoney.toLocaleString('vi-VN')} đ
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={addRow}
+                className="w-full rounded-xl bg-slate-900 py-2.5 text-xs font-black text-white cursor-pointer"
+              >
+                + Thêm dòng kế hoạch
+              </button>
+            </div>
+          </div>
+
+          {/* GIAO DIỆN MÁY TÍNH: BẢNG 13 CỘT */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-xs">
               <thead className="bg-slate-50 text-[11px] font-black uppercase text-slate-700">
                 <tr>
@@ -671,6 +892,7 @@ export default function DailyIntakePlanView({
               </tfoot>
             </table>
           </div>
+          </>
         )}
       </div>
 

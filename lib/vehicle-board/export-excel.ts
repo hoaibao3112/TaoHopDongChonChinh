@@ -99,30 +99,36 @@ export async function buildVehicleBoardExcelBuffer(state: VehicleBoardState): Pr
     cell.border = thinBorder;
   });
 
-  // Dữ liệu các cột (cỡ chữ nội dung 10pt nhỏ hơn tiêu đề)
-  const colLists = VEHICLE_COLUMNS.map((col) =>
-    state.vehicles
+  // Dữ liệu các cột (cỡ chữ nội dung 10pt nhỏ hơn tiêu đề) — xếp Nguyên Nguyên lên trên, PT Ngoài ở dưới
+  const colListsRaw = VEHICLE_COLUMNS.map((col) => {
+    const items = state.vehicles
       .filter((v) => v.columnId === col.id)
-      .sort((a, b) => a.order - b.order)
-  );
-  const maxRows = Math.max(1, ...colLists.map((l) => l.length));
+      .sort((a, b) => a.order - b.order);
+    const nn = items.filter((v) => v.group === 'nguyen_nguyen');
+    const ext = items.filter((v) => v.group === 'external');
+    return { nn, ext, all: [...nn, ...ext] };
+  });
+  const maxRows = Math.max(1, ...colListsRaw.map((l) => l.all.length));
 
   for (let r = 0; r < maxRows; r++) {
     const excelRow = ws.getRow(3 + r);
     let rowHasNote = false;
 
-    colLists.forEach((list, cIdx) => {
-      const item = list[r];
+    colListsRaw.forEach((colData, cIdx) => {
+      const item = colData.all[r];
       const cell = excelRow.getCell(cIdx + 1);
 
       if (item) {
+        const isNN = item.group === 'nguyen_nguyen';
+        const displayIdx = isNN ? r + 1 : r - colData.nn.length + 1;
+        const nameColor = isNN ? 'FFC00000' : 'FF000000';
         if (item.note) {
           rowHasNote = true;
           cell.value = {
             richText: [
               {
-                text: `${r + 1}. ${item.name}\n`,
-                font: { name: 'Arial', size: 10, bold: false, color: { argb: 'FF000000' } },
+                text: `${displayIdx}. ${item.name}\n`,
+                font: { name: 'Arial', size: 10, bold: isNN, color: { argb: nameColor } },
               },
               {
                 text: `(${item.note.toUpperCase()})`,
@@ -137,8 +143,8 @@ export async function buildVehicleBoardExcelBuffer(state: VehicleBoardState): Pr
             ],
           };
         } else {
-          cell.value = `${r + 1}. ${item.name}`;
-          cell.font = { name: 'Arial', size: 10, bold: false, color: { argb: 'FF000000' } };
+          cell.value = `${displayIdx}. ${item.name}`;
+          cell.font = { name: 'Arial', size: 10, bold: isNN, color: { argb: nameColor } };
         }
       } else {
         cell.value = '';
@@ -154,14 +160,14 @@ export async function buildVehicleBoardExcelBuffer(state: VehicleBoardState): Pr
     excelRow.height = rowHasNote ? 36 : 20;
   }
 
-  // Dòng TỔNG: X PT (nền xanh navy đậm, chữ trắng)
+  // Dòng TỔNG: X PT (Y NN · Z NGOÀI) (nền xanh navy đậm, chữ trắng)
   const totalRowIdx = 3 + maxRows;
   const totalRow = ws.getRow(totalRowIdx);
   totalRow.height = 25;
-  colLists.forEach((list, idx) => {
+  colListsRaw.forEach((colData, idx) => {
     const cell = totalRow.getCell(idx + 1);
-    cell.value = `TỔNG: ${list.length} PT`;
-    cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.value = `TỔNG: ${colData.all.length} PT (${colData.nn.length} NN · ${colData.ext.length} NGOÀI)`;
+    cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY_BG } };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
     cell.border = thinBorder;
