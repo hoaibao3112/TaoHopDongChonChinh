@@ -2,10 +2,8 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 
 export default function AdminPasswordGate() {
-  const router = useRouter();
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +33,7 @@ export default function AdminPasswordGate() {
         throw new Error('Mật khẩu này không có quyền truy cập Trang Admin Quản Lý Mật Khẩu (yêu cầu mật khẩu hoaibao)');
       }
 
-      router.refresh();
+      window.location.assign('/admin-mat-khau');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Đã có lỗi xảy ra');
     } finally {
