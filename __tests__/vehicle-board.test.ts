@@ -11,11 +11,10 @@ import { buildDailyPlanExcelBuffer } from '../lib/vehicle-board/export-plan-exce
 import { parseDailyPlanFromExcelPaste } from '../lib/vehicle-board/parse-plan-tsv';
 
 describe('Vehicle Dispatch Board (Xếp Phương Tiện & Kế Hoạch Nhận Hàng)', () => {
-  it('authenticates DIEUPHOI password into dieuphoi role', () => {
-    const res = checkPassword('DIEUPHOI');
+  it('authenticates phuongtien password into dangtai role (shared with Dang Tai & Dieu Phoi PT)', () => {
+    const res = checkPassword('phuongtien');
     expect(res.isAuthenticated).toBe(true);
-    expect(res.role).toBe('dieuphoi');
-    expect(res.redirectUrl).toBe('/dieu-phoi-pt');
+    expect(res.role).toBe('dangtai');
   });
 
   it('seeds 25 Nguyen Nguyen + 19 external vehicles with exact capacities and zero duplicates', () => {

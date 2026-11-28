@@ -17,7 +17,7 @@ export default async function DieuPhoiPhuongTienPage() {
 
   const role = await getServerComponentUserRole();
   const canAccess =
-    role === 'dieuphoi' ||
+    role === 'dangtai' ||
     role === 'admin' ||
     role === 'contracts' ||
     role === 'payroll';

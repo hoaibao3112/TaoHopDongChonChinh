@@ -9,8 +9,7 @@ export type ConfigurableRoleKey =
   | 'baocao'
   | 'dangtai'
   | 'chingoc'
-  | 'kiemtra'
-  | 'dieuphoi';
+  | 'kiemtra';
 
 export interface RolePasswordMeta {
   key: ConfigurableRoleKey;
@@ -56,11 +55,11 @@ export const ROLE_PASSWORD_METADATA: RolePasswordMeta[] = [
   },
   {
     key: 'dangtai',
-    label: 'Đăng Tài Xe Lúa',
+    label: 'Phương Tiện (Đăng Tài Xe & Xếp PT)',
     route: '/dang-tai',
-    icon: '📋',
-    description: 'Quản lý thứ tự tài xe về nhập, quét phiếu cân AI và đối soát STT',
-    defaultPassword: 'dangtai',
+    icon: '🚢',
+    description: 'Truy cập cả 2 tab: Đăng Tài Xe (/dang-tai) và Xếp Phương Tiện (/dieu-phoi-pt)',
+    defaultPassword: 'phuongtien',
   },
   {
     key: 'chingoc',
@@ -78,14 +77,6 @@ export const ROLE_PASSWORD_METADATA: RolePasswordMeta[] = [
     description: 'Kiểm tra sai sót Mã lô, Tên khách hàng, Giá lúa & Công thức từ 2 file Lúa Tươi/Khô',
     defaultPassword: 'KIEMTRA',
   },
-  {
-    key: 'dieuphoi',
-    label: 'Xếp Phương Tiện (Kéo Thả)',
-    route: '/dieu-phoi-pt',
-    icon: '🚢',
-    description: 'Điều phối 25 chiếc Nguyên Nguyên & phương tiện ngoài qua 6 trạng thái (1 nơi duy nhất)',
-    defaultPassword: 'DIEUPHOI',
-  },
 ];
 
 export const DEFAULT_ROLE_PASSWORDS: Record<ConfigurableRoleKey, string> = {
@@ -93,10 +84,9 @@ export const DEFAULT_ROLE_PASSWORDS: Record<ConfigurableRoleKey, string> = {
   payroll: 'hoaibao',
   husk: 'teamlua',
   baocao: 'baocao',
-  dangtai: 'dangtai',
+  dangtai: 'phuongtien',
   chingoc: 'chingoc',
   kiemtra: 'KIEMTRA',
-  dieuphoi: 'DIEUPHOI',
 };
 
 function getPasswordFilePath(): string {

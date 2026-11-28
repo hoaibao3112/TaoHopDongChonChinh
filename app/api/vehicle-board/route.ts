@@ -14,7 +14,7 @@ const NO_STORE_HEADERS = {
 
 function hasBoardAccess(req: NextRequest): boolean {
   const role = getRequestUserRole(req);
-  return role === 'dieuphoi' || role === 'admin' || role === 'contracts' || role === 'payroll';
+  return role === 'dangtai' || role === 'admin' || role === 'contracts' || role === 'payroll';
 }
 
 function isSameOrigin(req: NextRequest): boolean {

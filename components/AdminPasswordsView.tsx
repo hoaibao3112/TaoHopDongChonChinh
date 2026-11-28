@@ -119,7 +119,7 @@ export default function AdminPasswordsView() {
   };
 
   const handleResetAll = async () => {
-    if (!window.confirm('Khôi phục toàn bộ mật khẩu về mặc định ban đầu (chonchinh, hoaibao, teamlua, baocao, dangtai, chingoc, KIEMTRA)?')) {
+    if (!window.confirm('Khôi phục toàn bộ mật khẩu về mặc định ban đầu (chonchinh, hoaibao, teamlua, baocao, phuongtien, chingoc, KIEMTRA)?')) {
       return;
     }
     setError(null);

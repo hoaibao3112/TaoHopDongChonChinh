@@ -96,9 +96,13 @@ export function proxy(request: NextRequest): NextResponse {
     }
   }
 
-  // 6. Phân quyền cho Đăng Tài Xe ('dangtai') với mật khẩu dangtai: Chỉ vào /dang-tai
+  // 6. Phân quyền cho Phương Tiện ('dangtai') với mật khẩu phuongtien: Chỉ vào /dang-tai và /dieu-phoi-pt
   if (role === 'dangtai') {
-    if (!pathname.startsWith('/dang-tai') && !pathname.startsWith('/api/')) {
+    if (
+      !pathname.startsWith('/dang-tai') &&
+      !pathname.startsWith('/dieu-phoi-pt') &&
+      !pathname.startsWith('/api/')
+    ) {
       return NextResponse.redirect(new URL('/dang-tai', request.url));
     }
   }
@@ -107,13 +111,6 @@ export function proxy(request: NextRequest): NextResponse {
   if (role === 'kiemtra') {
     if (!pathname.startsWith('/kiem-tra-lua') && !pathname.startsWith('/api/')) {
       return NextResponse.redirect(new URL('/kiem-tra-lua', request.url));
-    }
-  }
-
-  // 8. Phân quyền cho Điều Phối Phương Tiện ('dieuphoi') với mật khẩu DIEUPHOI: Chỉ vào /dieu-phoi-pt
-  if (role === 'dieuphoi') {
-    if (!pathname.startsWith('/dieu-phoi-pt') && !pathname.startsWith('/api/')) {
-      return NextResponse.redirect(new URL('/dieu-phoi-pt', request.url));
     }
   }
 

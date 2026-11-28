@@ -34,8 +34,8 @@ describe('Admin Role Passwords System', () => {
     }
   });
 
-  it('contains metadata for all 8 system tabs/roles', () => {
-    expect(ROLE_PASSWORD_METADATA).toHaveLength(8);
+  it('contains metadata for all 7 system tabs/roles', () => {
+    expect(ROLE_PASSWORD_METADATA).toHaveLength(7);
     const keys = ROLE_PASSWORD_METADATA.map((m) => m.key);
     expect(keys).toContain('contracts');
     expect(keys).toContain('payroll');
@@ -44,7 +44,6 @@ describe('Admin Role Passwords System', () => {
     expect(keys).toContain('dangtai');
     expect(keys).toContain('chingoc');
     expect(keys).toContain('kiemtra');
-    expect(keys).toContain('dieuphoi');
   });
 
   it('has correct default passwords', () => {
@@ -52,10 +51,9 @@ describe('Admin Role Passwords System', () => {
     expect(DEFAULT_ROLE_PASSWORDS.payroll).toBe('hoaibao');
     expect(DEFAULT_ROLE_PASSWORDS.husk).toBe('teamlua');
     expect(DEFAULT_ROLE_PASSWORDS.baocao).toBe('baocao');
-    expect(DEFAULT_ROLE_PASSWORDS.dangtai).toBe('dangtai');
+    expect(DEFAULT_ROLE_PASSWORDS.dangtai).toBe('phuongtien');
     expect(DEFAULT_ROLE_PASSWORDS.chingoc).toBe('chingoc');
     expect(DEFAULT_ROLE_PASSWORDS.kiemtra).toBe('KIEMTRA');
-    expect(DEFAULT_ROLE_PASSWORDS.dieuphoi).toBe('DIEUPHOI');
   });
 
   it('rejects duplicate passwords between different tabs', async () => {

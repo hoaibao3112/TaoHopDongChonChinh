@@ -20,8 +20,7 @@ export default function AppHeader() {
         val === 'baocao' ||
         val === 'dangtai' ||
         val === 'chingoc' ||
-        val === 'kiemtra' ||
-        val === 'dieuphoi'
+        val === 'kiemtra'
       ) {
         return val;
       }
@@ -74,7 +73,7 @@ export default function AppHeader() {
   const canAccessKiemTraLua =
     role === 'kiemtra' || role === 'admin' || role === 'payroll' || role === 'baocao' || role === 'contracts' || role === null;
   const canAccessDieuPhoiPT =
-    role === 'dieuphoi' || role === 'admin' || role === 'payroll' || role === 'contracts' || role === null;
+    role === 'dangtai' || role === 'admin' || role === 'payroll' || role === 'contracts' || role === null;
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur-md transition-all shadow-xs">
@@ -119,8 +118,8 @@ export default function AppHeader() {
           <div className="flex items-center gap-2.5 shrink-0">
             {role === 'dangtai' && (
               <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-900 shadow-2xs">
-                <span>🚛</span>
-                <span>Đăng Tài Lúa Xe</span>
+                <span>🚢</span>
+                <span>Phương Tiện (phuongtien)</span>
               </div>
             )}
 
@@ -170,13 +169,6 @@ export default function AppHeader() {
               <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold text-rose-800 shadow-2xs">
                 <span>🔍</span>
                 <span>Kiểm Tra Lúa</span>
-              </div>
-            )}
-
-            {role === 'dieuphoi' && (
-              <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-yellow-300 bg-yellow-50 px-3 py-1 text-xs font-bold text-yellow-900 shadow-2xs">
-                <span>🚢</span>
-                <span>Xếp Phương Tiện</span>
               </div>
             )}
 

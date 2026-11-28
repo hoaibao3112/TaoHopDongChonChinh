@@ -11,7 +11,7 @@ const JWT_ISSUER = 'chonchinh-internal';
 const JWT_AUDIENCE = 'chonchinh-web';
 const JWT_SUBJECT = 'session';
 
-export type UserRole = 'payroll' | 'contracts' | 'admin' | 'husk' | 'baocao' | 'dangtai' | 'chingoc' | 'kiemtra' | 'dieuphoi';
+export type UserRole = 'payroll' | 'contracts' | 'admin' | 'husk' | 'baocao' | 'dangtai' | 'chingoc' | 'kiemtra';
 
 const VALID_ROLES: readonly UserRole[] = [
   'payroll',
@@ -22,7 +22,6 @@ const VALID_ROLES: readonly UserRole[] = [
   'dangtai',
   'chingoc',
   'kiemtra',
-  'dieuphoi',
 ] as const;
 
 export interface AuthCheckResult {
@@ -194,7 +193,7 @@ export function checkPassword(password: string): AuthCheckResult {
   if (safeEqual(clean, 'teamlua')) {
     return { isAuthenticated: true, role: 'husk', redirectUrl: '/xuat-trau' };
   }
-  if (safeEqual(clean, 'dangtai')) {
+  if (safeEqual(clean, 'phuongtien')) {
     return { isAuthenticated: true, role: 'dangtai', redirectUrl: '/dang-tai' };
   }
   if (safeEqual(clean, 'chingoc')) {
@@ -202,9 +201,6 @@ export function checkPassword(password: string): AuthCheckResult {
   }
   if (safeEqual(clean, 'KIEMTRA')) {
     return { isAuthenticated: true, role: 'kiemtra', redirectUrl: '/kiem-tra-lua' };
-  }
-  if (safeEqual(clean, 'DIEUPHOI')) {
-    return { isAuthenticated: true, role: 'dieuphoi', redirectUrl: '/dieu-phoi-pt' };
   }
 
   const adminPw = process.env.APP_PASSWORD;
@@ -248,9 +244,6 @@ export async function checkPasswordAsync(password: string): Promise<AuthCheckRes
   }
   if (safeEqual(clean, map.kiemtra)) {
     return { isAuthenticated: true, role: 'kiemtra', redirectUrl: '/kiem-tra-lua' };
-  }
-  if (safeEqual(clean, map.dieuphoi)) {
-    return { isAuthenticated: true, role: 'dieuphoi', redirectUrl: '/dieu-phoi-pt' };
   }
 
   const adminPw = process.env.APP_PASSWORD;
