@@ -2,12 +2,10 @@
 
 import React, { useState, Suspense } from 'react';
 import Image from 'next/image';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 function LoginFormContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get('redirect') || '/';
 
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -39,10 +37,15 @@ function LoginFormContent() {
         throw new Error(data.error || 'Mật khẩu không đúng');
       }
 
-      // Điều hướng thông minh theo phân quyền (hoaibao -> /tinh-luong, chonchinh -> /)
-      const targetUrl = data.redirectUrl || redirectPath || '/';
-      router.push(targetUrl);
-      router.refresh();
+      // Nếu người dùng đi từ 1 link cụ thể (?redirect=/dieu-phoi-pt...) -> ưu tiên quay lại đúng link đó
+      const rawRedirect = searchParams.get('redirect');
+      const safeRedirect =
+        rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && rawRedirect !== '/login'
+          ? rawRedirect
+          : null;
+      const targetUrl =
+        safeRedirect && safeRedirect !== '/' ? safeRedirect : data.redirectUrl || safeRedirect || '/';
+      window.location.assign(targetUrl);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Đã có lỗi xảy ra');
     } finally {
