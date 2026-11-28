@@ -572,28 +572,43 @@ export default function VehicleBoardView() {
                       }}
                       className={`group rounded-xl border p-2 transition-all cursor-grab active:cursor-grabbing ${
                         draggedId === item.id
-                          ? 'opacity-40 border-amber-400 bg-amber-50'
+                          ? 'opacity-40 border-amber-500 bg-amber-100'
                           : item.group === 'nguyen_nguyen'
-                          ? 'border-slate-200 bg-slate-50/70 hover:border-amber-400 hover:bg-white'
-                          : 'border-sky-200 bg-sky-50/50 hover:border-sky-400 hover:bg-white'
+                          ? 'border-amber-300 border-l-4 border-l-red-600 bg-amber-50/85 hover:border-amber-500 hover:bg-amber-50 shadow-2xs'
+                          : 'border-sky-300 border-l-4 border-l-sky-600 bg-sky-50/85 hover:border-sky-500 hover:bg-sky-50 shadow-2xs'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-1">
                         <div className="min-w-0">
-                          <div className="text-xs font-black text-slate-900 leading-snug break-words">
-                            <span className="text-slate-500 mr-1">{idx + 1}.</span>
+                          <div
+                            className={`text-xs font-black leading-snug break-words ${
+                              item.group === 'nguyen_nguyen' ? 'text-red-700' : 'text-sky-900'
+                            }`}
+                          >
+                            <span className="text-slate-500 font-bold mr-1">{idx + 1}.</span>
                             {item.name}
                           </div>
-                          <div className="mt-0.5 text-[10px] font-semibold text-slate-600">
-                            Tàu {item.capacityTons}T ·{' '}
-                            <span className="text-emerald-700 font-bold">
-                              Chở {getEffectiveCapacityRange(item.capacityTons).minTons}–
+                          <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                            <span
+                              className={`inline-block rounded px-1.5 py-0.5 font-bold ${
+                                item.capacityTons >= 195
+                                  ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
+                                  : item.capacityTons >= 120
+                                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                                  : 'bg-slate-200/80 text-slate-800 border border-slate-300'
+                              }`}
+                            >
+                              {item.capacityTons}T · Chở {getEffectiveCapacityRange(item.capacityTons).minTons}–
                               {getEffectiveCapacityRange(item.capacityTons).maxTons}T
                             </span>
-                            {item.regNumber ? ` · ${item.regNumber}` : ''}
+                            {item.regNumber && (
+                              <span className="font-mono font-semibold text-slate-600">
+                                {item.regNumber}
+                              </span>
+                            )}
                           </div>
                           {item.note && (
-                            <div className="mt-0.5 text-[11px] italic font-medium text-rose-700 leading-tight">
+                            <div className="mt-1 rounded bg-rose-100/80 px-1.5 py-0.5 text-[10px] italic font-bold text-rose-800 leading-tight">
                               ({item.note})
                             </div>
                           )}
@@ -624,13 +639,13 @@ export default function VehicleBoardView() {
                       {/* Chuyển nhanh cột trên mobile / không cần kéo */}
                       <div className="mt-1.5 flex items-center justify-between gap-1">
                         <span
-                          className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                          className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${
                             item.group === 'nguyen_nguyen'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-sky-100 text-sky-800'
+                              ? 'bg-red-600 text-white'
+                              : 'bg-sky-600 text-white'
                           }`}
                         >
-                          {item.group === 'nguyen_nguyen' ? 'Công ty' : 'PT Ngoài'}
+                          {item.group === 'nguyen_nguyen' ? 'Nguyên Nguyên' : 'PT Ngoài'}
                         </span>
                         <select
                           value={item.columnId}

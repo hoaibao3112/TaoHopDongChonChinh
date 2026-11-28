@@ -539,11 +539,19 @@ export default function DailyIntakePlanView({
                               return (
                                 <div
                                   key={v.id}
-                                  className="flex items-center justify-between gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1 text-[11px]"
+                                  className={`flex items-center justify-between gap-1 rounded-lg border px-2 py-1 text-[11px] ${
+                                    v.group === 'nguyen_nguyen'
+                                      ? 'border-amber-300 border-l-4 border-l-red-600 bg-amber-50/80'
+                                      : 'border-sky-300 border-l-4 border-l-sky-600 bg-sky-50/80'
+                                  }`}
                                 >
-                                  <span className="font-black text-slate-900 truncate">
+                                  <span
+                                    className={`font-black truncate ${
+                                      v.group === 'nguyen_nguyen' ? 'text-red-700' : 'text-sky-900'
+                                    }`}
+                                  >
                                     {vIdx + 1}. {v.name}{' '}
-                                    <span className="font-semibold text-slate-500">
+                                    <span className="font-semibold text-slate-600">
                                       ({r.minTons}–{r.maxTons}T)
                                     </span>
                                   </span>
@@ -689,11 +697,17 @@ export default function DailyIntakePlanView({
                         ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200 cursor-pointer'
                         : isTaken
                         ? 'border-slate-200 bg-slate-100 opacity-55 cursor-not-allowed'
-                        : 'border-slate-200 bg-white hover:border-amber-400 hover:bg-amber-50/40 cursor-pointer'
+                        : v.group === 'nguyen_nguyen'
+                        ? 'border-amber-300 border-l-4 border-l-red-600 bg-amber-50/70 hover:bg-amber-50 cursor-pointer'
+                        : 'border-sky-300 border-l-4 border-l-sky-600 bg-sky-50/70 hover:bg-sky-50 cursor-pointer'
                     }`}
                   >
                     <div className="min-w-0">
-                      <div className="text-xs font-black text-slate-900 truncate">
+                      <div
+                        className={`text-xs font-black truncate ${
+                          v.group === 'nguyen_nguyen' ? 'text-red-700' : 'text-sky-900'
+                        }`}
+                      >
                         {isSelectedHere ? '✅ ' : ''}
                         {v.name}
                       </div>
