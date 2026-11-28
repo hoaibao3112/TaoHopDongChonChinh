@@ -109,4 +109,81 @@ describe('Vehicle Dispatch Board (Xếp Phương Tiện & Kế Hoạch Nhận H�
     expect(rows[2].kcs).toBe('MINH');
     expect(rows[2].note).toBe('TRỰC CÔNG TY');
   });
+
+  it('inherits previous date board and plan for next day without mutating previous day', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const {
+      getVehicleBoardState,
+      saveVehicleBoardState,
+      getDailyIntakePlan,
+      saveDailyIntakePlan,
+    } = await import('../lib/vehicle-board/store');
+
+    const d1 = '2099-01-10';
+    const d2 = '2099-01-11';
+    const boardF1 = path.join(process.cwd(), 'data', 'vehicle-board', `board-${d1}.json`);
+    const boardF2 = path.join(process.cwd(), 'data', 'vehicle-board', `board-${d2}.json`);
+    const planF1 = path.join(process.cwd(), 'data', 'vehicle-board', 'plans', `${d1}.json`);
+    const planF2 = path.join(process.cwd(), 'data', 'vehicle-board', 'plans', `${d2}.json`);
+
+    try {
+      const base = createDefaultVehicleBoardState();
+      const movedBase = {
+        ...base,
+        vehicles: base.vehicles.map((v) =>
+          v.id === 'nn-01' ? { ...v, columnId: 'pt_nhan_lua_kho' as const } : v
+        ),
+      };
+      await saveVehicleBoardState(movedBase, d1);
+
+      // Ngày sau d2 chưa có dữ liệu -> tự động lấy từ d1
+      const loadedD2 = await getVehicleBoardState(d2);
+      expect(loadedD2.inheritedFromDate).toBe(d1);
+      expect(loadedD2.vehicles.find((v) => v.id === 'nn-01')?.columnId).toBe('pt_nhan_lua_kho');
+
+      // Sửa d2 sang pt_tang_bo -> d1 vẫn giữ nguyên pt_nhan_lua_kho
+      await saveVehicleBoardState(
+        {
+          ...loadedD2,
+          vehicles: loadedD2.vehicles.map((v) =>
+            v.id === 'nn-01' ? { ...v, columnId: 'pt_tang_bo' as const } : v
+          ),
+        },
+        d2
+      );
+      const checkD1 = await getVehicleBoardState(d1);
+      const checkD2 = await getVehicleBoardState(d2);
+      expect(checkD1.vehicles.find((v) => v.id === 'nn-01')?.columnId).toBe('pt_nhan_lua_kho');
+      expect(checkD2.vehicles.find((v) => v.id === 'nn-01')?.columnId).toBe('pt_tang_bo');
+
+      // Tương tự cho Kế Hoạch Nhận Hàng
+      await saveDailyIntakePlan({
+        date: d1,
+        rows: [
+          {
+            id: 'r1',
+            kcs: 'THỨC',
+            supplier: 'NCC CŨ',
+            contractNo: '01',
+            riceType: 'NẾP KHÔ',
+            quantityKg: 100000,
+            pricePerKg: 7500,
+            location: 'ĐỒNG THÁP',
+            note: '',
+            vehicleIds: ['nn-01'],
+          },
+        ],
+        updatedAt: new Date().toISOString(),
+      });
+
+      const planD2 = await getDailyIntakePlan(d2);
+      expect(planD2.inheritedFromDate).toBe(d1);
+      expect(planD2.plan.rows[0].supplier).toBe('NCC CŨ');
+    } finally {
+      [boardF1, boardF2, planF1, planF2].forEach((f) => {
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      });
+    }
+  });
 });

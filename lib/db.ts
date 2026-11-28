@@ -526,6 +526,35 @@ export async function getVehicleBoardFromDb(boardKey = 'default'): Promise<unkno
   }
 }
 
+export async function getLatestVehicleBoardBeforeDateFromDb(
+  targetDate: string
+): Promise<{ boardKey: string; state: unknown } | null> {
+  const db = getDbPool();
+  if (!db) return null;
+  try {
+    await ensureTables();
+    const res = await db.query(
+      `SELECT board_key, state FROM vehicle_board_state
+       WHERE board_key ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND board_key < $1
+       ORDER BY board_key DESC LIMIT 1`,
+      [targetDate]
+    );
+    if (res.rows && res.rows.length > 0) {
+      return { boardKey: String(res.rows[0].board_key), state: res.rows[0].state };
+    }
+    const defRes = await db.query(
+      "SELECT board_key, state FROM vehicle_board_state WHERE board_key = 'default' LIMIT 1"
+    );
+    if (defRes.rows && defRes.rows.length > 0) {
+      return { boardKey: 'default', state: defRes.rows[0].state };
+    }
+    return null;
+  } catch (err) {
+    console.warn('[DB getLatestVehicleBoardBeforeDate Warning]:', err);
+    return null;
+  }
+}
+
 export async function saveVehicleBoardToDb(state: unknown, boardKey = 'default'): Promise<boolean> {
   const db = getDbPool();
   if (!db) return false;
@@ -559,6 +588,27 @@ export async function getDailyPlanFromDb(planDate: string): Promise<unknown | nu
     return res.rows[0].plan ?? null;
   } catch (err) {
     console.warn('[DB getDailyPlan Warning]:', err);
+    return null;
+  }
+}
+
+export async function getLatestDailyPlanBeforeDateFromDb(
+  targetDate: string
+): Promise<{ planDate: string; plan: unknown } | null> {
+  const db = getDbPool();
+  if (!db) return null;
+  try {
+    await ensureTables();
+    const res = await db.query(
+      `SELECT plan_date, plan FROM vehicle_daily_plans
+       WHERE plan_date < $1
+       ORDER BY plan_date DESC LIMIT 1`,
+      [targetDate]
+    );
+    if (!res.rows || res.rows.length === 0) return null;
+    return { planDate: String(res.rows[0].plan_date), plan: res.rows[0].plan };
+  } catch (err) {
+    console.warn('[DB getLatestDailyPlanBeforeDate Warning]:', err);
     return null;
   }
 }

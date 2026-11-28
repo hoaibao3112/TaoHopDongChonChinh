@@ -20,7 +20,27 @@ import DailyIntakePlanView from './DailyIntakePlanView';
 type GroupFilter = 'all' | VehicleGroup;
 type BoardSubTab = 'board' | 'daily_plan';
 
+function getTodayVN(): string {
+  const now = new Date();
+  const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  return vn.toISOString().slice(0, 10);
+}
+
+function shiftDate(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return dt.toISOString().slice(0, 10);
+}
+
+function formatDateVNLabel(dateStr: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+  const [y, m, d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 export default function VehicleBoardView() {
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayVN);
+  const [inheritedFromDate, setInheritedFromDate] = useState<string | null>(null);
   const [board, setBoard] = useState<VehicleBoardState>(() => createDefaultVehicleBoardState());
   const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -54,14 +74,16 @@ export default function VehicleBoardView() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/vehicle-board', { cache: 'no-store' })
+    fetch(`/api/vehicle-board?date=${selectedDate}`, { cache: 'no-store' })
       .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
       .then(({ ok, data }) => {
         if (cancelled) return;
         if (!ok || !data.success || !data.data) {
           throw new Error(data.error || 'Không thể tải dữ liệu xếp phương tiện');
         }
-        setBoard(sanitizeBoardState(data.data));
+        const loaded = data.data as VehicleBoardState;
+        setInheritedFromDate(loaded.inheritedFromDate || null);
+        setBoard(sanitizeBoardState(loaded));
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -75,11 +97,24 @@ export default function VehicleBoardView() {
       cancelled = true;
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, []);
+  }, [selectedDate]);
+
+  const handleSelectDate = (nextDate: string) => {
+    if (!nextDate || nextDate === selectedDate) return;
+    setIsLoading(true);
+    setError(null);
+    setSaveStatus('idle');
+    setSelectedDate(nextDate);
+  };
 
   const persistBoard = (nextBoard: VehicleBoardState, immediate = false) => {
-    const clean = sanitizeBoardState({ ...nextBoard, updatedAt: new Date().toISOString() });
-    setBoard(clean);
+    const clean = sanitizeBoardState({
+      ...nextBoard,
+      date: selectedDate,
+      updatedAt: new Date().toISOString(),
+    });
+    const cleanWithDate: VehicleBoardState = { ...clean, date: selectedDate };
+    setBoard(cleanWithDate);
     setSaveStatus('saving');
     setError(null);
 
@@ -88,12 +123,13 @@ export default function VehicleBoardView() {
         const res = await fetch('/api/vehicle-board', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: clean }),
+          body: JSON.stringify({ date: selectedDate, state: cleanWithDate }),
         });
         const data = (await res.json()) as { success?: boolean; error?: string; data?: VehicleBoardState };
         if (!res.ok || !data.success) {
           throw new Error(data.error || 'Lỗi lưu dữ liệu');
         }
+        setInheritedFromDate(null);
         setSaveStatus('saved');
       } catch (err: unknown) {
         setSaveStatus('error');
@@ -265,19 +301,20 @@ export default function VehicleBoardView() {
   };
 
   const handleResetDefault = async () => {
-    if (!window.confirm('Khôi phục toàn bộ danh sách phương tiện về mặc định ban đầu?')) return;
+    if (!window.confirm(`Khôi phục bảng phương tiện ngày ${formatDateVNLabel(selectedDate)} về mặc định ban đầu?`)) return;
     setSaveStatus('saving');
     setError(null);
     try {
       const res = await fetch('/api/vehicle-board', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resetDefault: true }),
+        body: JSON.stringify({ date: selectedDate, resetDefault: true }),
       });
       const data = (await res.json()) as { success?: boolean; error?: string; data?: VehicleBoardState };
       if (!res.ok || !data.success || !data.data) {
         throw new Error(data.error || 'Không thể khôi phục mặc định');
       }
+      setInheritedFromDate(null);
       setBoard(sanitizeBoardState(data.data));
       setSaveStatus('saved');
     } catch (err: unknown) {
@@ -287,15 +324,14 @@ export default function VehicleBoardView() {
   };
 
   const handleExportExcel = async () => {
-    const buf = await buildVehicleBoardExcelBuffer(board);
+    const buf = await buildVehicleBoardExcelBuffer({ ...board, date: selectedDate });
     const blob = new Blob([buf.buffer as ArrayBuffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const stamp = new Date().toISOString().slice(0, 10);
-    a.download = `XepPhuongTien_${stamp}.xlsx`;
+    a.download = `XepPhuongTien_${selectedDate}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -343,37 +379,74 @@ export default function VehicleBoardView() {
 
   return (
     <div className="space-y-5">
-      {/* Thanh chuyển 2 chế độ: Bảng 6 Cột | Kế Hoạch Nhận Hàng Ngày */}
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setSubTab('board')}
-          className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-black transition-all cursor-pointer ${
-            subTab === 'board'
-              ? 'bg-slate-900 text-white shadow-sm'
-              : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          <span>🚢</span>
-          <span>Bảng Xếp Phương Tiện (6 Cột)</span>
-        </button>
+      {/* Thanh chuyển 2 chế độ + Bộ chọn ngày dùng chung */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSubTab('board')}
+            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-black transition-all cursor-pointer ${
+              subTab === 'board'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <span>🚢</span>
+            <span>Bảng Xếp Phương Tiện (6 Cột)</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setSubTab('daily_plan')}
-          className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-black transition-all cursor-pointer ${
-            subTab === 'daily_plan'
-              ? 'bg-emerald-700 text-white shadow-sm'
-              : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          <span>📋</span>
-          <span>Kế Hoạch Nhận Hàng Ngày</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setSubTab('daily_plan')}
+            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-black transition-all cursor-pointer ${
+              subTab === 'daily_plan'
+                ? 'bg-emerald-700 text-white shadow-sm'
+                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <span>📋</span>
+            <span>Kế Hoạch Nhận Hàng Ngày</span>
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => handleSelectDate(shiftDate(selectedDate, -1))}
+            className="rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+            title="Xem ngày hôm trước"
+          >
+            ◀ Hôm trước
+          </button>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => handleSelectDate(e.target.value)}
+            aria-label="Chọn ngày điều phối"
+            className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-black text-slate-900 focus:border-amber-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => handleSelectDate(getTodayVN())}
+            className="rounded-xl bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 cursor-pointer"
+          >
+            Hôm nay
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSelectDate(shiftDate(selectedDate, 1))}
+            className="rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+            title="Mở ngày tiếp theo (lấy trạng thái ngày trước để chỉnh tiếp)"
+          >
+            Ngày sau ▶
+          </button>
+        </div>
       </div>
 
       {subTab === 'daily_plan' ? (
         <DailyIntakePlanView
+          planDate={selectedDate}
+          onChangeDate={handleSelectDate}
           vehicles={board.vehicles}
           onSyncVehiclesToColumns={handleSyncFromDailyPlan}
         />
@@ -395,11 +468,16 @@ export default function VehicleBoardView() {
                 <span className="text-xs font-bold text-amber-600 animate-pulse">⏳ Đang lưu...</span>
               )}
               {saveStatus === 'saved' && (
-                <span className="text-xs font-bold text-emerald-700">✅ Đã lưu CSDL</span>
+                <span className="text-xs font-bold text-emerald-700">✅ Đã lưu ngày {formatDateVNLabel(selectedDate)}</span>
+              )}
+              {inheritedFromDate && (
+                <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700">
+                  📋 Lấy từ ngày {inheritedFromDate === 'default' ? 'mặc định' : formatDateVNLabel(inheritedFromDate)} (sửa ở đây không đổi ngày cũ)
+                </span>
               )}
             </div>
             <h1 className="mt-2 text-xl sm:text-2xl font-black tracking-tight text-slate-900">
-              Bảng Sắp Xếp Phương Tiện (1 Phương Tiện = 1 Vị Trí Duy Nhất)
+              Bảng Sắp Xếp Phương Tiện Ngày {formatDateVNLabel(selectedDate)}
             </h1>
             <p className="mt-0.5 text-xs sm:text-sm text-slate-500">
               Kéo thả trực tiếp tên ghe/tàu giữa 6 cột trạng thái (hoặc chọn cột nhanh trên thẻ). Hệ thống tự động đảm bảo không bị trùng ở 2 nơi.

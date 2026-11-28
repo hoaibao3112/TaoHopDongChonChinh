@@ -46,8 +46,11 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const plan = await getDailyIntakePlan(date);
-    return NextResponse.json({ success: true, data: plan }, { headers: NO_STORE_HEADERS });
+    const { plan, inheritedFromDate } = await getDailyIntakePlan(date);
+    return NextResponse.json(
+      { success: true, data: plan, inheritedFromDate },
+      { headers: NO_STORE_HEADERS }
+    );
   } catch (err: unknown) {
     console.error('[API DailyPlan GET Error]:', err);
     return NextResponse.json(

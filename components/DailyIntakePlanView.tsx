@@ -16,14 +16,16 @@ import {
 } from '@/lib/vehicle-board/types';
 
 interface DailyIntakePlanViewProps {
+  planDate: string;
+  onChangeDate: (nextDate: string) => void;
   vehicles: VehicleItem[];
   onSyncVehiclesToColumns: (assignments: { vehicleId: string; columnId: VehicleColumnId }[]) => void;
 }
 
-function getTodayVN(): string {
-  const now = new Date();
-  const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
-  return vn.toISOString().slice(0, 10);
+function formatDateVNLabel(dateStr: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+  const [y, m, d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
 }
 
 function inferTargetColumn(riceType: string): VehicleColumnId {
@@ -35,11 +37,13 @@ function inferTargetColumn(riceType: string): VehicleColumnId {
 }
 
 export default function DailyIntakePlanView({
+  planDate,
+  onChangeDate,
   vehicles,
   onSyncVehiclesToColumns,
 }: DailyIntakePlanViewProps) {
-  const [planDate, setPlanDate] = useState<string>(getTodayVN);
-  const [plan, setPlan] = useState<DailyIntakePlan>(() => createEmptyDailyPlan(getTodayVN()));
+  const [plan, setPlan] = useState<DailyIntakePlan>(() => createEmptyDailyPlan(planDate));
+  const [inheritedFromDate, setInheritedFromDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +70,7 @@ export default function DailyIntakePlanView({
         if (!ok || !data.success || !data.data) {
           throw new Error(data.error || 'Không thể tải kế hoạch nhận hàng');
         }
+        setInheritedFromDate(data.inheritedFromDate || null);
         setPlan(data.data as DailyIntakePlan);
       })
       .catch((err: unknown) => {
@@ -83,11 +88,12 @@ export default function DailyIntakePlanView({
   }, [planDate]);
 
   const handleDateChange = (nextDate: string) => {
-    if (!nextDate) return;
+    if (!nextDate || nextDate === planDate) return;
     setIsLoading(true);
     setError(null);
     setSyncMessage(null);
-    setPlanDate(nextDate);
+    setInheritedFromDate(null);
+    onChangeDate(nextDate);
   };
 
   const persistPlan = (nextPlan: DailyIntakePlan, immediate = false) => {
@@ -106,6 +112,7 @@ export default function DailyIntakePlanView({
         if (!res.ok || !data.success) {
           throw new Error(data.error || 'Lỗi lưu kế hoạch');
         }
+        setInheritedFromDate(null);
         setSaveStatus('saved');
       } catch (err: unknown) {
         setSaveStatus('error');
@@ -338,11 +345,16 @@ export default function DailyIntakePlanView({
                 <span className="text-xs font-bold text-amber-600 animate-pulse">⏳ Đang lưu...</span>
               )}
               {saveStatus === 'saved' && (
-                <span className="text-xs font-bold text-emerald-700">✅ Đã lưu CSDL</span>
+                <span className="text-xs font-bold text-emerald-700">✅ Đã lưu ngày {formatDateVNLabel(planDate)}</span>
+              )}
+              {inheritedFromDate && (
+                <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700">
+                  📋 Lấy từ ngày {formatDateVNLabel(inheritedFromDate)} (sửa ở đây không đổi ngày cũ)
+                </span>
               )}
             </div>
             <h2 className="mt-2 text-lg sm:text-xl font-black text-slate-900">
-              Điều Phối Phương Tiện Nhận Hàng Theo Ngày
+              Điều Phối Phương Tiện Nhận Hàng Ngày {formatDateVNLabel(planDate)}
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
               Gán tàu/ghe nhận hàng cho từng nhà cung cấp, tự động kiểm tra sức chở thực tế (80–85%), chống trùng tàu trong ngày và đồng bộ sang Bảng 6 Cột.

@@ -28,6 +28,8 @@ export interface VehicleItem {
 }
 
 export interface VehicleBoardState {
+  date?: string; // YYYY-MM-DD
+  inheritedFromDate?: string; // Ngày nguồn nếu vừa kế thừa từ ngày trước
   vehicles: VehicleItem[];
   updatedAt: string;
 }

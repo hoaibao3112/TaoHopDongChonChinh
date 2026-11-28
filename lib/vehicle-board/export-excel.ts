@@ -39,7 +39,11 @@ const LEGEND_ROWS: { colId: VehicleColumnId; label: string; desc: string }[] = [
   },
 ];
 
-function formatDateVN(isoStr: string): string {
+function formatDateVN(dateStr?: string, isoStr?: string): string {
+  if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [yyyy, mm, dd] = dateStr.split('-');
+    return `${dd}/${mm}/${yyyy}`;
+  }
   const dt = isoStr ? new Date(isoStr) : new Date();
   const safeDt = Number.isNaN(dt.getTime()) ? new Date() : dt;
   const vn = new Date(safeDt.getTime() + 7 * 60 * 60 * 1000);
@@ -65,7 +69,7 @@ export async function buildVehicleBoardExcelBuffer(state: VehicleBoardState): Pr
   // Dòng 1: DANH SÁCH PHƯƠNG TIỆN NGÀY DD/MM/YYYY (Nền xanh navy đậm, chữ trắng)
   ws.mergeCells(1, 1, 1, VEHICLE_COLUMNS.length);
   const titleCell = ws.getCell(1, 1);
-  titleCell.value = `DANH SÁCH PHƯƠNG TIỆN NGÀY ${formatDateVN(state.updatedAt)}`;
+  titleCell.value = `DANH SÁCH PHƯƠNG TIỆN NGÀY ${formatDateVN(state.date, state.updatedAt)}`;
   titleCell.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY_BG } };
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };

@@ -39,7 +39,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const state = await getVehicleBoardState();
+    const dateParam = req.nextUrl.searchParams.get('date') || undefined;
+    if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return NextResponse.json(
+        { error: 'Định dạng ngày không hợp lệ (YYYY-MM-DD)' },
+        { status: 400, headers: NO_STORE_HEADERS }
+      );
+    }
+    const state = await getVehicleBoardState(dateParam);
     return NextResponse.json({ success: true, data: state }, { headers: NO_STORE_HEADERS });
   } catch (err: unknown) {
     console.error('[API VehicleBoard GET Error]:', err);
@@ -67,13 +74,16 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = (await req.json()) as {
+      date?: string;
       resetDefault?: boolean;
       state?: Partial<VehicleBoardState>;
     };
 
+    const targetDate = body.date && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : undefined;
+
     if (body.resetDefault) {
       const def = createDefaultVehicleBoardState();
-      const saved = await saveVehicleBoardState(def);
+      const saved = await saveVehicleBoardState(def, targetDate);
       return NextResponse.json({ success: true, data: saved }, { headers: NO_STORE_HEADERS });
     }
 
@@ -84,7 +94,7 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const saved = await saveVehicleBoardState(body.state);
+    const saved = await saveVehicleBoardState(body.state, targetDate);
     return NextResponse.json({ success: true, data: saved }, { headers: NO_STORE_HEADERS });
   } catch (err: unknown) {
     console.error('[API VehicleBoard PUT Error]:', err);
