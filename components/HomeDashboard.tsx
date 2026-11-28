@@ -121,7 +121,7 @@ const DASHBOARD_MODULES: DashboardModule[] = [
         description: 'Tổng hợp lúa khô nằm tài & lúa tươi chờ sấy quy đổi KCS',
       },
       {
-        label: 'Báo Cáo Nhập Ngày (Chị Ngọc)',
+        label: 'Báo Cáo Thu Mua Lúa',
         href: '/bao-cao-nhap-ngay',
         icon: '📅',
         description: 'Báo cáo lúa tươi & lúa khô nhập theo ngày, phân loại HĐ & PT',

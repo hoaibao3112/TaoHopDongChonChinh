@@ -371,7 +371,7 @@ export default function AppHeader() {
               }`}
             >
               <span className="text-sm sm:text-base">📅</span>
-              <span>Báo Cáo Nhập Ngày</span>
+              <span>Báo Cáo Thu Mua Lúa</span>
               <span className="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold px-2 py-0.5 shadow-2xs">
                 Mới
               </span>
